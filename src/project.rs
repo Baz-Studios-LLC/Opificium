@@ -248,7 +248,27 @@ pub fn opening() -> Option<PathBuf> {
             return Some(road);
         }
     }
+    // The same thing without a command line: scripts, CI, and the
+    // headless bake, none of which own argv.
+    if let Ok(said) = std::env::var("OPIFICIUM_PROJECT") {
+        let road = PathBuf::from(said);
+        if road.is_dir() {
+            return Some(road);
+        }
+    }
     recent().into_iter().next()
+}
+
+/// Opens whatever `opening()` names, without disturbing the recent list.
+///
+/// For the headless paths - a bake run from a script or a build - where
+/// being remembered as "the project you were last working in" would be a
+/// lie about a person's intent.
+pub fn open_quietly() -> Option<Project> {
+    let road = opening()?;
+    let project = Project::read(&road).ok()?;
+    *CURRENT.write().unwrap() = Some(project.clone());
+    Some(project)
 }
 
 #[cfg(test)]

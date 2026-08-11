@@ -9420,12 +9420,19 @@ mod bake {
     #[test]
     #[ignore = "a hand-run export, not a check"]
     fn bake_the_works() {
+        // Which game's works. Named by OPIFICIUM_PROJECT or on the
+        // command line; without one there is nothing here to bake, and
+        // saying so beats walking a stranger's folders.
+        let project = crate::project::open_quietly()
+            .expect("no project - set OPIFICIUM_PROJECT to a game's opificium folder");
+        println!("baking {} ({})", project.name, project.root.display());
+
         let palette = crate::look::load_palette_for_bake();
-        let dir = bench_path().parent().unwrap().to_path_buf();
-        let baked_dir = dir.parent().unwrap().join("baked");
+        let dir = crate::project::work();
+        let baked_dir = crate::project::baked();
         std::fs::create_dir_all(&baked_dir).expect("baked dir");
 
-        for entry in std::fs::read_dir(&dir).expect("out/buildings") {
+        for entry in std::fs::read_dir(&dir).expect("the project's work folder") {
             let path = entry.expect("entry").path();
             if !is_a_work(&path) {
                 continue;
