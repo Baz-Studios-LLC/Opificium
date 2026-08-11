@@ -20,7 +20,7 @@
 //! # Whose body it is
 //!
 //! Not this program's. The bodies come out of the game's own builder, baked to
-//! `data/bodies/*.json` by `cargo test bake_the_bodies` over in the game, with
+//! the project's `data/bodies/*.json` by an export over in the game, with
 //! the joints named the way a clip names them. Opificium and the game share no
 //! code, so a villager drawn here by hand would be a SECOND villager, and wrong
 //! the first time a proportion moved.
@@ -298,23 +298,17 @@ impl Plugin for RigPlugin {
 /// bundled bench keeps those in Application Support, where no body was ever
 /// written.
 fn carry_in_the_bodies(mut bodies: ResMut<Bodies>, mut wearing: ResMut<Wearing>) {
-    let mut roads: Vec<std::path::PathBuf> = Vec::new();
-    // Beside the program FIRST, which is where a bundle keeps it. A bench
-    // launched from the game's title screen has a working directory of `/`, and
-    // a source tree that happens to exist on the machine is not the copy that
-    // was shipped.
+    // The open project's bodies first: these are one game's people, and
+    // no other game's rig should ever answer for them.
+    let mut roads: Vec<std::path::PathBuf> = vec![crate::project::bodies()];
+    // Then beside the program, which is where a bundle keeps its own.
     if let Ok(exe) = std::env::current_exe()
         && let Some(beside) = exe.parent()
     {
         roads.push(beside.join("data/bodies"));
         roads.push(beside.join("../Resources/data/bodies"));
     }
-    if let Ok(manifest) = std::env::var("CARGO_MANIFEST_DIR") {
-        roads.push(std::path::PathBuf::from(manifest).join("data/bodies"));
-    }
     roads.push("data/bodies".into());
-    roads.push("opificium/data/bodies".into());
-    roads.push(std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("data/bodies"));
     let Some((home, entries)) = roads
         .into_iter()
         .find_map(|road| std::fs::read_dir(&road).ok().map(|entries| (road, entries)))
@@ -1472,7 +1466,7 @@ fn keep_or_open_a_clip(
         let called = clip.name.clone().unwrap_or_else(|| "clip".to_string());
         if let Some(path) = rfd::FileDialog::new()
             .set_title("Keep the clip")
-            .add_filter("Divus Factus clips", &["baz"])
+            .add_filter("Opificium clips", &["baz"])
             .set_directory(&home)
             .set_file_name(format!("{called}.baz"))
             .save_file()
@@ -1506,7 +1500,7 @@ fn keep_or_open_a_clip(
         let _ = std::fs::create_dir_all(&home);
         if let Some(path) = rfd::FileDialog::new()
             .set_title("Open a clip")
-            .add_filter("Divus Factus clips", &["baz"])
+            .add_filter("Opificium clips", &["baz"])
             .set_directory(&home)
             .pick_file()
         {

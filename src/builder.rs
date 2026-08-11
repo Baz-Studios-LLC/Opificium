@@ -2999,23 +2999,21 @@ fn take_one_back_out(
 #[derive(Component)]
 pub(crate) struct BakeButton;
 
-/// Where a maker's own baked work goes: beside the game's saves, under the roof
-/// the game already reads out of.
+/// Where baked work is carried so a game can read it.
 ///
-/// NOT the bundle. A bundle is replaced whole on the next update and is not
+/// The project says where that is - only the game knows - and until it
+/// does, the bake stops in the project's own `baked` folder and the
+/// carrying is done by hand. The bench used to write straight into one
+/// particular game's application-support folder, which is exactly the
+/// assumption that kept it from serving any other.
+///
+/// NOT a bundle. A bundle is replaced whole on the next update and is not
 /// writable besides, so a building baked into it would last until Tuesday.
 pub(crate) fn carried_home(under: &str) -> std::path::PathBuf {
-    let home = std::env::var("HOME").unwrap_or_else(|_| ".".into());
-    let base = if cfg!(target_os = "macos") {
-        format!("{home}/Library/Application Support/Divus Factus")
-    } else if cfg!(target_os = "windows") {
-        std::env::var("APPDATA")
-            .map(|roaming| format!("{roaming}/Divus Factus"))
-            .unwrap_or_else(|_| ".".into())
-    } else {
-        format!("{home}/.local/share/divus-factus")
-    };
-    std::path::PathBuf::from(base).join(under)
+    match crate::project::install() {
+        Some(into) => into.join(under),
+        None => crate::project::baked().join(under),
+    }
 }
 
 /// Asks what the work is, and where it should go, before carrying it in.
@@ -5497,9 +5495,10 @@ fn pick_a_work(
     }
     let home = works_home();
     let _ = std::fs::create_dir_all(&home);
+    let home = opening_home();
     if let Some(path) = rfd::FileDialog::new()
         .set_title("Open a work")
-        .add_filter("Divus Factus works", &[WORK_KIND])
+        .add_filter("Opificium works", &[WORK_KIND])
         .set_directory(&home)
         .pick_file()
     {
@@ -7785,37 +7784,37 @@ fn is_a_work(path: &std::path::Path) -> bool {
 /// that is read-only where it is installed properly, and that breaks the
 /// signature where it is not.
 ///
-/// A maker working in the tree still writes to `opificium/out/buildings`, which is
-/// where their buildings already are and where git can see them.
+/// The open project's root: where this game's work is saved, reopened and
+/// committed alongside its own code.
 pub(crate) fn bench_home() -> std::path::PathBuf {
-    if let Ok(tree) = std::env::var("CARGO_MANIFEST_DIR") {
-        return std::path::PathBuf::from(tree);
-    }
-    // Beside the game's saves, under the same roof the launcher already uses
-    // for this game's things.
-    let home = std::env::var("HOME").unwrap_or_else(|_| ".".into());
-    let base = if cfg!(target_os = "macos") {
-        format!("{home}/Library/Application Support/Divus Factus/opificium")
-    } else if cfg!(target_os = "windows") {
-        std::env::var("APPDATA")
-            .map(|roaming| format!("{roaming}/Divus Factus/opificium"))
-            .unwrap_or_else(|_| "opificium".into())
-    } else {
-        format!("{home}/.local/share/divus-factus/opificium")
-    };
-    std::path::PathBuf::from(base)
+    crate::project::root()
 }
 
 fn bench_path() -> std::path::PathBuf {
-    bench_home().join(format!("out/buildings/workbench.{WORK_KIND}"))
+    crate::project::work().join(format!("workbench.{WORK_KIND}"))
 }
 
 /// Where the works are kept: the folder the bench saves into and loads from.
 fn works_home() -> std::path::PathBuf {
-    bench_path()
-        .parent()
-        .map(std::path::Path::to_path_buf)
-        .unwrap_or_else(bench_home)
+    crate::project::work()
+}
+
+/// Where the Open dialog should start.
+///
+/// The project's own works, unless there are none yet - a project on its
+/// first day has an empty work folder, and dropping the maker into it
+/// with nothing to open is a poor way to begin. The starting shapes are
+/// better company.
+fn opening_home() -> std::path::PathBuf {
+    let works = works_home();
+    let empty = std::fs::read_dir(&works)
+        .map(|mut entries| entries.next().is_none())
+        .unwrap_or(true);
+    let templates = crate::project::templates();
+    if empty && templates.is_dir() {
+        return templates;
+    }
+    works
 }
 
 /// The save button asks the work its name; the writing happens when the

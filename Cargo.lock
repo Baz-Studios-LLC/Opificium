@@ -2300,16 +2300,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c9c272297e804878a2a4b707cfcfc6d2328b5bb936944613b4fdf2b9269afdfd"
 
 [[package]]
-name = "divus-factus-opificium"
-version = "0.3.4"
-dependencies = [
- "bevy",
- "rfd",
- "serde",
- "serde_json",
-]
-
-[[package]]
 name = "dlib"
 version = "0.5.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3937,6 +3927,16 @@ name = "once_cell"
 version = "1.21.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9f7c3e4beb33f85d45ae3e3a1792185706c8e16d043238c593331cc7cd313b50"
+
+[[package]]
+name = "opificium"
+version = "0.4.0"
+dependencies = [
+ "bevy",
+ "rfd",
+ "serde",
+ "serde_json",
+]
 
 [[package]]
 name = "orbclient"

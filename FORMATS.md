@@ -1,17 +1,51 @@
 # The file contract
 
-Opificium and Divus Factus share no code. Everything that passes between
-them is a file described here, and this page is the single word on what
-those files mean. The game exports its truth for Opificium (`data/`);
-the maker exports work for the game (`out/`), and the god carries it into
-the world by hand.
+Opificium and the games that use it share no code. Everything that passes
+between them is a file described here, and this page is the single word
+on what those files mean. A game exports its truth for Opificium
+(`data/`); the maker exports work for the game (`out/`), and it is
+carried into the world from there.
+
+## A project
+
+Opificium holds no game's content. It works on a PROJECT: one game's own
+folder, living in that game's repository, described by an
+`opificium.json` at its root. Everything below is relative to that
+folder.
+
+```json
+{
+  "format": 1,
+  "name": "Divus Factus",
+  "install": "../assets/buildings"
+}
+```
+
+| field       | default             | what it is                                      |
+| ----------- | ------------------- | ----------------------------------------------- |
+| `name`      | the folder's name   | what the bench calls this project                |
+| `palette`   | `data/palette.json` | the game's colour ramps                          |
+| `bodies`    | `data/bodies`       | the game's people, for the rig                   |
+| `templates` | `templates`         | starting shapes to draw from                     |
+| `work`      | `out/buildings`     | the maker's own saved work                       |
+| `baked`     | `out/baked`         | exported work, ready for the game                |
+| `install`   | none                | where baked work is carried so the game reads it |
+
+A folder with no manifest at all is still a project, and takes every
+default — point the bench at an empty directory and start working.
+
+Opificium opens the project named on its command line, or the last one
+worked in, and asks for a folder only when it has never been opened
+before. Its own settings live apart from any game, under
+`Opificium/` in the machine's usual place for such things.
 
 ## Game → Opificium
 
 ### `data/palette.json`
 
-Written by the game: `cargo test export_palette_for_opificium -- --ignored`.
-Re-run whenever the game's palette changes.
+Written by the game. In Divus Factus that is
+`cargo test export_palette_for_opificium -- --ignored`; every game does
+it its own way. Re-run whenever the game's palette changes.
 
 ```json
 { "ramps": [ { "name": "wood", "steps": [[26,28,36], ...5 RGB steps...] } ] }

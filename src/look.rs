@@ -1,6 +1,6 @@
 //! The game's look, carried in as data.
 //!
-//! The palette arrives from the game via `data/palette.json` — written by
+//! The palette arrives from the game via the project's `data/palette.json` — written by
 //! the game's own `export_palette_for_opificium` test — so nothing here can
 //! drift from what the game actually draws. If the file is missing the
 //! Opificium still opens, in bone and gold, and says so.
@@ -169,18 +169,17 @@ pub fn load_palette_for_bake() -> Palette {
 /// Reads the palette relative to the crate first (so `cargo run` works from
 /// anywhere), then the working directory, then gives up gracefully.
 fn load_palette() -> Palette {
-    let mut roads = Vec::new();
+    // The open project's own palette first: every game paints in its own
+    // colours, and that file is the one thing the game must hand the
+    // bench before any authored work means anything.
+    let mut roads = vec![crate::project::palette()];
     if let Ok(exe) = std::env::current_exe()
         && let Some(beside) = exe.parent()
     {
         roads.push(beside.join("data/palette.json"));
         roads.push(beside.join("../Resources/data/palette.json"));
     }
-    if let Ok(manifest) = std::env::var("CARGO_MANIFEST_DIR") {
-        roads.push(std::path::PathBuf::from(manifest).join("data/palette.json"));
-    }
     roads.push("data/palette.json".into());
-    roads.push("opificium/data/palette.json".into());
 
     for road in roads {
         if let Ok(text) = std::fs::read_to_string(&road)
@@ -201,8 +200,8 @@ fn load_palette() -> Palette {
         }
     }
     warn!(
-        "no data/palette.json - run the game's export first: \
-         cargo test export_palette_for_opificium -- --ignored"
+        "no palette in {} - the game exports one; see FORMATS.md",
+        crate::project::palette().display(),
     );
     Palette {
         ramps: vec![

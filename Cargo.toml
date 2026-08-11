@@ -1,12 +1,13 @@
 [package]
-name = "divus-factus-opificium"
-version = "0.3.4"
+name = "opificium"
+version = "0.4.0"
 edition = "2024"
-description = "The maker's own bench: buildings and animations for Divus Factus, authored by hand and exported as files."
+description = "A maker's bench for buildings and animations: authored by hand, exported as files, and read by whatever game asked for them."
 
-# Its own workspace on purpose: the Atelier and the game are two programs
-# that speak only through files. The game's build, CI and packaging never
-# see this crate.
+# Its own repository now, and its own workspace within it. Opificium and
+# the games that use it are separate programs that speak only through
+# files - see FORMATS.md - so no game's build, CI or packaging ever sees
+# this crate, and this crate never sees theirs.
 [workspace]
 
 [dependencies]
