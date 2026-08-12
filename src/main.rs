@@ -13,6 +13,7 @@
 
 use bevy::prelude::*;
 
+mod bake;
 mod project;
 mod builder;
 mod camera;
@@ -33,6 +34,15 @@ pub enum Bench {
 }
 
 fn main() {
+    // `--bake` never opens a window, and never touches the recent list. A
+    // drawing could otherwise only enter a game through somebody pressing a
+    // button, which makes a floor plan a checked-in artefact rather than a
+    // generated one: no build, and nobody who has the source without the bench
+    // open, could rebuild a house from its blueprint.
+    if let Some(ask) = bake::asked_for() {
+        std::process::exit(bake::run(&ask));
+    }
+
     // The project comes first, before a single plugin starts: the palette
     // and the bodies are both read during startup, and they are read out
     // of whichever game's folder is open.

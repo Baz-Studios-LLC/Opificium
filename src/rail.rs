@@ -523,7 +523,7 @@ off, walls down as well",
     let bake = icon_face(&mut commands, &palette, tools);
     commands.entity(bake).insert((
         crate::builder::BakeButton,
-        Word("Carry this building into the game"),
+        Word("Bake"),
     ));
     let stack = commands
         .spawn((

@@ -2,8 +2,13 @@
 //!
 //! The palette arrives from the game via the project's `data/palette.json` — written by
 //! the game's own `export_palette_for_opificium` test — so nothing here can
-//! drift from what the game actually draws. If the file is missing the
-//! Opificium still opens, in bone and gold, and says so.
+//! drift from what the game actually draws.
+//!
+//! A game that has not written one yet is the ordinary case rather than the
+//! broken one: a bench is where a game's look is DECIDED, so it must open and
+//! paint before any game has an opinion. Without a file it wears its own ramps —
+//! see [`BENCH_RAMPS`] — and says so. A project's file wins name for name the
+//! moment it exists.
 
 use bevy::prelude::*;
 use serde::Deserialize;
@@ -161,7 +166,9 @@ fn load_fonts(mut commands: Commands, assets: Res<AssetServer>) {
 }
 
 /// The palette, for the bake to resolve colours with.
-#[cfg(test)]
+///
+/// No longer test-only: the headless bake in [`crate::bake`] is ordinary code
+/// and needs the same colours the button does.
 pub fn load_palette_for_bake() -> Palette {
     load_palette()
 }
@@ -200,31 +207,81 @@ fn load_palette() -> Palette {
         }
     }
     warn!(
-        "no palette in {} - the game exports one; see FORMATS.md",
+        "no palette in {} - painting in the bench's own {} ramps. A game that \
+         wants its own exports one; see FORMATS.md",
         crate::project::palette().display(),
+        BENCH_RAMPS.len(),
     );
+    bench_palette()
+}
+
+/// The colours the bench wears when no game has handed it any.
+///
+/// A game's palette is that game's own truth and arrives as data. These are not
+/// that. They are the BENCH's own dress: what it paints with while a project is
+/// still empty — which, for a game being started from nothing, is every day of
+/// the first week.
+///
+/// It used to be two ramps, bone and gold. They dressed the rail and the grid,
+/// and left everything else MAGENTA: `shade` answers a ramp it does not know
+/// with the classic missing-colour, and `body_of` names fourteen. So a maker who
+/// pointed the bench at a fresh project got a shelf of parts that all drew in
+/// magenta, a paint palette holding two rows, and nothing on the screen to say
+/// why. Brett, on exactly that: "This used to have way more colors before I
+/// separated it. What happened?" — the colours had gone home with the game they
+/// belonged to, correctly, and nothing had taken their place.
+///
+/// A standalone bench carries its own. Every one of these loses, name for name,
+/// to the same name in a project's `palette.json` the moment one exists, so a
+/// game is never stuck with them — but a bench with no game is never stuck
+/// either.
+///
+/// The studio's own five-step convention: shadow, low, mid, high, bright.
+///
+/// One line per ramp, and the formatter is told to leave it that way. A ramp is a
+/// ROW of a table — its whole meaning is how its five steps run, and how they run
+/// beside the ramp above it — and rustfmt would give each number a line of its
+/// own, turning twenty-four readable rows into two hundred lines nobody can scan.
+#[rustfmt::skip]
+pub(crate) const BENCH_RAMPS: [(&str, [[u8; 3]; 5]); 24] = [
+    // The ground and what grows on it.
+    ("stone", [[26, 28, 36], [43, 47, 59], [66, 70, 84], [93, 98, 112], [126, 131, 145]]),
+    ("earth", [[31, 23, 18], [51, 37, 26], [74, 56, 38], [101, 78, 53], [136, 107, 74]]),
+    ("grass", [[23, 36, 28], [37, 58, 42], [54, 84, 58], [77, 115, 70], [112, 154, 82]]),
+    ("foliage", [[17, 29, 25], [27, 48, 36], [40, 70, 48], [58, 95, 56], [86, 128, 68]]),
+    ("sand", [[61, 47, 32], [92, 70, 48], [129, 99, 63], [168, 133, 81], [203, 171, 116]]),
+    ("water", [[13, 26, 38], [19, 41, 58], [28, 64, 84], [42, 94, 115], [74, 142, 156]]),
+    ("sky", [[27, 36, 64], [43, 61, 99], [67, 98, 147], [106, 145, 192], [166, 197, 224]]),
+    // What a building is made of. `wood` and `stone` carry most of the bench:
+    // between them they are a hundred and fifty of the slabs in `body_of`.
+    ("wood", [[28, 19, 16], [46, 33, 26], [69, 47, 34], [93, 66, 44], [125, 91, 60]]),
+    ("bone", [[43, 38, 32], [69, 62, 51], [102, 92, 75], [138, 126, 105], [179, 166, 140]]),
+    ("snow", [[109, 117, 134], [139, 147, 163], [168, 177, 190], [198, 205, 215], [232, 236, 242]]),
+    ("scrub", [[42, 38, 22], [68, 61, 34], [100, 89, 48], [135, 119, 66], [171, 153, 92]]),
+    // The people who live in it.
+    ("skin-pale", [[58, 32, 24], [90, 51, 37], [125, 76, 54], [160, 106, 75], [196, 143, 107]]),
+    ("skin-mid", [[44, 24, 16], [71, 40, 26], [102, 64, 38], [138, 92, 58], [173, 128, 88]]),
+    ("skin-deep", [[28, 15, 10], [48, 26, 17], [74, 43, 27], [102, 64, 39], [138, 92, 60]]),
+    // And what they dye things with. `cloth-gold` is the bench's own accent -
+    // the rail, the sill, the handles - so it is never absent whatever else is.
+    ("cloth-gold", [[50, 36, 12], [77, 56, 19], [111, 82, 32], [149, 116, 64], [193, 156, 98]]),
+    ("cloth-red", [[42, 16, 21], [69, 24, 34], [107, 37, 48], [147, 53, 58], [189, 90, 82]]),
+    ("cloth-blue", [[18, 26, 44], [29, 43, 70], [44, 66, 102], [64, 96, 140], [99, 137, 181]]),
+    ("cloth-green", [[19, 33, 15], [31, 52, 25], [47, 77, 36], [69, 106, 51], [102, 143, 73]]),
+    ("cloth-purple", [[31, 18, 40], [51, 29, 66], [77, 44, 96], [107, 65, 130], [143, 99, 164]]),
+    ("cloth-wine", [[38, 14, 28], [62, 21, 45], [92, 32, 66], [125, 48, 88], [161, 77, 116]]),
+    ("cloth-teal", [[13, 32, 32], [20, 51, 51], [31, 76, 74], [46, 106, 101], [73, 143, 134]]),
+    ("cloth-rust", [[46, 20, 10], [76, 32, 14], [112, 49, 20], [150, 71, 30], [189, 102, 51]]),
+    ("cloth-sable", [[12, 12, 16], [21, 21, 26], [32, 33, 39], [45, 47, 54], [62, 65, 73]]),
+    ("cloth-pink", [[56, 20, 36], [94, 34, 61], [140, 55, 91], [184, 81, 121], [221, 120, 155]]),
+];
+
+/// The bench's own ramps, as a palette.
+pub(crate) fn bench_palette() -> Palette {
     Palette {
-        ramps: vec![
-            (
-                "bone".to_string(),
-                [
-                    [60, 55, 48],
-                    [105, 97, 84],
-                    [152, 142, 124],
-                    [199, 188, 166],
-                    [237, 227, 205],
-                ],
-            ),
-            (
-                "cloth-gold".to_string(),
-                [
-                    [66, 48, 16],
-                    [110, 82, 28],
-                    [158, 121, 43],
-                    [205, 163, 66],
-                    [240, 205, 103],
-                ],
-            ),
-        ],
+        ramps: BENCH_RAMPS
+            .iter()
+            .map(|(name, steps)| ((*name).to_string(), *steps))
+            .collect(),
     }
 }

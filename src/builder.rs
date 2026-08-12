@@ -3011,7 +3011,15 @@ pub(crate) struct BakeButton;
 /// writable besides, so a building baked into it would last until Tuesday.
 pub(crate) fn carried_home(under: &str) -> std::path::PathBuf {
     match crate::project::install() {
-        Some(into) => into.join(under),
+        // `install` NAMES the folder - both manifests in the studio say
+        // `.../assets/buildings` - so joining `under` onto it again wrote to
+        // `.../assets/buildings/buildings`, which no game reads. Nothing had
+        // caught it because nothing had yet baked through an install path.
+        //
+        // When clips need carrying too, the honest fix is for `install` to name
+        // a ROOT and for every manifest to lose its last component; until then
+        // one destination needs no sub-folder to tell it apart from the others.
+        Some(into) => into,
         None => crate::project::baked().join(under),
     }
 }
@@ -3352,7 +3360,7 @@ fn choose_the_kind(
 }
 
 /// Writes the work into the game's own folder, as a building of a named kind.
-fn carry_into_the_game(
+pub(crate) fn carry_into_the_game(
     work: &Workbench,
     palette: &Palette,
     name: &str,
@@ -7769,7 +7777,7 @@ pub const WORK_KIND: &str = "baz";
 /// Both, forever. A maker's buildings are not something to lose to a rename, and
 /// the ones already on disk are the only two that exist.
 #[cfg_attr(not(test), allow(dead_code))]
-fn is_a_work(path: &std::path::Path) -> bool {
+pub(crate) fn is_a_work(path: &std::path::Path) -> bool {
     path.extension()
         .is_some_and(|kind| kind == WORK_KIND || kind == "json")
 }
@@ -11540,5 +11548,94 @@ mod roof_tests {
             "the range is not a whole number of steps, so the steepest pitch \
              cannot be reached by stepping from the shallowest"
         );
+    }
+}
+
+#[cfg(test)]
+mod colours {
+    use super::*;
+
+    /// Every ramp the bench NAMES, the bench can also PAINT.
+    ///
+    /// A ramp name is a string literal, so nothing in the compiler is watching:
+    /// `shade` answers a ramp it does not know with the classic missing-colour,
+    /// which means a name with no ramp behind it is never an error anywhere. It
+    /// is a magenta wall. The bench's own palette held two ramps for a while and
+    /// `body_of` named fourteen, so a project with no `palette.json` came up with
+    /// a whole shelf of parts drawing in magenta and nothing on the screen to say
+    /// why.
+    ///
+    /// So the shelf is walked instead of trusted, and the answer is a list rather
+    /// than a yes: the point of failing is knowing WHICH colour went missing.
+    #[test]
+    fn the_bench_can_paint_everything_it_names() {
+        let palette = crate::look::bench_palette();
+        let mut wanted: std::collections::BTreeSet<String> = Default::default();
+
+        for entry in STRUCTURE.iter().chain(FURNITURE).chain(DECOR) {
+            // A stretch is never drawn as itself - what it PLACES is what it
+            // becomes at the drawn size, so that is the thing with a body.
+            let kind = match entry.kind.run_axes() {
+                Some(_) => entry.kind.run_made(2.0, 2.0),
+                None => entry.kind,
+            };
+            for Slab { ramp, .. } in body_of(&kind, None) {
+                wanted.insert(ramp);
+            }
+        }
+        for (widget, ..) in WIDGETS {
+            for Slab { ramp, .. } in body_of(&PartKind::Widget(*widget), None) {
+                wanted.insert(ramp);
+            }
+        }
+        // And the bench's own dress, which is named in the other modules rather
+        // than in any part's body: the floor grid and the door sill in `stage`,
+        // the panels and the accent in `look::theme`, the three handle shafts in
+        // `gizmo`.
+        for dressing in ["bone", "cloth-gold", "stone", "cloth-red", "cloth-blue"] {
+            wanted.insert(dressing.to_string());
+        }
+
+        // A walk that found nothing would report no missing colours either, which
+        // is the one way this test could pass while saying nothing at all.
+        assert!(
+            wanted.len() >= 10,
+            "only {} ramps found across the whole shelf - the walk is broken, not \
+             the palette",
+            wanted.len()
+        );
+
+        let missing: Vec<&str> = wanted
+            .iter()
+            .filter(|name| palette.ramp(name).is_none())
+            .map(String::as_str)
+            .collect();
+        assert!(
+            missing.is_empty(),
+            "the bench draws in {missing:?}, which its own palette does not hold - \
+             every one of those comes out magenta in a project that has not \
+             exported a palette of its own"
+        );
+    }
+
+    /// A ramp runs shadow to bright, and the shelf leans on it.
+    ///
+    /// `shade` is handed a 0..1 and reads the step nearest it, so a ramp whose
+    /// middle is darker than its foot would make a part's own shading read
+    /// backwards - the lit face darker than the one in shadow. Cheap to check and
+    /// impossible to see by eye across twenty-four of them.
+    #[test]
+    fn every_ramp_climbs() {
+        for (name, steps) in crate::look::BENCH_RAMPS {
+            let light = |[r, g, b]: [u8; 3]| r as u32 + g as u32 + b as u32;
+            for pair in steps.windows(2) {
+                assert!(
+                    light(pair[1]) > light(pair[0]),
+                    "{name} does not climb: {:?} then {:?}",
+                    pair[0],
+                    pair[1]
+                );
+            }
+        }
     }
 }
