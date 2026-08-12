@@ -14,6 +14,7 @@
 use bevy::prelude::*;
 
 mod bake;
+mod menu;
 mod project;
 mod builder;
 mod camera;
@@ -63,6 +64,7 @@ fn main() {
         }))
         .init_resource::<Bench>()
         .add_plugins((look::LookPlugin, camera::CameraPlugin, stage::StagePlugin))
+        .add_plugins(menu::MenuPlugin)
         .add_plugins((rail::RailPlugin, builder::BuilderPlugin, gizmo::GizmoPlugin))
         .add_plugins(rig::RigPlugin)
         // Which bench the maker opens at. A maker working on the rig for an

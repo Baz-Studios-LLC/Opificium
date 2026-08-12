@@ -54,16 +54,21 @@ pub fn asked_for() -> Option<Ask> {
 
 /// The kind a name suggests, the same way the naming card guesses it: the
 /// LONGEST kind-word that begins the name, or `longhouse1` opens on "house".
+///
+/// Out of the PROJECT's own kinds, so a headless bake and a bake by hand reach the
+/// same answer for the same drawing. A project with no kinds guesses nothing and
+/// writes nothing, and the game reads the name itself - which is the reading every
+/// drawing baked before there was a card relies on, so it is a true one and not a
+/// shrug.
 fn kind_from(name: &str) -> String {
-    let mut order: Vec<usize> = (0..crate::builder::KINDS.len()).collect();
-    order.sort_by_key(|index| std::cmp::Reverse(crate::builder::KINDS[*index].0.len()));
+    let known = crate::project::kinds();
+    let mut order: Vec<usize> = (0..known.len()).collect();
+    order.sort_by_key(|index| std::cmp::Reverse(known[*index].word.len()));
     order
         .into_iter()
-        .find(|index| name.starts_with(crate::builder::KINDS[*index].0))
-        .map_or(crate::builder::KINDS[0].0, |index| {
-            crate::builder::KINDS[index].0
-        })
-        .to_string()
+        .find(|index| name.starts_with(&known[*index].word))
+        .map(|index| known[index].word.clone())
+        .unwrap_or_default()
 }
 
 /// Bakes, and returns the process's exit status.
@@ -125,7 +130,14 @@ pub fn run(ask: &Ask) -> i32 {
         let kind = ask.kind.clone().unwrap_or_else(|| kind_from(&name));
         match crate::builder::carry_into_the_game(&work, &palette, &name, &kind) {
             Ok((boxes, marks)) => {
-                println!("  {name}: {boxes} boxes, {marks} marks, carried in as a {kind}");
+                // A project with no kinds says so, rather than trailing off
+                // after "as a".
+                let said = if kind.is_empty() {
+                    "to be claimed by its name".to_string()
+                } else {
+                    format!("as a {kind}")
+                };
+                println!("  {name}: {boxes} boxes, {marks} marks, carried in {said}");
                 baked += 1;
             }
             Err(why) => {

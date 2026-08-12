@@ -1032,7 +1032,7 @@ fn hang_the_bodies_shelf(
             Node {
                 position_type: PositionType::Absolute,
                 right: Val::Px(0.0),
-                top: Val::Px(0.0),
+                top: Val::Px(crate::menu::BAR_HIGH),
                 bottom: Val::Px(0.0),
                 width: Val::Px(212.0),
                 flex_direction: FlexDirection::Column,
@@ -1550,7 +1550,7 @@ fn hang_the_top_bar(mut commands: Commands, fonts: Res<Fonts>, palette: Res<Pale
             Node {
                 position_type: PositionType::Absolute,
                 left: Val::Px(0.0),
-                top: Val::Px(0.0),
+                top: Val::Px(crate::menu::BAR_HIGH),
                 width: Val::Percent(100.0),
                 flex_direction: FlexDirection::Row,
                 justify_content: JustifyContent::Center,

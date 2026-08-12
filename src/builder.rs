@@ -1002,17 +1002,6 @@ pub const DECOR: &[CatalogEntry] = &[
     prop("WOODPILE", "woodpile"),
 ];
 
-pub const WIDGETS: &[(&str, &str, f32)] = &[
-    // name, ramp that colours its block, shade
-    ("sleep", "cloth-blue", 0.7),
-    ("sit", "cloth-gold", 0.6),
-    ("fire", "cloth-red", 0.7),
-    ("smoke", "stone", 0.7),
-    ("door", "cloth-green", 0.6),
-    ("work", "cloth-purple", 0.6),
-    ("store", "earth", 0.6),
-    ("light", "cloth-gold", 0.95),
-];
 
 /// The boxes a part is made of, in its own local space, resting on y = 0.
 fn body_of(kind: &PartKind, repaint: Option<(&str, f32)>) -> Vec<Slab> {
@@ -2322,11 +2311,14 @@ fn body_of(kind: &PartKind, repaint: Option<(&str, f32)>) -> Vec<Slab> {
         ],
         PartKind::Prop(_) => vec![],
         PartKind::Widget(name) => {
-            let (_, ramp, shade) = WIDGETS
+            // A mark the project has not declared still DRAWS - as a plain
+            // block in bone - because a work opened in the wrong project should
+            // show what it holds rather than lose it.
+            let found = crate::project::widgets()
                 .iter()
-                .find(|(w, _, _)| w == name)
-                .copied()
-                .unwrap_or(("", "bone", 0.5));
+                .find(|mark| mark.word == *name);
+            let (ramp, shade) =
+                found.map_or(("bone", 0.5), |mark| (mark.ramp.as_str(), mark.shade));
             // The sleeping place is shaped like the sleeper: a body laid
             // out at the game's own proportions, head toward the widget's
             // own facing. No guessing whether a bed is long enough, or
@@ -2647,7 +2639,9 @@ pub(crate) struct ClearButton;
 struct DrawerHeader {
     body: Entity,
     label: Entity,
-    name: &'static str,
+    /// Owned, because a drawer's head is not always a word chosen when the bench
+    /// was written: THE PROJECT's head is the name of the game that is open.
+    name: String,
     open: bool,
 }
 
@@ -2819,14 +2813,14 @@ fn hang_the_carried(
             bevy::text::Justify::Left,
             bevy::text::LineBreak::AnyCharacter,
         ));
-        let said = crate::builder::KINDS
+        let said = crate::project::kinds()
             .iter()
-            .find(|(word, _)| *word == file.kind)
-            .map(|(_, label)| *label)
-            .unwrap_or("BY ITS NAME");
+            .find(|kind| kind.word == file.kind)
+            .map(|kind| kind.said())
+            .unwrap_or_else(|| "BY ITS NAME".to_string());
         commands.spawn((
             Text::new(if mine {
-                said.to_string()
+                said.clone()
             } else {
                 format!("{said}  -  shipped")
             }),
@@ -3314,11 +3308,12 @@ fn bake_into_the_game(
     // been naming their works `longhouse1` for a week should find the card
     // already pointing at the longhouse. LONGEST word first, or `longhouse1`
     // opens on "house".
-    let mut guessed: Vec<usize> = (0..KINDS.len()).collect();
-    guessed.sort_by_key(|index| std::cmp::Reverse(KINDS[*index].0.len()));
+    let known = crate::project::kinds();
+    let mut guessed: Vec<usize> = (0..known.len()).collect();
+    guessed.sort_by_key(|index| std::cmp::Reverse(known[*index].word.len()));
     kind.0 = guessed
         .into_iter()
-        .find(|index| called.starts_with(KINDS[*index].0))
+        .find(|index| called.starts_with(&known[*index].word))
         .unwrap_or(0);
     naming.0 = Some(called);
     naming.1 = NamingFor::Carrying;
@@ -3331,12 +3326,26 @@ fn choose_the_kind(
     mut commands: Commands,
     fonts: Res<Fonts>,
     palette: Res<Palette>,
-    naming: Res<Naming>,
+    mut naming: ResMut<Naming>,
     mut kind: ResMut<CarryingKind>,
+    mut held: ResMut<NameHeld>,
     cards: Query<Entity, With<NamingCard>>,
     buttons: Query<(&Interaction, &KindButton), Changed<Interaction>>,
+    adding: Query<&Interaction, (Changed<Interaction>, With<NewKindButton>)>,
 ) {
     if naming.0.is_none() || naming.1 != NamingFor::Carrying {
+        return;
+    }
+    // Asked for a kind the project does not know: the same card, holding the
+    // work's name, asks for the word instead. `take_the_name` brings it back.
+    if adding.iter().any(|touch| *touch == Interaction::Pressed) {
+        held.0 = naming.0.clone().unwrap_or_default();
+        naming.0 = Some(String::new());
+        naming.1 = NamingFor::AKind;
+        for card in &cards {
+            commands.entity(card).despawn();
+        }
+        raise_naming_card(&mut commands, &fonts, &palette, NamingFor::AKind, kind.0);
         return;
     }
     let Some(chosen) = buttons
@@ -3370,11 +3379,19 @@ pub(crate) fn carry_into_the_game(
     // The kind, said outright in the file. A drawing used to be claimed by
     // whatever kind-word began its name, which a maker has to know and can get
     // wrong without being told.
-    let json = json.replacen(
-        "\"format\": 1,",
-        &format!("\"format\": 1,\n  \"kind\": \"{kind}\","),
-        1,
-    );
+    //
+    // Unless the project has no kinds at all, and then the field is LEFT OUT
+    // rather than written empty - a game reads a missing kind as "take it from the
+    // name", which is the older reading and a true one. See `project::kinds`.
+    let json = if kind.is_empty() {
+        json
+    } else {
+        json.replacen(
+            "\"format\": 1,",
+            &format!("\"format\": 1,\n  \"kind\": \"{kind}\","),
+            1,
+        )
+    };
     let home = carried_home("buildings");
     std::fs::create_dir_all(&home).map_err(|why| format!("{}: {why}", home.display()))?;
     let out = home.join(format!("{name}.json"));
@@ -3433,39 +3450,25 @@ pub enum NamingFor {
     Carrying,
     /// Keeping what is chosen as a piece, to bring into other works.
     AsAPiece,
+    /// Naming a kind of building this project does not know yet.
+    ///
+    /// Raised FROM the carrying card and returning to it, so the bake a maker was
+    /// halfway through is still there when they come back with a new word.
+    AKind,
 }
 
-/// The kinds of building the village knows, and the word each takes in a baked
-/// file.
+/// The work's own name, held while a kind is being named on the same card.
 ///
-/// Written out here AND in the game, like every other word the two programs
-/// share, and named in FORMATS.md so the pair can be kept honest. A drawing used
-/// to be claimed by whatever kind-word its file name happened to begin with,
-/// which is a rule a maker has to know and can silently get wrong: `mill1` is a
-/// mill, `sawmill1` is a sawmill, and `millhouse1` is a mill with a surprise in
-/// it. Brett: "have a drop down box with what building in the game it is." So
-/// the kind is CHOSEN, and written into the file as a fact.
-pub const KINDS: [(&str, &str); 18] = [
-    ("house", "HOUSE"),
-    ("longhouse", "LONGHOUSE"),
-    ("sawmill", "SAWMILL"),
-    ("blacksmith", "BLACKSMITH"),
-    ("tavern", "TAVERN"),
-    ("townhall", "TOWN HALL"),
-    ("storehouse", "STOREHOUSE"),
-    ("granary", "GRANARY"),
-    ("well", "WELL"),
-    ("smokehouse", "SMOKEHOUSE"),
-    ("mill", "MILL"),
-    ("bakery", "BAKERY"),
-    ("weaver", "WEAVER"),
-    ("herbalist", "HERBALIST"),
-    ("watchtower", "WATCHTOWER"),
-    ("shrine", "SHRINE"),
-    ("dock", "DOCK"),
-    ("mine", "MINE"),
-];
+/// The card has one text field and two things to type into it, one after the
+/// other. Without this the work's name is what the maker typed for the kind.
+#[derive(Resource, Default)]
+pub struct NameHeld(String);
 
+/// A button that asks for a kind this project does not know yet.
+#[derive(Component)]
+struct NewKindButton;
+
+/// Which kind the card is offering, as an index into [`crate::project::kinds`].
 /// Which kind the card is offering, while it is up.
 #[derive(Resource, Default)]
 pub struct CarryingKind(pub usize);
@@ -3543,6 +3546,7 @@ impl Plugin for BuilderPlugin {
             .init_resource::<PiecesStale>()
             .init_resource::<Brush>()
             .init_resource::<Naming>()
+            .init_resource::<NameHeld>()
             .init_resource::<Hovered>()
             .init_resource::<WorkName>()
             .init_resource::<SnapMode>()
@@ -3878,10 +3882,16 @@ pub fn kind_from_name(name: &str) -> Option<PartKind> {
             });
     }
     if let Some(widget) = name.strip_prefix("widget:") {
-        return WIDGETS
-            .iter()
-            .find(|(w, _, _)| *w == widget)
-            .map(|(w, _, _)| PartKind::Widget(w));
+        // ANY word, declared or not. What the project declares is what the shelf
+        // offers and what colour a block wears - never what a saved work is
+        // allowed to contain. A drawing opened in a game that has not declared its
+        // marks keeps every one of them, and saving it keeps them still.
+        return Some(PartKind::Widget(
+            crate::project::widgets()
+                .iter()
+                .find(|mark| mark.word == widget)
+                .map_or_else(|| crate::project::a_kept_word(widget), |mark| mark.word),
+        ));
     }
     match name {
         // Legacy names from before the primitives learned their sizes.
@@ -4971,7 +4981,7 @@ fn raise_palette(mut commands: Commands, fonts: Res<Fonts>, palette: Res<Palette
             Node {
                 position_type: PositionType::Absolute,
                 right: Val::Px(0.0),
-                top: Val::Px(0.0),
+                top: Val::Px(crate::menu::BAR_HIGH),
                 bottom: Val::Px(0.0),
                 // The shelf's own width: the two share an edge and only one
                 // stands at a time, so a differing width would make the panel
@@ -5200,7 +5210,7 @@ fn raise_shelf(mut commands: Commands, fonts: Res<Fonts>, palette: Res<Palette>)
             Node {
                 position_type: PositionType::Absolute,
                 right: Val::Px(0.0),
-                top: Val::Px(0.0),
+                top: Val::Px(crate::menu::BAR_HIGH),
                 bottom: Val::Px(0.0),
                 // Wide enough for the longest thing on it - ROOF, GABLE,
                 // STRETCH - on one line. A shelf that wraps its own names is a
@@ -5257,15 +5267,15 @@ fn raise_shelf(mut commands: Commands, fonts: Res<Fonts>, palette: Res<Palette>)
     commands.insert_resource(PieceDrawer(pieces));
 
     let widgets = drawer(&mut commands, &fonts, &palette, shelf, "WIDGETS", false);
-    for (name, _, _) in WIDGETS {
+    for mark in crate::project::widgets() {
         let button = plain_button(&mut commands, &palette, widgets);
-        commands.entity(button).insert(WidgetButton(name));
+        commands.entity(button).insert(WidgetButton(mark.word));
         button_label(
             &mut commands,
             &fonts,
             &palette,
             button,
-            Box::leak(name.to_uppercase().into_boxed_str()),
+            Box::leak(mark.word.to_uppercase().into_boxed_str()),
         );
     }
 }
@@ -5277,9 +5287,10 @@ pub(crate) fn drawer(
     fonts: &Fonts,
     palette: &Palette,
     shelf: Entity,
-    name: &'static str,
+    name: impl Into<String>,
     open: bool,
 ) -> Entity {
+    let name = name.into();
     let header = commands
         .spawn((
             Interaction::default(),
@@ -5556,11 +5567,22 @@ fn open_or_clear(
             // A work from before stages becomes stages on the way in, by the
             // rule the game used to infer them with - so an old building opens
             // with exactly the steps the village was already raising it in.
-            let drawings = if bench.stages.is_empty() {
-                stages_from_flat(&bench.parts)
+            // All three shapes a work has ever had: levels, phases without
+            // levels, and one flat list from before either existed. A maker's
+            // buildings are not something to lose to a format change.
+            let levels = if !bench.levels.is_empty() {
+                bench.levels
             } else {
-                bench.stages
+                vec![Level {
+                    name: String::new(),
+                    phases: if bench.stages.is_empty() {
+                        stages_from_flat(&bench.parts)
+                    } else {
+                        bench.stages
+                    },
+                }]
             };
+            let drawings = levels[0].phases.clone();
             // The LAST step: a maker opening a building wants the building,
             // not its footings.
             let showing = drawings.len().saturating_sub(1);
@@ -5579,8 +5601,11 @@ fn open_or_clear(
                 }
             }
             let steps = drawings.len();
-            stages.drawings = drawings;
-            stages.showing = showing;
+            *stages = Stages {
+                levels,
+                level: 0,
+                showing,
+            };
             info!(
                 "set out {}: {count} parts, step {} of {steps}",
                 path.display(),
@@ -7703,36 +7728,145 @@ pub(crate) struct Workbench {
     /// replace make it the ordinary one.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     stages: Vec<Vec<Placed>>,
+    /// One LEVEL per form the building takes over its life: the original, and
+    /// then each upgrade. Format 2.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    levels: Vec<Level>,
 }
 
-/// Every step of the work, and which one the bench is showing.
+/// One form a building takes, and the phases that raise it.
 ///
-/// Only the shown step exists as entities; the rest are records waiting their
-/// turn. Switching gathers the standing parts back into their step and sets the
-/// next one out, which is why a stage IS the bench rather than a filter over it.
+/// A building is not one thing for ever. Brett: "I am planning for buildings to
+/// have upgrades too. So once a building is finished later on they may want to
+/// upgrade that building. That upgrade may need stages too while its being
+/// built." So a work holds LEVELS - the original, then each upgrade - and every
+/// level is itself a build, with its own phases.
+///
+/// The two axes were one word before, and only one of them ever left the bench:
+/// a maker authored phases that the bake threw away, while the game re-derived
+/// its own from the nature tag on each box. Which meant the freedom the phases
+/// were for - "replacing the building each stage allows me to be more creative
+/// during the stages" - stopped at the door. `longhouse1` already goes 34 boxes
+/// then 32: a deviation nothing downstream could see.
+#[derive(Clone, Serialize, Deserialize, Default)]
+pub(crate) struct Level {
+    /// What a maker calls it. The ORDER is what a game reads; this is for the
+    /// person.
+    #[serde(default)]
+    pub name: String,
+    /// One COMPLETE drawing per phase of raising this level, the last being the
+    /// finished building at it.
+    pub phases: Vec<Vec<Placed>>,
+}
+
+/// Every level of the work, every phase of each, and where the bench is standing.
+///
+/// Only the shown phase exists as entities; everything else is records waiting
+/// its turn. Switching gathers the standing parts back into their phase and sets
+/// the next one out, which is why a phase IS the bench rather than a filter over
+/// it - and a level is the same trick one storey up.
 #[derive(Resource)]
 pub struct Stages {
-    drawings: Vec<Vec<Placed>>,
+    levels: Vec<Level>,
+    /// Which level is being worked on.
+    level: usize,
+    /// Which of that level's phases is on the bench.
     showing: usize,
 }
 
 impl Default for Stages {
     fn default() -> Self {
         Stages {
-            drawings: vec![Vec::new()],
+            levels: vec![Level {
+                name: String::new(),
+                phases: vec![Vec::new()],
+            }],
+            level: 0,
             showing: 0,
         }
     }
 }
 
 impl Stages {
+    /// How many phases the level being worked on has.
     pub fn count(&self) -> usize {
-        self.drawings.len()
+        self.phases().len()
     }
 
     pub fn showing(&self) -> usize {
         self.showing
     }
+
+    /// Which level is being worked on.
+    pub fn level(&self) -> usize {
+        self.level.min(self.levels.len().saturating_sub(1))
+    }
+
+    /// The phases of the level being worked on.
+    ///
+    /// Clamped rather than indexed raw: a level count that has just shrunk would
+    /// otherwise take the bench down with it.
+    fn phases(&self) -> &Vec<Vec<Placed>> {
+        &self.levels[self.level()].phases
+    }
+
+    fn phases_mut(&mut self) -> &mut Vec<Vec<Placed>> {
+        let at = self.level();
+        &mut self.levels[at].phases
+    }
+}
+
+/// The whole work as it stands, ready to be written.
+///
+/// The shown step is standing as ENTITIES; every other step is already records.
+/// Gathering the shown one back in is what keeps a maker's last few minutes from
+/// going missing from whichever step they happened to be on - and it was written
+/// out three times, once per thing that writes a file, which is three chances for
+/// one of them to be the copy that forgot.
+pub(crate) fn gather_the_work<'a>(
+    name: &str,
+    stages: &Stages,
+    standing: impl Iterator<Item = &'a Placed>,
+) -> Workbench {
+    let mut levels = stages.levels.clone();
+    let at = stages.level();
+    let showing = stages.showing.min(stages.count().saturating_sub(1));
+    if let Some(slot) = levels[at].phases.get_mut(showing) {
+        *slot = standing.cloned().collect();
+    }
+    Workbench {
+        format: 2,
+        name: name.to_string(),
+        parts: Vec::new(),
+        stages: Vec::new(),
+        levels,
+    }
+}
+
+/// Keeps whatever is standing, in the project's own `workbench.baz`.
+///
+/// For the moment the bench LEAVES one project for another. Nothing on the bench
+/// is written automatically otherwise, so without this a maker who has drawn for
+/// an hour and then opens another game loses the hour to a button press - and the
+/// button would not even look dangerous.
+///
+/// It returns where it wrote, so the thing that called it can say so. An empty
+/// bench writes nothing at all: a file saying nothing would overwrite one from
+/// last time that said something.
+pub(crate) fn keep_the_bench<'a>(
+    stages: &Stages,
+    standing: impl Iterator<Item = &'a Placed>,
+    called: Option<&str>,
+) -> Option<std::path::PathBuf> {
+    let work = gather_the_work(called.unwrap_or("workbench"), stages, standing);
+    if work.stages.iter().all(Vec::is_empty) {
+        return None;
+    }
+    let path = bench_path();
+    let _ = std::fs::create_dir_all(path.parent()?);
+    let json = serde_json::to_string_pretty(&work).ok()?;
+    std::fs::write(&path, json).ok()?;
+    Some(path)
 }
 
 /// Turns a work from before stages into stages, by the rule the game used to
@@ -7888,6 +8022,7 @@ fn raise_naming_card(
             NamingFor::Carrying => "CARRY IT INTO THE GAME",
             NamingFor::AsAPiece => "KEEP IT AS A PIECE",
             NamingFor::Keeping => "NAME THE WORK",
+            NamingFor::AKind => "NAME A KIND OF BUILDING",
         }),
         TextFont {
             font: fonts.display.clone().into(),
@@ -7923,6 +8058,13 @@ fn raise_naming_card(
             }
             NamingFor::AsAPiece => "kept for any work, not just this one - esc thinks better of it",
             NamingFor::Keeping => "enter saves - esc thinks better of it",
+            // The one warning worth printing on a card. Nothing here can check a
+            // word against the game's own vocabulary - that lives in the other
+            // program's source - and a word the game does not know costs the
+            // building in silence. See `project::kinds`.
+            NamingFor::AKind => {
+                "the game must already know this word, or it raises nothing - esc goes back"
+            }
         }),
         TextFont {
             font: fonts.text.clone().into(),
@@ -7960,7 +8102,8 @@ fn raise_naming_card(
                 ChildOf(card),
             ))
             .id();
-        for (index, (_, label)) in KINDS.iter().enumerate() {
+        for (index, offered) in crate::project::kinds().iter().enumerate() {
+            let label = offered.said();
             let standing = index == chosen;
             let button = commands
                 .spawn((
@@ -7981,7 +8124,7 @@ fn raise_naming_card(
                 ))
                 .id();
             commands.spawn((
-                Text::new(*label),
+                Text::new(label.clone()),
                 TextFont {
                     font: fonts.display.clone().into(),
                     font_size: FontSize::Px(10.0),
@@ -7995,6 +8138,33 @@ fn raise_naming_card(
                 ChildOf(button),
             ));
         }
+        // And the way to add one. It sits with the kinds rather than beside the
+        // save, because it is a kind - and a project that knows none at all shows
+        // this button alone, which is exactly the right first thing to press.
+        let adding = commands
+            .spawn((
+                NewKindButton,
+                Interaction::default(),
+                Node {
+                    padding: UiRect::axes(Val::Px(7.0), Val::Px(3.0)),
+                    border: UiRect::all(Val::Px(1.0)),
+                    ..default()
+                },
+                BackgroundColor(Color::BLACK.with_alpha(0.18)),
+                BorderColor::all(theme::accent(palette).with_alpha(0.5)),
+                ChildOf(kinds),
+            ))
+            .id();
+        commands.spawn((
+            Text::new("+ A NEW KIND"),
+            TextFont {
+                font: fonts.display.clone().into(),
+                font_size: FontSize::Px(10.0),
+                ..default()
+            },
+            TextColor(theme::accent(palette)),
+            ChildOf(adding),
+        ));
     }
     let row = commands
         .spawn((
@@ -8013,6 +8183,9 @@ fn raise_naming_card(
                 NamingFor::Carrying => "CARRY IN",
                 NamingFor::AsAPiece => "KEEP IT",
                 NamingFor::Keeping => "SAVE",
+                // It does not carry anything in or keep anything: it hands the
+                // word back to the card that asked for it.
+                NamingFor::AKind => "ADD IT",
             },
             true,
         ),
@@ -8066,11 +8239,13 @@ fn take_the_name(
     palette: Res<Palette>,
     // Bundled: the ceiling is sixteen, and this card has three errands now.
     errands: (
-        Res<CarryingKind>,
+        ResMut<CarryingKind>,
         ResMut<CarriedStale>,
         ResMut<PieceKept>,
         ResMut<PiecesStale>,
+        ResMut<NameHeld>,
     ),
+    fonts: Res<Fonts>,
     mut keystrokes: MessageReader<bevy::input::keyboard::KeyboardInput>,
     mut naming: ResMut<Naming>,
     time: Res<Time>,
@@ -8082,7 +8257,7 @@ fn take_the_name(
     mut shown: Query<&mut Text, With<NameText>>,
     mut save_labels: Query<(Entity, &mut Text), (With<SaveLabel>, Without<NameText>)>,
 ) {
-    let (kind, mut stale, mut kept, mut pieces_stale) = errands;
+    let (mut kind, mut stale, mut kept, mut pieces_stale, mut held) = errands;
     let what_for = naming.1;
     let Some(name) = naming.0.as_mut() else {
         return;
@@ -8136,6 +8311,36 @@ fn take_the_name(
     let Some(saving) = done else {
         return;
     };
+    // Naming a kind is the one errand that does not END the card: it came from
+    // the carrying card and it goes back there, with the work's name restored and
+    // the new word chosen. So it returns early rather than falling through to the
+    // teardown at the foot of this function.
+    if what_for == NamingFor::AKind {
+        let word = name.clone();
+        naming.0 = Some(std::mem::take(&mut held.0));
+        naming.1 = NamingFor::Carrying;
+        if saving && !word.is_empty() {
+            match crate::project::add_a_kind(&word) {
+                // Chosen as well as added: a maker who has just named a kind means
+                // to bake THIS building as one.
+                Ok(()) => {
+                    if let Some(at) = crate::project::kinds()
+                        .iter()
+                        .position(|known| known.word == word)
+                    {
+                        kind.0 = at;
+                    }
+                    info!("the project knows {word} now");
+                }
+                Err(why) => warn!("could not add {word}: {why}"),
+            }
+        }
+        for card in &cards {
+            commands.entity(card).despawn();
+        }
+        raise_naming_card(&mut commands, &fonts, &palette, NamingFor::Carrying, kind.0);
+        return;
+    }
     // The same card, three errands now.
     if saving && what_for == NamingFor::AsAPiece {
         let called = if name.is_empty() {
@@ -8186,23 +8391,25 @@ fn take_the_name(
         } else {
             name.clone()
         };
-        let mut drawings = stages.drawings.clone();
-        let showing = stages.showing.min(drawings.len().saturating_sub(1));
-        if let Some(slot) = drawings.get_mut(showing) {
-            *slot = placed.iter().cloned().collect();
-        }
-        let work = Workbench {
-            format: 2,
-            name: called.clone(),
-            parts: Vec::new(),
-            stages: drawings,
-        };
-        let (word, label) = KINDS[kind.0.min(KINDS.len() - 1)];
+        let work = gather_the_work(&called, &stages, placed.iter());
+        // A project with no kinds writes NONE, and the game reads the drawing's
+        // name instead - which is the older reading, and still a true one.
+        let known = crate::project::kinds();
+        let (word, label) = known
+            .get(kind.0)
+            .map_or((String::new(), String::new()), |kind| {
+                (kind.word.clone(), kind.said())
+            });
         stale.0 = true;
-        let said = match carry_into_the_game(&work, &palette, &called, word) {
+        let said = match carry_into_the_game(&work, &palette, &called, &word) {
             Ok((boxes, marks)) => format!(
-                "CARRIED {} IN AS A {label} - {boxes} BOXES, {marks} MARKS",
-                called.to_uppercase()
+                "CARRIED {} IN {} - {boxes} BOXES, {marks} MARKS",
+                called.to_uppercase(),
+                if label.is_empty() {
+                    "TO BE CLAIMED BY ITS NAME".to_string()
+                } else {
+                    format!("AS A {label}")
+                }
             ),
             Err(why) => {
                 warn!("could not carry {called} in: {why}");
@@ -8246,21 +8453,9 @@ fn take_the_name(
             if ours && elder.exists() && elder != path {
                 let _ = std::fs::remove_file(&elder);
             }
-            // The shown step is standing as entities; the rest are already
-            // records. Gather the one before writing, or a maker's last few
-            // minutes go missing from whichever step they were on.
-            let mut drawings = stages.drawings.clone();
-            let showing = stages.showing.min(drawings.len().saturating_sub(1));
-            if let Some(slot) = drawings.get_mut(showing) {
-                *slot = placed.iter().cloned().collect();
-            }
-            let bench = Workbench {
-                format: 2,
-                name: stem.clone(),
-                parts: Vec::new(),
-                stages: drawings,
-            };
+            let bench = gather_the_work(&stem, &stages, placed.iter());
             if let Ok(json) = serde_json::to_string_pretty(&bench) {
+                let showing = stages.showing.min(bench.stages.len().saturating_sub(1));
                 let count = bench.stages.get(showing).map_or(0, Vec::len);
                 let _ = std::fs::write(&path, json);
                 info!("saved {count} parts to {}", path.display());
@@ -8602,7 +8797,13 @@ fn recall(
     mut materials: ResMut<Assets<StandardMaterial>>,
     palette: Res<Palette>,
     standing: Query<Entity, (With<Placed>, Without<Ghost>)>,
+    mut wish: ResMut<crate::menu::MenuWish>,
 ) {
+    // Taken before the guards below, and before anything can return: a wish
+    // spent is a wish that cannot go off later, at some moment the maker has
+    // stopped thinking about the menu they pressed.
+    let asked_back = wish.taken(crate::menu::MenuDeed::Undo);
+    let asked_forward = wish.taken(crate::menu::MenuDeed::Redo);
     if *bench != Bench::Builder || naming.0.is_some() || dims.0.is_some() {
         return;
     }
@@ -8610,12 +8811,13 @@ fn recall(
         || keys.pressed(KeyCode::ControlRight)
         || keys.pressed(KeyCode::SuperLeft)
         || keys.pressed(KeyCode::SuperRight);
-    if !held {
-        return;
-    }
     let shifted = keys.pressed(KeyCode::ShiftLeft) || keys.pressed(KeyCode::ShiftRight);
-    let back = keys.just_pressed(KeyCode::KeyZ) && !shifted;
-    let forward = keys.just_pressed(KeyCode::KeyY) || (keys.just_pressed(KeyCode::KeyZ) && shifted);
+    // The menu asks for the same two things, and does not hold a key down to do
+    // it - so `held` gates the KEYS and nothing else.
+    let back = asked_back || (held && keys.just_pressed(KeyCode::KeyZ) && !shifted);
+    let forward = asked_forward
+        || (held
+            && (keys.just_pressed(KeyCode::KeyY) || (keys.just_pressed(KeyCode::KeyZ) && shifted)));
     if !back && !forward {
         return;
     }
@@ -8701,8 +8903,12 @@ fn copy_and_paste(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     palette: Res<Palette>,
+    mut wish: ResMut<crate::menu::MenuWish>,
 ) {
     let (selected, mut tool) = gizmo;
+    // As in `recall`: spent up front, so a wish cannot go off later.
+    let asked_copy = wish.taken(crate::menu::MenuDeed::Copy);
+    let asked_paste = wish.taken(crate::menu::MenuDeed::Paste);
     if *bench != Bench::Builder || naming.0.is_some() || dims.0.is_some() {
         return;
     }
@@ -8710,17 +8916,18 @@ fn copy_and_paste(
         || keys.pressed(KeyCode::ControlRight)
         || keys.pressed(KeyCode::SuperLeft)
         || keys.pressed(KeyCode::SuperRight);
-    if !held {
-        return;
-    }
-    if keys.just_pressed(KeyCode::KeyC)
+    // Bracketed, because the `let` chain below binds names the body needs: without
+    // them `||` splits the condition and the bindings belong to only one half.
+    if (keys.just_pressed(KeyCode::KeyC) && held || asked_copy)
         && let Some(source) = selected.lead().or(hovered.grab)
         && let Ok(record) = placed.get(source)
     {
         clipboard.0 = Some(record.clone());
         info!("copied {}", record.part);
     }
-    if keys.just_pressed(KeyCode::KeyV)
+    // Bracketed, because the `let` chain below binds names the body needs: without
+    // them `||` splits the condition and the bindings belong to only one half.
+    if (keys.just_pressed(KeyCode::KeyV) && held || asked_paste)
         && let Some(record) = clipboard.0.clone()
         && let Some(kind) = kind_from_name(&record.part)
     {
@@ -9051,18 +9258,18 @@ fn turn_to_stage(
         return;
     };
     // Whatever is on the bench belongs to the step it was drawn on.
-    let showing = stages.showing.min(stages.drawings.len().saturating_sub(1));
+    let showing = stages.showing.min(stages.count().saturating_sub(1));
     let gathered: Vec<Placed> = standing.iter().map(|(_, record)| record.clone()).collect();
-    if let Some(slot) = stages.drawings.get_mut(showing) {
+    if let Some(slot) = stages.phases_mut().get_mut(showing) {
         *slot = gathered;
     }
 
     let wanted = match deed {
-        StageDeed::Show(step) => step.min(stages.drawings.len() - 1),
+        StageDeed::Show(step) => step.min(stages.count() - 1),
         StageDeed::Take => {
             // Nothing moves: the step is remembered exactly as it was gathered a
             // moment ago, and the bench goes on showing it.
-            held.0 = Some(stages.drawings[showing].clone());
+            held.0 = Some(stages.phases()[showing].clone());
             return;
         }
         StageDeed::Put => {
@@ -9071,25 +9278,25 @@ fn turn_to_stage(
             };
             // In PLACE of what stands, not beside it. Two steps merged would be
             // a step nobody drew, and the way to add to a step is to draw on it.
-            stages.drawings[showing] = kept;
+            stages.phases_mut()[showing] = kept;
             showing
         }
         StageDeed::Add => {
             // Beside the one showing, not at the end. A maker adding a step
             // while looking at step two means a step between two and three -
             // "we need to be able to add one stage at a time".
-            let copy = stages.drawings[showing].clone();
-            stages.drawings.insert(showing + 1, copy);
+            let copy = stages.phases()[showing].clone();
+            stages.phases_mut().insert(showing + 1, copy);
             showing + 1
         }
         StageDeed::Drop => {
             // Never the last one standing: a building with no steps is not a
             // building anybody can raise.
-            if stages.drawings.len() <= 1 {
+            if stages.count() <= 1 {
                 return;
             }
-            stages.drawings.remove(showing);
-            showing.min(stages.drawings.len() - 1)
+            stages.phases_mut().remove(showing);
+            showing.min(stages.count() - 1)
         }
     };
 
@@ -9097,7 +9304,7 @@ fn turn_to_stage(
         commands.entity(part).despawn();
     }
     selected.clear();
-    for record in &stages.drawings[wanted] {
+    for record in &stages.phases()[wanted].clone() {
         if let Some(kind) = kind_from_name(&record.part) {
             spawn_part(
                 &mut commands,
@@ -9214,17 +9421,8 @@ pub(crate) fn lift_roofs(
 /// launcher had nowhere to send its work at all - Brett: "At what point does it
 /// install its own files?" - so the bake is ordinary code now, and the test and
 /// the BAKE button both go through it.
-pub(crate) fn bake_a_work(
-    work: &Workbench,
-    palette: &Palette,
-    name: &str,
-) -> (String, usize, usize) {
-    // The FINISHED building, which is the last step - steps replace one
-    // another rather than adding up, so the last one is the whole thing
-    // and no other one is. A work drawn before there were steps keeps
-    // its one flat list, which is the same thing said the older way.
-    let parts: &[Placed] = work.stages.last().map_or(&work.parts[..], |last| &last[..]);
-
+/// The bounds of one drawing, ignoring the scale reference.
+fn bounds_of(parts: &[Placed]) -> (Vec3, Vec3) {
     // The bounds of everything that is not a scale reference, so
     // the building can be recentred on its own footprint.
     let mut low = Vec3::splat(f32::INFINITY);
@@ -9247,8 +9445,17 @@ pub(crate) fn bake_a_work(
             high = high.max(centre + reach);
         }
     }
-    let middle = Vec3::new((low.x + high.x) * 0.5, 0.0, (low.z + high.z) * 0.5);
+    (low, high)
+}
 
+/// One phase, resolved: the boxes a game can draw, and the marks that say what the
+/// place is FOR, in a frame whose origin is `middle`.
+///
+/// Lifted out of `bake_a_work` when a work grew levels. It used to bake exactly one
+/// drawing - the last - and every phase a maker had authored was discarded on the
+/// way out; now the same arithmetic runs once per phase, and the shared `middle` is
+/// what keeps an upgrade standing where the building it upgrades stands.
+fn bake_one_phase(parts: &[Placed], palette: &Palette, middle: Vec3) -> (Vec<String>, Vec<String>) {
     let mut boxes: Vec<String> = Vec::new();
     // What, where, which way - and whether a hand put it there.
     let mut marks: Vec<(String, Vec3, f32, bool)> = Vec::new();
@@ -9400,16 +9607,99 @@ pub(crate) fn bake_a_work(
         })
         .collect();
 
+    (boxes, marks)
+}
+
+/// Every level of a work, whichever shape it was saved in.
+///
+/// One place, so opening a work and baking it can never disagree about what it
+/// holds. Levels, then phases without levels, then the one flat list from before
+/// either existed.
+fn levels_of(work: &Workbench) -> Vec<Level> {
+    if !work.levels.is_empty() {
+        return work.levels.clone();
+    }
+    vec![Level {
+        name: String::new(),
+        phases: if work.stages.is_empty() {
+            stages_from_flat(&work.parts)
+        } else {
+            work.stages.clone()
+        },
+    }]
+}
+
+/// Bakes one work into what a game can eat: every level, every phase of each.
+///
+/// # Where the origin is
+///
+/// The BASE level's finished footprint, and every level is measured from it. An
+/// upgrade has to land on the building it replaces, so it cannot be recentred on
+/// its own bounds - a forge added to one end would shunt the whole blacksmith
+/// sideways the day it was built.
+///
+/// # Why `boxes` and `marks` are still at the top
+///
+/// They are the BASE level, finished - exactly what a reader of format 1 saw, and
+/// exactly what it saw before levels existed. A game reads `levels` when it is
+/// ready to and needs no change until then. See FORMATS.md.
+pub(crate) fn bake_a_work(
+    work: &Workbench,
+    palette: &Palette,
+    name: &str,
+) -> (String, usize, usize) {
+    let levels = levels_of(work);
+    let nothing: Vec<Placed> = Vec::new();
+    let finished = |level: &Level| level.phases.last().unwrap_or(&nothing).clone();
+
+    let base = levels.first().map(finished).unwrap_or_default();
+    let (low, high) = bounds_of(&base);
+    let middle = Vec3::new((low.x + high.x) * 0.5, 0.0, (low.z + high.z) * 0.5);
+
+    let mut written: Vec<String> = Vec::new();
+    for level in &levels {
+        let mut phases: Vec<String> = Vec::new();
+        for phase in &level.phases {
+            let (boxes, _) = bake_one_phase(phase, palette, middle);
+            phases.push(format!(
+                "        {{\"boxes\": [\n{}\n        ]}}",
+                boxes.join(",\n")
+            ));
+        }
+        // The FINISHED building is what the village clears a plot for and what it
+        // means by the place: its footprint and its marks, not those of a phase
+        // halfway up.
+        let done = finished(level);
+        let (_, marks) = bake_one_phase(&done, palette, middle);
+        let (low, high) = bounds_of(&done);
+        // Measured from the SHARED origin, so a level that reaches further than the
+        // base says so.
+        let reach_w = (low.x - middle.x).abs().max((high.x - middle.x).abs());
+        let reach_d = (low.z - middle.z).abs().max((high.z - middle.z).abs());
+        written.push(format!(
+            "    {{\"name\": \"{}\", \"half_w\": {reach_w:.4}, \"half_d\": {reach_d:.4}, \
+             \"high\": {:.4},\n      \"phases\": [\n{}\n      ],\n      \"marks\": [\n{}\n      ]}}",
+            level.name,
+            high.y,
+            phases.join(",\n"),
+            marks.join(",\n"),
+        ));
+    }
+
+    // And the base level, finished, written the older way as well.
+    let (boxes, marks) = bake_one_phase(&base, palette, middle);
     let span = high - low;
     let json = format!(
-        "{{\n  \"format\": 1,\n  \"name\": \"{name}\",\n  \
+        "{{\n  \"format\": 2,\n  \"name\": \"{name}\",\n  \
          \"half_w\": {:.4},\n  \"half_d\": {:.4},\n  \"high\": {:.4},\n  \
-         \"boxes\": [\n{}\n  ],\n  \"marks\": [\n{}\n  ]\n}}\n",
+         \"boxes\": [\n{}\n  ],\n  \"marks\": [\n{}\n  ],\n  \
+         \"levels\": [\n{}\n  ]\n}}\n",
         span.x * 0.5,
         span.z * 0.5,
         high.y,
         boxes.join(",\n"),
         marks.join(",\n"),
+        written.join(",\n"),
     );
     (json, boxes.len(), marks.len())
 }
@@ -11583,11 +11873,10 @@ mod colours {
                 wanted.insert(ramp);
             }
         }
-        for (widget, ..) in WIDGETS {
-            for Slab { ramp, .. } in body_of(&PartKind::Widget(*widget), None) {
-                wanted.insert(ramp);
-            }
-        }
+        // The marks are NOT walked. A mark's ramp is named in the project's own
+        // `widgets.json` now, so the bench cannot promise a colour for a word it
+        // never chose - what it can promise is the `bone` it falls back to when a
+        // mark names nothing, and that is asserted with the dress below.
         // And the bench's own dress, which is named in the other modules rather
         // than in any part's body: the floor grid and the door sill in `stage`,
         // the panels and the accent in `look::theme`, the three handle shafts in
@@ -11618,6 +11907,36 @@ mod colours {
         );
     }
 
+    /// A saved work never loses a mark to a project that has not declared it.
+    ///
+    /// The marks a project declares are what the SHELF offers and what colour a
+    /// block wears. They are not a list of what may be read: a work drawn in one
+    /// game and opened in another came back with its marks silently missing, and a
+    /// save would have made that permanent. The one kind of bug a maker cannot
+    /// undo, so it is checked rather than remembered.
+    #[test]
+    fn a_mark_reads_back_whether_the_project_knows_it_or_not() {
+        // No project is open in a test, so nothing at all is declared - which is
+        // the very case that used to lose them.
+        for word in ["sleep", "door", "perch", "a-word-no-game-ever-had"] {
+            let name = format!("widget:{word}");
+            let read = kind_from_name(&name);
+            assert!(
+                matches!(read, Some(PartKind::Widget(had)) if had == word),
+                "{name} read back as nothing"
+            );
+            // And it writes back out under the same name, or a work would change
+            // shape every time it was opened and saved.
+            assert_eq!(part_name(&read.unwrap()), name);
+        }
+        // An undeclared mark still has a body to draw, so it can be seen and
+        // picked up rather than being an invisible part of the work.
+        assert!(
+            !body_of(&PartKind::Widget("perch"), None).is_empty(),
+            "an undeclared mark draws nothing at all"
+        );
+    }
+
     /// A ramp runs shadow to bright, and the shelf leans on it.
     ///
     /// `shade` is handed a 0..1 and reads the step nearest it, so a ramp whose
@@ -11637,5 +11956,146 @@ mod colours {
                 );
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod levels {
+    use super::*;
+
+    fn a_part(at: [f32; 3], stage: &str) -> Placed {
+        Placed {
+            part: "wall-2".to_string(),
+            at,
+            yaw: 0.0,
+            tilt: 0.0,
+            ramp: None,
+            shade: 0.7,
+            stage: stage.to_string(),
+            flip: false,
+            group: None,
+            loose: false,
+        }
+    }
+
+    /// All three shapes a work has ever had open, and become levels.
+    ///
+    /// A maker's buildings outlive the format they were written in, so this is the
+    /// promise that matters most in the whole file.
+    #[test]
+    fn every_shape_a_work_was_ever_saved_in_opens() {
+        // Format 2: levels, said outright.
+        let now = Workbench {
+            format: 2,
+            name: "now".into(),
+            parts: Vec::new(),
+            stages: Vec::new(),
+            levels: vec![
+                Level {
+                    name: "base".into(),
+                    phases: vec![vec![a_part([0.0; 3], "footing")]],
+                },
+                Level {
+                    name: "forge".into(),
+                    phases: vec![vec![a_part([0.0; 3], "walls")]],
+                },
+            ],
+        };
+        let read = levels_of(&now);
+        assert_eq!(read.len(), 2);
+        assert_eq!(read[1].name, "forge");
+
+        // Format 1: phases with no levels, which become one level's phases.
+        let older = Workbench {
+            format: 1,
+            name: "older".into(),
+            parts: Vec::new(),
+            stages: vec![
+                vec![a_part([0.0; 3], "footing")],
+                vec![a_part([0.0; 3], "walls")],
+            ],
+            levels: Vec::new(),
+        };
+        let read = levels_of(&older);
+        assert_eq!(read.len(), 1, "an older work is one level");
+        assert_eq!(read[0].phases.len(), 2, "and keeps both its phases");
+
+        // Older still: one flat list, whose phases are inferred from the tags.
+        let eldest = Workbench {
+            format: 1,
+            name: "eldest".into(),
+            parts: vec![a_part([0.0; 3], "footing"), a_part([1.0, 0.0, 0.0], "roof")],
+            stages: Vec::new(),
+            levels: Vec::new(),
+        };
+        let read = levels_of(&eldest);
+        assert_eq!(read.len(), 1);
+        assert!(
+            read[0].phases.len() > 1,
+            "a flat work should come back with the steps it already rose in"
+        );
+        // The last phase is the whole finished building.
+        assert_eq!(read[0].phases.last().unwrap().len(), 2);
+    }
+
+    /// Every level is measured from the FIRST level's middle.
+    ///
+    /// An upgrade lands on the building it upgrades. Recentring each level on its
+    /// own bounds would shunt the whole thing sideways the day a wing was added,
+    /// which is the one thing about levels that cannot be seen by looking at one.
+    #[test]
+    fn an_upgrade_stands_where_the_building_stands() {
+        let palette = crate::look::bench_palette();
+        // A base centred on the origin, and an upgrade that only adds to +X - so
+        // its own middle is well away from the base's.
+        let base = vec![a_part([0.0, 0.0, 0.0], "walls")];
+        let upgraded = vec![
+            a_part([0.0, 0.0, 0.0], "walls"),
+            a_part([8.0, 0.0, 0.0], "walls"),
+        ];
+        let work = Workbench {
+            format: 2,
+            name: "blacksmith".into(),
+            parts: Vec::new(),
+            stages: Vec::new(),
+            levels: vec![
+                Level {
+                    name: "base".into(),
+                    phases: vec![base.clone()],
+                },
+                Level {
+                    name: "forge".into(),
+                    phases: vec![upgraded],
+                },
+            ],
+        };
+        let (json, boxes, _) = bake_a_work(&work, &palette, "blacksmith");
+
+        // The top level is the BASE finished, so a format 1 reader is unaffected by
+        // the existence of an upgrade.
+        let alone = Workbench {
+            format: 2,
+            name: "blacksmith".into(),
+            parts: Vec::new(),
+            stages: Vec::new(),
+            levels: vec![Level {
+                name: "base".into(),
+                phases: vec![base],
+            }],
+        };
+        let (_, only, _) = bake_a_work(&alone, &palette, "blacksmith");
+        assert_eq!(
+            boxes, only,
+            "adding an upgrade changed what a format 1 reader sees"
+        );
+
+        // The wall the two levels share is written at the SAME place in both.
+        let at_zero = json.matches("\"at\": [0.0000, 1.2500, 0.0000]").count();
+        assert!(
+            at_zero >= 2,
+            "the shared wall moved between levels - the origin is not shared:\n{json}"
+        );
+        assert!(json.contains("\"format\": 2"));
+        assert!(json.contains("\"levels\""));
     }
 }

@@ -33,9 +33,18 @@ pub struct StageBar;
 #[derive(Component)]
 pub struct ModeBar;
 
+/// A button that leaves this project and opens one the bench has worked in
+/// before.
+#[derive(Component)]
+struct ProjectButton(std::path::PathBuf);
+
+/// The button that asks for a game's folder.
+#[derive(Component)]
+pub(crate) struct OpenProjectButton;
+
 /// The gear at the rail's foot, and the settings panel it opens.
 #[derive(Component)]
-struct SettingsButton;
+pub(crate) struct SettingsButton;
 
 #[derive(Component)]
 struct SettingsPanel;
@@ -53,6 +62,7 @@ impl Plugin for RailPlugin {
                 work_stage_bar,
                 hang_the_stage_bar,
                 follow_with_a_word,
+                work_projects,
             ),
         );
     }
@@ -73,7 +83,7 @@ pub fn raise_rail(mut commands: Commands, fonts: Res<Fonts>, palette: Res<Palett
             Node {
                 position_type: PositionType::Absolute,
                 left: Val::Px(0.0),
-                top: Val::Px(0.0),
+                top: Val::Px(crate::menu::BAR_HIGH),
                 width: Val::Percent(100.0),
                 flex_direction: FlexDirection::Row,
                 justify_content: JustifyContent::Center,
@@ -164,7 +174,7 @@ pub fn raise_rail(mut commands: Commands, fonts: Res<Fonts>, palette: Res<Palett
             Node {
                 position_type: PositionType::Absolute,
                 left: Val::Px(0.0),
-                top: Val::Px(0.0),
+                top: Val::Px(crate::menu::BAR_HIGH),
                 bottom: Val::Px(0.0),
                 // The shelf's own width. The two stand either side of the same
                 // stage and a bench with mismatched margins reads as a bench
@@ -214,6 +224,102 @@ pub fn raise_rail(mut commands: Commands, fonts: Res<Fonts>, palette: Res<Palett
         TextColor(theme::text_dim(&palette)),
         Node {
             margin: UiRect::bottom(Val::Px(14.0)),
+            ..default()
+        },
+        ChildOf(rail),
+    ));
+
+    // WHICH GAME.
+    //
+    // The bench holds no game's content, so this is the largest thing on the
+    // screen that can be wrong: every colour, every body and every saved work
+    // comes out of the project named here. It could only be said on the command
+    // line until now, and the window's title bar was the one place it was written
+    // down at all - Brett: "this app should support multiple programs, How do I
+    // switch it?" A bench that serves any game has to be able to say which one it
+    // is serving, and let a hand change it.
+    commands.spawn((
+        Text::new("THE PROJECT"),
+        TextFont {
+            font: fonts.display.clone().into(),
+            font_size: FontSize::Px(11.0),
+            ..default()
+        },
+        TextColor(theme::text_dim(&palette)),
+        Node {
+            // Cancels the lead a drawer head carries, so this label and the name
+            // under it sit at the rail's own spacing and read as one thing. A
+            // drawer's margin is there to hold it off whatever came before, and
+            // what came before this one is its own word.
+            margin: UiRect::bottom(Val::Px(-8.0)),
+            ..default()
+        },
+        ChildOf(rail),
+    ));
+    // The open project's own name IS the head of the drawer, and the others drop
+    // out of it - Brett: "this list could get rather long, could we make this a
+    // drop down?" A list of every game a maker has ever opened, standing open at
+    // the top of the rail, pushes the benches themselves off the bottom of it.
+    //
+    // The shelf's own drawer, not a second kind of thing that opens: same `+` and
+    // `-`, same press to work it, and `work_drawers` already does the working. The
+    // one difference is that this head carries a VALUE rather than a category,
+    // which is why the dim word above it says what the value is.
+    let standing = crate::project::current();
+    let inside = crate::builder::drawer(
+        &mut commands,
+        &fonts,
+        &palette,
+        rail,
+        standing
+            .as_ref()
+            .map(|project| project.name.to_uppercase())
+            .unwrap_or_else(|| "NONE OPEN".to_string()),
+        false,
+    );
+
+    // Every one the bench has worked in - all twelve it keeps, not a handful.
+    // Closed, the drawer costs one line however many there are, which is the whole
+    // reason it is a drawer.
+    let here = standing.as_ref().map(|project| project.root.clone());
+    for road in crate::project::recent()
+        .into_iter()
+        .filter(|road| Some(road) != here.as_ref())
+    {
+        let button = project_face(
+            &mut commands,
+            &fonts,
+            &palette,
+            inside,
+            crate::project::called(&road).to_uppercase(),
+            false,
+        );
+        commands.entity(button).insert((
+            ProjectButton(road),
+            Word("Leave this project and open that one"),
+        ));
+    }
+    let open = project_face(
+        &mut commands,
+        &fonts,
+        &palette,
+        inside,
+        "OPEN A GAME...".to_string(),
+        true,
+    );
+    commands.entity(open).insert((
+        OpenProjectButton,
+        Word(
+            "Pick a game's own folder. The bench makes its \
+             opificium folder inside it and works from there",
+        ),
+    ));
+    // A hand's breadth before the benches. It cannot hang off the last button in
+    // the drawer: that button is inside the body, and a closed body has no
+    // margins to give.
+    commands.spawn((
+        Node {
+            height: Val::Px(6.0),
             ..default()
         },
         ChildOf(rail),
@@ -523,7 +629,15 @@ off, walls down as well",
     let bake = icon_face(&mut commands, &palette, tools);
     commands.entity(bake).insert((
         crate::builder::BakeButton,
-        Word("Bake"),
+        // What the word MEANS, not the word again. Every other glyph on this row
+        // says what pressing it does, and this one had been cut back to its own
+        // label - which tells a maker nothing they could not see, about the one
+        // button here whose name is a term of art. Brett: "I am not sure I really
+        // understand what baking is?"
+        Word(
+            "Bake: turn this building into a file the game can \
+             read, and put it where the game reads it",
+        ),
     ));
     let stack = commands
         .spawn((
@@ -610,6 +724,110 @@ struct Tooltip;
 /// like a fly, and a maker crossing the row to reach the broom would raise four
 /// cards on the way.
 const DWELL: f32 = 0.6;
+
+/// One project button: the full width of the rail, since what it carries is a
+/// name of unknown length rather than a word somebody chose to fit.
+///
+/// `bright` is for the one that opens a game the bench has never seen. It is the
+/// only button here that does something a maker cannot undo by pressing another
+/// one, and it is the one they are looking for the first time.
+fn project_face(
+    commands: &mut Commands,
+    fonts: &Fonts,
+    palette: &Palette,
+    parent: Entity,
+    label: String,
+    bright: bool,
+) -> Entity {
+    let button = commands
+        .spawn((
+            Interaction::default(),
+            Node {
+                padding: UiRect::axes(Val::Px(8.0), Val::Px(4.0)),
+                border: UiRect::all(Val::Px(1.0)),
+                ..default()
+            },
+            BackgroundColor(Color::BLACK.with_alpha(0.18)),
+            BorderColor::all(if bright {
+                theme::accent(palette).with_alpha(0.6)
+            } else {
+                theme::panel_border(palette)
+            }),
+            ChildOf(parent),
+        ))
+        .id();
+    commands.spawn((
+        Text::new(label),
+        TextFont {
+            font: fonts.display.clone().into(),
+            font_size: FontSize::Px(11.0),
+            ..default()
+        },
+        TextColor(if bright {
+            theme::accent(palette)
+        } else {
+            theme::text_dim(palette)
+        }),
+        ChildOf(button),
+    ));
+    button
+}
+
+/// Opens another project: the picker, and the ones worked in before.
+///
+/// The bench LEAVES rather than swapping - see `project::relaunch` for why - so
+/// the last thing it does here is keep whatever is standing, because nothing on
+/// the bench is written automatically and a maker who has drawn for an hour
+/// should not lose it to a button that looks harmless.
+fn work_projects(
+    _main_thread: bevy::ecs::system::NonSendMarker,
+    mut leaving: MessageWriter<AppExit>,
+    stages: Res<crate::builder::Stages>,
+    work_name: Res<crate::builder::WorkName>,
+    standing: Query<&crate::builder::Placed, Without<crate::builder::Ghost>>,
+    picks: Query<&Interaction, (Changed<Interaction>, With<OpenProjectButton>)>,
+    recents: Query<(&Interaction, &ProjectButton), Changed<Interaction>>,
+) {
+    let wanted = if picks.iter().any(|touch| *touch == Interaction::Pressed) {
+        // A GAME's folder, not the bench's own inside it: the maker knows where
+        // their game is and should not have to know what this program calls the
+        // corner of it that it works in.
+        let Some(picked) = rfd::FileDialog::new()
+            .set_title("Open a game's folder")
+            .pick_folder()
+        else {
+            return;
+        };
+        match crate::project::start_a_project(&picked) {
+            Ok(root) => Some(root),
+            Err(why) => {
+                warn!("could not start a project in {}: {why}", picked.display());
+                return;
+            }
+        }
+    } else {
+        recents
+            .iter()
+            .find(|(touch, _)| **touch == Interaction::Pressed)
+            .map(|(_, button)| button.0.clone())
+    };
+    let Some(root) = wanted else {
+        return;
+    };
+
+    if let Some(kept) =
+        crate::builder::keep_the_bench(&stages, standing.iter(), work_name.0.as_deref())
+    {
+        info!("kept the bench at {}", kept.display());
+    }
+    match crate::project::relaunch(&root) {
+        Ok(_) => {
+            info!("opening {}", root.display());
+            leaving.write(AppExit::Success);
+        }
+        Err(why) => warn!("could not open {}: {why}", root.display()),
+    }
+}
 
 /// One icon button's frame: the gear's own, so the four read as one row.
 ///

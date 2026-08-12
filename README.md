@@ -18,14 +18,14 @@ that game's own repository — a **project**, described by an
 ```json
 {
   "format": 1,
-  "name": "Divus Factus",
-  "install": "../assets/buildings"
+  "name": "Divus Factus"
 }
 ```
 
-Every path has a sensible default, so the manifest above is complete, and
-a folder with no manifest at all is still a project. Point Opificium at
-an empty directory and start working.
+Every path has a sensible default — including where baked work is carried,
+which is the game's own `assets/buildings` — so the manifest above is
+complete, and a folder with no manifest at all is still a project. Point
+Opificium at an empty directory and start working.
 
 ```bash
 opificium /path/to/your-game/opificium

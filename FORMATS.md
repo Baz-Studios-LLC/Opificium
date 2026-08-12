@@ -16,10 +16,13 @@ folder.
 ```json
 {
   "format": 1,
-  "name": "Divus Factus",
-  "install": "../assets/buildings"
+  "name": "Divus Factus"
 }
 ```
+
+Every field has a default, `install` included, so that is a COMPLETE project - and
+a folder with no manifest at all is one too. Set a path only where a game differs
+from the table below.
 
 | field       | default             | what it is                                      |
 | ----------- | ------------------- | ----------------------------------------------- |
@@ -29,7 +32,7 @@ folder.
 | `templates` | `templates`         | starting shapes to draw from                     |
 | `work`      | `out/buildings`     | the maker's own saved work                       |
 | `baked`     | `out/baked`         | exported work, ready for the game                |
-| `install`   | none                | where baked work is carried so the game reads it |
+| `install`   | `../assets/buildings` | where baked work is carried so the game reads it. Empty means nowhere: the bake stops at `baked` |
 
 A folder with no manifest at all is still a project, and takes every
 default — point the bench at an empty directory and start working.
@@ -159,14 +162,56 @@ its colour already looked up, plus the marks that say what the place is FOR.
 
 ```json
 {
-  "format": 1, "name": "longhouse1-10people",
+  "format": 2, "name": "longhouse1-10people",
   "half_w": 3.65, "half_d": 6.7, "high": 5.2,
   "boxes": [ { "at": [0,1.25,0], "size": [4,2.5,0.25], "turn": [0,0,0,1],
                "form": "box", "rgb": [110,92,70], "alpha": 1.0, "cloth": "wood",
                "stage": "walls" } ],
-  "marks": [ { "mark": "door", "at": [3.65,0.375,0.0], "yaw": 0.0 } ]
+  "marks": [ { "mark": "door", "at": [3.65,0.375,0.0], "yaw": 0.0 } ],
+  "levels": [
+    { "name": "", "half_w": 3.65, "half_d": 6.7, "high": 5.2,
+      "phases": [ { "boxes": [ "...the footings only..." ] },
+                  { "boxes": [ "...and the frame..." ] } ],
+      "marks": [ { "mark": "door", "at": [3.65,0.375,0.0], "yaw": 0.0 } ] }
+  ]
 }
 ```
+
+### LEVELS, and the two axes of a build
+
+A building is not one thing for ever, and there are two different sequences in it.
+The format used to have a word for neither, and the bench used one word - "stage" -
+for both.
+
+- A **PHASE** is a step of raising ONE building: footings, then frame, then walls.
+- A **LEVEL** is a form the building takes over its life: the original, then each
+  upgrade. Every level is itself a build, so every level has its own phases.
+
+`levels` carries both. Each entry is one level, in order - the first is the
+original - and holds:
+
+- `phases`: one COMPLETE set of boxes per step of raising that level. Complete and
+  not additive, which is what lets a maker draw a step that is not simply the last
+  one plus more: a frame is a picture of a frame, and by the time the walls are up
+  it should be gone.
+- `half_w`/`half_d`/`high`: the FINISHED footprint at that level - the plot to
+  clear, and the shell when it is done. A level may reach further than the one
+  before it.
+- `marks`: what the place is FOR once that level is finished.
+
+Every level is measured from ONE origin: the first level's finished footprint. An
+upgrade has to land on the building it upgrades, so it is never recentred on its
+own bounds - a wing added to one end would otherwise shunt the whole building
+sideways the day it was built.
+
+`boxes` and `marks` at the top level are the **first level, finished**: exactly
+what a format 1 file held. A game that wants nothing to do with levels reads only
+those and needs no change. A game that wants upgrades reads `levels` instead.
+
+The per-box `stage` says what a box IS, and still does. It is enough to raise a
+level without reading its phases at all, which is how the older readers work; the
+phases are there for when the sequence a maker actually drew matters more than the
+one a tag can imply.
 
 - `form` is the box's shape, and there are four. Both programs draw each one
   from its own code — they share none — so a shape is only the same shape in
@@ -226,5 +271,14 @@ its colour already looked up, plus the marks that say what the place is FOR.
 
 ## Versioning
 
-Every file carries `"format": 1`. When a format grows, the number moves and
-this page says what changed; the game keeps reading old numbers.
+Every file carries a `format`. When a format grows, the number moves and this page
+says what changed; the game keeps reading old numbers.
+
+**Baked buildings are at `2`**, which added `levels`. A `2` is a superset of a `1`:
+`boxes` and `marks` still hold the first level finished, so a reader that only knows
+`1` needs no change and sees what it always saw.
+
+**Saved works are at `2`**, which added `levels` to the `.baz`. All three shapes a
+work has ever had still open: `levels`, the older `stages` without them, and the
+flat `parts` list from before either existed. A maker's buildings are not something
+to lose to a format change.
