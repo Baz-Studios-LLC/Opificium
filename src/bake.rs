@@ -85,7 +85,10 @@ pub fn run(ask: &Ask) -> i32 {
     let palette = crate::look::load_palette_for_bake();
     let work_dir = crate::project::work();
     let Ok(entries) = std::fs::read_dir(&work_dir) else {
-        eprintln!("opificium --bake: nothing to read at {}", work_dir.display());
+        eprintln!(
+            "opificium --bake: nothing to read at {}",
+            work_dir.display()
+        );
         return 2;
     };
 

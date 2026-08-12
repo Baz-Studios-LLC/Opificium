@@ -1,0 +1,393 @@
+//! What a part IS: the kinds, and the shelves they are offered from.
+
+use super::*;
+
+/// What a framed wall makes room for.
+///
+/// NOT a hole cut in anything. An opening is a region the panels decline to
+/// fill and that gathers its own timber around itself - jambs either side, a
+/// lintel over, and for a window a sill under. That is why every window in a
+/// real half-timbered wall sits inside its own little frame, and it is why
+/// there is no boolean anywhere in here.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum Opening {
+    /// Floor to head height, for walking through.
+    Door,
+    /// A hole in the upper course with a sill under it.
+    Window,
+}
+
+/// What a shelf entry stands for.
+#[derive(Clone, Copy, PartialEq)]
+pub enum PartKind {
+    Wall(f32),
+    /// A half-timbered wall that frames ITSELF.
+    ///
+    /// Every other part in here is a shape a maker sizes. This one is a
+    /// specification the bench solves: given a length and a height it works out
+    /// where the sill and head plates go, where the corner posts stand, and how
+    /// many studs divide the clear span between them - then places all of it
+    /// from scratch every time either number changes.
+    ///
+    /// The difference shows the moment you pull it. A plain wall dragged from
+    /// two metres to three is the same wall stretched, and everything drawn on
+    /// it stretches too. A framed wall dragged the same way GAINS A BAY: the
+    /// studs stay the width studs are, the panels stay the size panels are, and
+    /// the wall is simply longer. Nothing is ever scaled, so nothing is ever
+    /// distorted.
+    ///
+    /// Taken from Opificium, which is Brett's own bench for medieval buildings
+    /// and worked this way from the start.
+    Framed {
+        long: f32,
+        high: f32,
+        /// What the wall leaves holes for, and how far along it each one sits.
+        ///
+        /// A fixed array because a `PartKind` is `Copy` and is spelled out as a
+        /// name - a wall is its measurements, and a list that could grow without
+        /// bound could not be either of those things. Four is more openings than
+        /// one wall of a house has ever wanted.
+        openings: [Option<(Opening, f32)>; MOST_OPENINGS],
+    },
+    /// A piece of wall left standing around an opening: the sides of a
+    /// doorway, the header above it, the sill strip under a window.
+    Seg {
+        long: f32,
+        high: f32,
+        lift: f32,
+    },
+    Trim {
+        long: f32,
+        stone: bool,
+    },
+    /// The stepped triangle that closes a pitched roof's end: courses of
+    /// wall narrowing to a peak at the roof's own thirty degrees.
+    Gable(f32, f32),
+    /// A squared timber laid along its own length: the corner post's section,
+    /// on its side and as long as it is drawn — and how far each end is cut
+    /// back at an angle, nought for a square end.
+    ///
+    /// The cut is a RUN, not an angle: how far along the beam the saw travels
+    /// while crossing its full height. That is the number the roof hands over —
+    /// the difference between where the top corner meets the slope and where the
+    /// bottom does — and it needs no trigonometry at either end.
+    Beam(f32, f32, f32),
+    BeamRun,
+    /// The cap that hides the seam where two slopes meet.
+    Ridge(f32),
+    /// A chimney stack: the number is how far its shaft reaches DOWN
+    /// from where it stands, so it can be buried in a roof's slope or
+    /// run all the way to the hearth below.
+    Chimney(f32),
+    /// A wooden flight with a rail on each side, climbing by the height given.
+    ///
+    /// It climbs along its own +Z rather than +X, which is the one thing about
+    /// it a maker might notice and only if they were looking for it: a slab can
+    /// lean about X and no other axis, so a rail that RUNS at the stair's own
+    /// angle - which is what Brett asked for, "We can use angles for the railing
+    /// now that we have angles right?" - has to climb the axis that leaning
+    /// answers to. Turn it with R like anything else.
+    ///
+    /// One part in two materials, the way TRIM and TRIM, STONE are one part:
+    /// the flight is the same flight, and stone or timber is a fact about it
+    /// rather than a different thing to draw.
+    ///
+    /// The TREADS and the RAIL answer separately, because a stone stair with a
+    /// timber handrail is a real building and so is its opposite - Brett: "What
+    /// if i wanted a stone railing on a wooden step or vice versa?" The shelf
+    /// offers the two matching pairs, which are what a maker reaches for most,
+    /// and the right-click menu changes the rail on a flight already standing.
+    Stairs {
+        rise: f32,
+        wide: f32,
+        stone: bool,
+        rail_stone: bool,
+        /// How high the rail stands above each tread.
+        hand: f32,
+    },
+    /// A handrail on the flat: posts at each end, a rail between them, and
+    /// balusters under it - the stair's own railing, run along level ground.
+    ///
+    /// Brett: "can you make a stratchable railing that lines up with this post
+    /// from the stair railing? It would be great to continue it on a flat
+    /// surface." So every measurement of it is the flight's: the same post, the
+    /// same rail, the same balusters, and the same height above what it stands
+    /// on - a landing at the top of a flight carries straight on.
+    Rail {
+        long: f32,
+        hand: f32,
+        stone: bool,
+    },
+    RailRun {
+        stone: bool,
+    },
+    /// A ridge pole: a round log along the spine, the older way of
+    /// closing a roof.
+    /// A whole gable roof: both slopes and the ridge between them, drawn
+    /// once over the walls instead of lined up slope by slope.
+    GableRoof(f32, f32, f32, f32),
+    /// What a whole roof looks like while it is being sized: the ground
+    /// it will cover, with a gold line down the way the ridge will run.
+    /// It is never placed - the record beneath it names the roof.
+    RoofPlan(f32, f32),
+    Floor(f32, f32),
+    /// A stone pad: how wide, how deep, and how TALL.
+    ///
+    /// The height is a third number because Brett wanted footings that answer to
+    /// the ground: "I would like the foundation to be able to be stretched in
+    /// the other axis as well, so i could make taller foundations if I wanted."
+    /// A pad set into a slope has to reach the ground somewhere.
+    Foundation(f32, f32, f32),
+    Roof(f32, f32),
+    /// The stretch tools: anchored with one click, drawn to size, set
+    /// with the next. They exist only in the hand - what they place are
+    /// the plain kinds above at the drawn size.
+    WallRun,
+    TrimRun {
+        stone: bool,
+    },
+    /// A wall piece drawn at a fixed height and lift: the header that
+    /// spans above an opening, the sill that fills below one.
+    SegRun {
+        high: f32,
+        lift: f32,
+    },
+    GableRun,
+    RidgeRun,
+    GableRoofRun,
+    /// A hip roof: four faces sloping in from the eaves to a flat deck.
+    ///
+    /// The same four numbers a gable roof takes - how long, how far across, how
+    /// far the eaves reach past the walls, and the pitch - because it is the
+    /// same roof with its ends hipped in rather than closed by a gable.
+    HipRoof(f32, f32, f32, f32),
+    HipRoofRun,
+    FloorRun,
+    FoundationRun,
+    RoofRun,
+    Prop(&'static str),
+    Widget(&'static str),
+}
+
+impl PartKind {
+    /// The runs stretch along one axis; the rect runs stretch two.
+    pub fn run_axes(&self) -> Option<u8> {
+        match self {
+            PartKind::WallRun
+            | PartKind::TrimRun { .. }
+            | PartKind::RailRun { .. }
+            | PartKind::SegRun { .. }
+            | PartKind::GableRun
+            | PartKind::RidgeRun
+            | PartKind::BeamRun => Some(1),
+            PartKind::FloorRun
+            | PartKind::FoundationRun
+            | PartKind::RoofRun
+            | PartKind::GableRoofRun
+            | PartKind::HipRoofRun => Some(2),
+            _ => None,
+        }
+    }
+
+    /// What a run becomes at the drawn size.
+    pub fn run_made(&self, w: f32, d: f32) -> PartKind {
+        match self {
+            PartKind::WallRun => PartKind::Wall(w),
+            PartKind::TrimRun { stone } => PartKind::Trim {
+                long: w,
+                stone: *stone,
+            },
+            PartKind::RailRun { stone } => PartKind::Rail {
+                long: w,
+                hand: RAIL_HIGH,
+                stone: *stone,
+            },
+            PartKind::GableRun => PartKind::Gable(w, ROOF_PITCH_DEGREES),
+            PartKind::RidgeRun => PartKind::Ridge(w),
+            PartKind::BeamRun => PartKind::Beam(w, 0.0, 0.0),
+            // A hand's breadth of overhang to begin with; the gold
+            // handles pull it further without moving the gables.
+            PartKind::GableRoofRun => PartKind::GableRoof(w, d, 0.25, ROOF_PITCH_DEGREES),
+            PartKind::HipRoofRun => PartKind::HipRoof(w, d, 0.25, ROOF_PITCH_DEGREES),
+            PartKind::SegRun { high, lift } => PartKind::Seg {
+                long: w,
+                high: *high,
+                lift: *lift,
+            },
+            PartKind::FloorRun => PartKind::Floor(w, d),
+            PartKind::FoundationRun => PartKind::Foundation(w, d, STEP_UP),
+            PartKind::RoofRun => PartKind::Roof(w, d),
+            other => *other,
+        }
+    }
+}
+
+/// A shelf entry: the name it wears, what it places, and the stage the
+/// village raises it in.
+pub struct CatalogEntry {
+    pub label: &'static str,
+    pub kind: PartKind,
+    pub stage: &'static str,
+}
+
+pub(crate) const fn structure(
+    label: &'static str,
+    kind: PartKind,
+    stage: &'static str,
+) -> CatalogEntry {
+    CatalogEntry { label, kind, stage }
+}
+
+pub(crate) const fn prop(label: &'static str, name: &'static str) -> CatalogEntry {
+    CatalogEntry {
+        label,
+        kind: PartKind::Prop(name),
+        stage: "furnishing",
+    }
+}
+
+/// The shelf's drawers: each section opens and closes on its header.
+pub const STRUCTURE: &[CatalogEntry] = &[
+    structure("BEAM, STRETCH", PartKind::BeamRun, "frame"),
+    structure("DOOR", PartKind::Prop("door"), "walls"),
+    structure("DOOR, DOUBLE", PartKind::Prop("door-double"), "walls"),
+    structure("DOORWAY", PartKind::Prop("doorway"), "walls"),
+    structure("FLOOR, 2M", PartKind::Floor(2.0, 2.0), "footing"),
+    structure("FLOOR, STRETCH", PartKind::FloorRun, "footing"),
+    structure(
+        "FOUNDATION, 2M",
+        PartKind::Foundation(2.0, 2.0, STEP_UP),
+        "footing",
+    ),
+    structure("FOUNDATION, STRETCH", PartKind::FoundationRun, "footing"),
+    structure("GABLE, STRETCH", PartKind::GableRun, "roof"),
+    structure(
+        "HEADER, STRETCH",
+        PartKind::SegRun {
+            high: 0.375,
+            lift: 2.125,
+        },
+        "walls",
+    ),
+    structure("POLE, CORNER", PartKind::Prop("pole"), "frame"),
+    structure(
+        "RAIL, STONE, STRETCH",
+        PartKind::RailRun { stone: true },
+        "frame",
+    ),
+    structure("RAIL, STRETCH", PartKind::RailRun { stone: false }, "frame"),
+    structure("RIDGE, STRETCH", PartKind::RidgeRun, "roof"),
+    structure("ROOF, GABLE, STRETCH", PartKind::GableRoofRun, "roof"),
+    structure("ROOF, HIP, STRETCH", PartKind::HipRoofRun, "roof"),
+    structure("ROOF, PANEL", PartKind::Roof(2.2, 2.2), "roof"),
+    structure("ROOF, STRETCH", PartKind::RoofRun, "roof"),
+    structure(
+        "SILL, STRETCH",
+        PartKind::SegRun {
+            high: 0.75,
+            lift: 0.0,
+        },
+        "walls",
+    ),
+    // One noun for the family, the material after it - the way TRIM, STONE and
+    // TRIM sit together. Two words for one thing, "stairs" and "steps", meant
+    // knowing which of them we had happened to use.
+    structure(
+        "STAIRS, STONE",
+        PartKind::Stairs {
+            rise: STEP_UP,
+            wide: 1.25,
+            stone: true,
+            rail_stone: true,
+            hand: RAIL_HIGH,
+        },
+        "footing",
+    ),
+    structure(
+        "STAIRS, WOOD",
+        PartKind::Stairs {
+            rise: STEP_UP,
+            wide: 1.25,
+            stone: false,
+            rail_stone: false,
+            hand: RAIL_HIGH,
+        },
+        "footing",
+    ),
+    structure(
+        "TRIM, STONE, STRETCH",
+        PartKind::TrimRun { stone: true },
+        "walls",
+    ),
+    structure("TRIM, STRETCH", PartKind::TrimRun { stone: false }, "walls"),
+    structure("WALL, 2M", PartKind::Wall(2.0), "walls"),
+    structure(
+        "WALL, FRAMED",
+        PartKind::Framed {
+            long: 3.0,
+            high: WALL_HIGH,
+            openings: [None; MOST_OPENINGS],
+        },
+        "walls",
+    ),
+    structure(
+        "WALL, FRAMED, DOOR",
+        PartKind::Framed {
+            long: 3.0,
+            high: WALL_HIGH,
+            openings: [Some((Opening::Door, 0.0)), None, None, None],
+        },
+        "walls",
+    ),
+    structure(
+        "WALL, FRAMED, WINDOW",
+        PartKind::Framed {
+            long: 3.0,
+            high: WALL_HIGH,
+            openings: [Some((Opening::Window, 0.0)), None, None, None],
+        },
+        "walls",
+    ),
+    structure("WALL, STRETCH", PartKind::WallRun, "walls"),
+    structure("WINDOW", PartKind::Prop("window"), "walls"),
+];
+
+pub const FURNITURE: &[CatalogEntry] = &[
+    prop("BED", "bed"),
+    prop("BED, DOUBLE", "bed-double"),
+    prop("BENCH", "bench"),
+    prop("CHAIR", "chair"),
+    prop("CHEST", "chest"),
+    CatalogEntry {
+        label: "CHIMNEY",
+        kind: PartKind::Chimney(1.75),
+        stage: "roof",
+    },
+    prop("COUCH", "couch"),
+    prop("CRADLE", "cradle"),
+    prop("CUPBOARD", "cupboard"),
+    prop("HEARTH", "hearth"),
+    prop("SHELVES", "shelves"),
+    prop("STOOL", "stool"),
+    prop("TABLE", "table"),
+    prop("TABLE, SIDE", "side-table"),
+    prop("WARDROBE", "wardrobe"),
+];
+
+pub const DECOR: &[CatalogEntry] = &[
+    prop("ANVIL", "anvil"),
+    prop("BARREL", "barrel"),
+    prop("BASKET", "basket"),
+    prop("CRATE", "crate"),
+    prop("FENCE", "fence"),
+    prop("LADDER", "ladder"),
+    prop("LOOM", "loom"),
+    prop("MANNEQUIN", "mannequin"),
+    prop("PLANTER", "planter"),
+    prop("POT, COOKING", "pot"),
+    prop("RUG", "rug"),
+    prop("SACK", "sack"),
+    prop("STAND, CANDLE", "candle"),
+    prop("TROUGH", "trough"),
+    prop("WOODPILE", "woodpile"),
+];

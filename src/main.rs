@@ -14,12 +14,12 @@
 use bevy::prelude::*;
 
 mod bake;
-mod menu;
-mod project;
 mod builder;
 mod camera;
 mod gizmo;
 mod look;
+mod menu;
+mod project;
 mod rail;
 mod rig;
 mod stage;

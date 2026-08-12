@@ -932,9 +932,7 @@ fn work_gizmo(
             let grown = 0.0;
             let made = match kind {
                 PartKind::Wall(_) => PartKind::Wall(w),
-                PartKind::Framed {
-                    high, openings, ..
-                } => PartKind::Framed {
+                PartKind::Framed { high, openings, .. } => PartKind::Framed {
                     long: w,
                     high,
                     openings,
