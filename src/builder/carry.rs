@@ -92,16 +92,7 @@ pub(crate) fn carry_into_the_game(
     name: &str,
     kind: &str,
 ) -> Result<(usize, usize), String> {
-    let (json, boxes, marks) = bake_a_work(work, palette, name);
-    let json = if kind.is_empty() {
-        json
-    } else {
-        json.replacen(
-            "\"format\": 1,",
-            &format!("\"format\": 1,\n  \"kind\": \"{kind}\","),
-            1,
-        )
-    };
+    let (json, boxes, marks) = bake_a_work(work, palette, name, kind);
     let home = carried_home("buildings");
     std::fs::create_dir_all(&home).map_err(|why| format!("{}: {why}", home.display()))?;
     let out = home.join(format!("{name}.json"));

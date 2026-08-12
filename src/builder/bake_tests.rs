@@ -37,7 +37,7 @@ fn bake_the_works() {
         };
         let name = path.file_stem().unwrap().to_string_lossy().to_string();
 
-        let (json, boxes, marks) = bake_a_work(&work, &palette, &name);
+        let (json, boxes, marks) = bake_a_work(&work, &palette, &name, "");
         let out = baked_dir.join(format!("{name}.json"));
         std::fs::write(&out, json).expect("write baked");
         println!("baked {name}: {boxes} boxes, {marks} marks");

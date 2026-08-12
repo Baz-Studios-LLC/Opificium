@@ -240,6 +240,7 @@ pub(crate) fn bake_a_work(
     work: &Workbench,
     palette: &Palette,
     name: &str,
+    kind: &str,
 ) -> (String, usize, usize) {
     let levels = levels_of(work);
     let nothing: Vec<Placed> = Vec::new();
@@ -282,8 +283,21 @@ pub(crate) fn bake_a_work(
     // And the base level, finished, written the older way as well.
     let (boxes, marks) = bake_one_phase(&base, palette, middle);
     let span = high - low;
+    // Written HERE rather than patched in afterwards. The caller used to insert it
+    // by finding `"format": 1,` in the finished text and writing the kind after it -
+    // and the day the format became 2 that search quietly stopped matching, so every
+    // baked building lost its kind and the game fell back to guessing from the
+    // drawing's name. A document assembled once cannot come apart like that.
+    //
+    // Empty means the field is LEFT OUT: a game reads a missing kind as "take it
+    // from the name", which is the older reading and a true one.
+    let said = if kind.is_empty() {
+        String::new()
+    } else {
+        format!("  \"kind\": \"{kind}\",\n")
+    };
     let json = format!(
-        "{{\n  \"format\": 2,\n  \"name\": \"{name}\",\n  \
+        "{{\n  \"format\": 2,\n  \"name\": \"{name}\",\n{said}  \
          \"half_w\": {:.4},\n  \"half_d\": {:.4},\n  \"high\": {:.4},\n  \
          \"boxes\": [\n{}\n  ],\n  \"marks\": [\n{}\n  ],\n  \
          \"levels\": [\n{}\n  ]\n}}\n",

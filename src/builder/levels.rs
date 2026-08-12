@@ -108,7 +108,7 @@ fn an_upgrade_stands_where_the_building_stands() {
             },
         ],
     };
-    let (json, boxes, _) = bake_a_work(&work, &palette, "blacksmith");
+    let (json, boxes, _) = bake_a_work(&work, &palette, "blacksmith", "blacksmith");
 
     // The top level is the BASE finished, so a format 1 reader is unaffected by
     // the existence of an upgrade.
@@ -122,7 +122,7 @@ fn an_upgrade_stands_where_the_building_stands() {
             phases: vec![base],
         }],
     };
-    let (_, only, _) = bake_a_work(&alone, &palette, "blacksmith");
+    let (_, only, _) = bake_a_work(&alone, &palette, "blacksmith", "blacksmith");
     assert_eq!(
         boxes, only,
         "adding an upgrade changed what a format 1 reader sees"
@@ -136,4 +136,61 @@ fn an_upgrade_stands_where_the_building_stands() {
     );
     assert!(json.contains("\"format\": 2"));
     assert!(json.contains("\"levels\""));
+}
+
+#[cfg(test)]
+mod the_kind_in_the_file {
+    use super::*;
+
+    /// The kind a maker chose reaches the FILE.
+    ///
+    /// It used to be patched into the finished text by searching for
+    /// `"format": 1,` and writing after it - so the day the format became 2 the
+    /// search stopped matching, every baked building lost its kind, and the game
+    /// went back to guessing from the drawing's name. Nothing failed and nothing
+    /// was logged: the bake still said "carried in as a longhouse" while writing a
+    /// file that did not say so. Checked here because reading the file was the
+    /// only way to see it.
+    #[test]
+    fn a_baked_building_says_what_it_is() {
+        let palette = crate::look::bench_palette();
+        let work = Workbench {
+            format: 2,
+            name: "hall".into(),
+            parts: Vec::new(),
+            stages: Vec::new(),
+            levels: vec![Level {
+                name: String::new(),
+                phases: vec![vec![Placed {
+                    part: "wall-2".to_string(),
+                    at: [0.0; 3],
+                    yaw: 0.0,
+                    tilt: 0.0,
+                    ramp: None,
+                    shade: 0.7,
+                    stage: "walls".to_string(),
+                    flip: false,
+                    group: None,
+                    loose: false,
+                }]],
+            }],
+        };
+        let (said, ..) = bake_a_work(&work, &palette, "hall", "townhall");
+        assert!(
+            said.contains("\"kind\": \"townhall\""),
+            "the kind never reached the file:\n{said}"
+        );
+        // And it sits where a reader expects it, beside the name rather than buried
+        // among the boxes.
+        let at_kind = said.find("\"kind\"").expect("a kind");
+        assert!(at_kind < said.find("\"boxes\"").expect("boxes"));
+
+        // A project with no kinds writes NO field at all rather than an empty one: a
+        // game reads a missing kind as "take it from the name".
+        let (quiet, ..) = bake_a_work(&work, &palette, "hall", "");
+        assert!(
+            !quiet.contains("\"kind\""),
+            "an empty kind was written anyway"
+        );
+    }
 }
