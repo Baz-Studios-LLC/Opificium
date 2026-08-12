@@ -47,7 +47,7 @@ pub(crate) fn raise_palette(mut commands: Commands, fonts: Res<Fonts>, palette: 
                 // The shelf's own width: the two share an edge and only one
                 // stands at a time, so a differing width would make the panel
                 // jump as a maker changes tool.
-                width: Val::Px(212.0),
+                width: Val::Px(crate::look::PANEL_WIDE),
                 flex_direction: FlexDirection::Column,
                 padding: UiRect::all(Val::Px(10.0)),
                 row_gap: Val::Px(2.0),

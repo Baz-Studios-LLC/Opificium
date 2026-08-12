@@ -80,6 +80,20 @@ pub(crate) const RAIL_PIN: f32 = ATOM * 2.0;
 /// is four treads of three, which is what the rhythm makes of it anyway.
 pub(crate) const STEP_UP: f32 = ATOM * 12.0;
 
+/// How finely a hand may place: points per metre, from the grid G sets, and
+/// always whole atoms while shift is held.
+///
+/// One function because two things have to agree about it. The ghost shows where an
+/// opening will land and the punch decides where it does; a step computed twice is
+/// a ghost that lies.
+pub(crate) fn snap_step(fine: bool, grid: i32) -> f32 {
+    if fine {
+        16.0
+    } else {
+        16.0 / grid.max(1) as f32
+    }
+}
+
 /// The nearest whole atom to a measurement.
 ///
 /// Everything a hand pulls goes through here, so a part cannot be left between
@@ -184,19 +198,23 @@ pub(crate) const BAR_WIDE: i32 = 1;
 pub(crate) fn openings_at(
     span: i32,
     tall: i32,
-    openings: &[Option<(Opening, f32)>; MOST_OPENINGS],
+    openings: &[Option<Hole>; MOST_OPENINGS],
 ) -> Vec<(Opening, i32, i32, i32, i32)> {
     let mut holes: Vec<(Opening, i32, i32, i32, i32)> = Vec::new();
     let (_inner_foot, _, _, high_foot, high_tall) = courses_of(tall);
-    for (what, at) in openings.iter().flatten().copied() {
-        let (wide, rise, foot) = match what {
+    for hole in openings.iter().flatten().copied() {
+        let (what, at) = (hole.what, hole.at);
+        // The HOLE's width, not its kind's: a double door frames a hole its two
+        // leaves fit through. What the kind still decides is how tall it stands and
+        // how far off the floor, which has nothing to do with how wide it is.
+        let (rise, foot) = match what {
             // A door reaches the FLOOR. It stood on the sill plate before,
             // which put its head two atoms above the leaf hung in it - the leaf
             // is two metres from the ground, and the hole was two metres from
             // the top of the plate - so the door sat low in its own opening
             // with daylight over it. Nothing crosses a doorway: the plate is
             // laid in pieces around it, which is what you walk through.
-            Opening::Door => (DOOR_WIDE, DOOR_HIGH, 0),
+            Opening::Door => (DOOR_HIGH, 0),
             // A window FILLS the upper course, from the rail to the head plate.
             //
             // It used to sit inside that course with a sill of its own under it
@@ -210,8 +228,9 @@ pub(crate) fn openings_at(
             // the head plate IS its lintel. Both come out exactly a plate thick,
             // like every other horizontal in the wall, and the window is taller
             // by the two it is no longer paying for.
-            Opening::Window => (WINDOW_WIDE, high_tall, high_foot),
+            Opening::Window => (high_tall, high_foot),
         };
+        let wide = hole.wide;
         let room = span - POST_WIDE - JAMB_WIDE - wide;
         if room < POST_WIDE + JAMB_WIDE {
             continue;

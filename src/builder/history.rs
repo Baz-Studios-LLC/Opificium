@@ -300,6 +300,8 @@ pub(crate) fn mirror_part(
 pub(crate) fn reflow_openings(
     mut commands: Commands,
     buttons: Res<ButtonInput<MouseButton>>,
+    keys: Res<ButtonInput<KeyCode>>,
+    snap_grid: Res<SnapGrid>,
     selected: Res<crate::gizmo::Selected>,
     mut came_from: Local<Option<(Entity, Vec3)>>,
     placed: Query<(Entity, &Transform, &Placed, &Visibility), Without<Ghost>>,
@@ -335,7 +337,7 @@ pub(crate) fn reflow_openings(
     if now.distance(old_spot) < 0.03 {
         return;
     }
-    let Some((wide, head, sill, is_door)) = opening_for(record) else {
+    let Some((wide, head, sill, is_door, clear)) = opening_for(record) else {
         return;
     };
 
@@ -373,7 +375,11 @@ pub(crate) fn reflow_openings(
         head,
         sill,
         is_door,
+        clear,
         &carried,
+        // The same step a placement takes, so dragging a door along a wall moves it
+        // in the strides the maker set rather than in sixteenths.
+        snap_step(held_shift(&keys), snap_grid.0),
     );
     if punched {
         // The punch set a fresh frame of its own in the new opening.

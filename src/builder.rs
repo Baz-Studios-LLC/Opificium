@@ -413,7 +413,9 @@ fn toggle_snap_mode(
     dims: Res<DimsEntry>,
     mut mode: ResMut<SnapMode>,
     mut grid: ResMut<SnapGrid>,
-    mut labels: Query<&mut Text, With<SnapModeText>>,
+    // The word hangs inside its own little ground, so the text is the child.
+    words: Query<&Children, With<SnapModeText>>,
+    mut labels: Query<&mut Text>,
 ) {
     if *bench == Bench::Builder && naming.0.is_none() && dims.0.is_none() {
         if keys.just_pressed(KeyCode::KeyF) {
@@ -434,9 +436,13 @@ fn toggle_snap_mode(
         if mode.face { "on" } else { "off" },
         grid.0
     );
-    for mut label in &mut labels {
-        if label.0 != word {
-            *label = Text::new(word.clone());
+    for kids in &words {
+        for kid in kids.iter() {
+            if let Ok(mut label) = labels.get_mut(kid)
+                && label.0 != word
+            {
+                *label = Text::new(word.clone());
+            }
         }
     }
 }
@@ -573,12 +579,18 @@ pub fn part_name(kind: &PartKind) -> String {
             // with two windows in it is a different part from the same wall
             // with one.
             let mut name = format!("framed-{long}x{high}");
-            for (what, at) in openings.iter().flatten() {
-                let letter = match what {
+            for hole in openings.iter().flatten() {
+                let letter = match hole.what {
                     Opening::Door => 'd',
                     Opening::Window => 'w',
                 };
-                name.push_str(&format!("x{letter}{at}"));
+                name.push_str(&format!("x{letter}{}", hole.at));
+                // Only when it is NOT the usual width for its kind. Every framed
+                // wall drawn before openings had widths of their own writes exactly
+                // the name it always wrote, and reads back the same.
+                if hole.wide != usual_width(hole.what) {
+                    name.push_str(&format!("@{}", hole.wide));
+                }
             }
             name
         }
@@ -644,13 +656,23 @@ pub fn kind_from_name(name: &str) -> Option<PartKind> {
             .and_then(|n| n.parse().ok())
             .unwrap_or(WALL_HIGH);
         let mut openings = [None; MOST_OPENINGS];
-        for (slot, hole) in openings.iter_mut().zip(parts) {
-            let Ok(at) = hole[1..].parse() else { continue };
-            *slot = match hole.as_bytes().first() {
-                Some(b'd') => Some((Opening::Door, at)),
-                Some(b'w') => Some((Opening::Window, at)),
+        for (slot, said) in openings.iter_mut().zip(parts) {
+            // `d0.5` or `d0.5@36`: a width only when it is not the usual one.
+            let (where_at, wide) = match said[1..].split_once('@') {
+                Some((at, wide)) => (at, wide.parse::<i32>().ok()),
+                None => (&said[1..], None),
+            };
+            let Ok(at) = where_at.parse() else { continue };
+            let what = match said.as_bytes().first() {
+                Some(b'd') => Some(Opening::Door),
+                Some(b'w') => Some(Opening::Window),
                 _ => None,
             };
+            *slot = what.map(|what| Hole {
+                what,
+                at,
+                wide: wide.unwrap_or(usual_width(what)),
+            });
         }
         return Some(PartKind::Framed {
             long,
@@ -787,6 +809,10 @@ pub fn kind_from_name(name: &str) -> Option<PartKind> {
         });
     }
     if let Some(wanted) = name.strip_prefix("prop:") {
+        // What the bench makes for itself, before what it offers: see `PUNCHED`.
+        if let Some(made) = PUNCHED.iter().find(|made| **made == wanted) {
+            return Some(PartKind::Prop(made));
+        }
         return STRUCTURE
             .iter()
             .chain(FURNITURE)
@@ -1096,6 +1122,7 @@ fn place_grab_remove(
     mut commands: Commands,
     buttons: Res<ButtonInput<MouseButton>>,
     keys: Res<ButtonInput<KeyCode>>,
+    snap_grid: Res<SnapGrid>,
     bench: Res<Bench>,
     naming: Res<Naming>,
     hovered: Res<Hovered>,
@@ -1173,7 +1200,7 @@ fn place_grab_remove(
             // stand alone: if one lands on a wall, the wall parts around
             // the opening and the frame settles in.
             let opening = opening_of(&kind);
-            let punched = if let Some((wide, head, sill, is_door)) = opening
+            let punched = if let Some((wide, head, sill, is_door, clear)) = opening
                 && let Some((ghost_at, _)) = ghost_spots.iter().next()
             {
                 punch_wall(
@@ -1188,7 +1215,9 @@ fn place_grab_remove(
                     head,
                     sill,
                     is_door,
+                    clear,
                     &hand,
+                    snap_step(held_shift(&keys), snap_grid.0),
                 )
             } else {
                 false

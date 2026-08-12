@@ -49,8 +49,9 @@ pub(crate) fn open_or_clear(
     bench: Res<Bench>,
     mut chosen: ResMut<WorkWanted>,
     clears: Query<&Interaction, (Changed<Interaction>, With<ClearButton>)>,
-    standing: Query<Entity, (With<Placed>, Without<Ghost>)>,
+    standing: Query<(Entity, &Placed), Without<Ghost>>,
     mut work_name: ResMut<WorkName>,
+    mut held: ResMut<StageHeld>,
 ) {
     if *bench != Bench::Builder {
         return;
@@ -62,10 +63,34 @@ pub(crate) fn open_or_clear(
     if wanted.is_none() && !sweeping {
         return;
     }
-    for part in &standing {
+    // Kept before anything is taken away, and only when there is something to
+    // keep. A sweep now empties every level and phase rather than the one on the
+    // stage, and undo cannot reach the ones that were never standing - so the
+    // whole work goes to the project's own `workbench.baz` on the way out. The
+    // same insurance a project switch takes.
+    if sweeping
+        && let Some(kept) = keep_the_bench(
+            &stages,
+            standing.iter().map(|(_, record)| record),
+            work_name.0.as_deref(),
+        )
+    {
+        info!("swept, and kept what was there at {}", kept.display());
+    }
+    for (part, _) in &standing {
         commands.entity(part).despawn();
     }
     let Some(path) = wanted else {
+        // EVERYTHING, which is what starting a new building means. Despawning the
+        // standing parts only emptied the phase on the stage; every other phase and
+        // every other level went on existing as records, so switching back brought
+        // them out again and a save wrote them out. Brett: "sweeping the bench
+        // should sweep everystage and everything. Like starting a new building,
+        // right now it only clears its current stage."
+        *stages = Stages::default();
+        // And the phase held aside for PUT, or a sweep would leave one drawing in
+        // the bench's hand to be pasted onto the empty work.
+        held.0 = None;
         work_name.0 = None;
         return;
     };

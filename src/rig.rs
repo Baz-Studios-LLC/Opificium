@@ -1034,7 +1034,7 @@ fn hang_the_bodies_shelf(
                 right: Val::Px(0.0),
                 top: Val::Px(crate::menu::BAR_HIGH),
                 bottom: Val::Px(0.0),
-                width: Val::Px(212.0),
+                width: Val::Px(crate::look::PANEL_WIDE),
                 flex_direction: FlexDirection::Column,
                 row_gap: Val::Px(3.0),
                 padding: UiRect::all(Val::Px(12.0)),

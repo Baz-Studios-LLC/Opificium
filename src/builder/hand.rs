@@ -436,11 +436,7 @@ pub(crate) fn move_ghost(
         let Some(point) = cursor_point(&windows, &cameras, anchor.y) else {
             return;
         };
-        let grid = if keys.pressed(KeyCode::ShiftLeft) || keys.pressed(KeyCode::ShiftRight) {
-            16.0
-        } else {
-            16.0 / snap_grid.0 as f32
-        };
+        let grid = snap_step(held_shift(&keys), snap_grid.0);
         let mut to = Vec3::new(
             (point.x * grid).round() / grid,
             anchor.y,
@@ -583,7 +579,9 @@ pub(crate) fn move_ghost(
                 let (_, wall_at, record, _) = placed.get(hit.entity).ok()?;
                 let length = punchable_length(record)?;
                 let along = Quat::from_rotation_y(record.yaw) * Vec3::X;
-                let middle = opening_seat(wall_at.translation, along, length, wide, hit.point);
+                let step = snap_step(held_shift(&keys), snap_grid.0);
+                let middle =
+                    opening_seat(wall_at.translation, along, length, wide, hit.point, step);
                 Some((wall_at.translation + along * middle, record.yaw))
             });
         // Nothing punchable under the cursor: hold still. A ghost that
@@ -662,11 +660,7 @@ pub(crate) fn move_ghost(
     // Quarter-metre snap by default; holding shift tightens the grid to
     // five centimetres for the odd exact nestling.
     if seeded.is_none() {
-        let grid = if keys.pressed(KeyCode::ShiftLeft) || keys.pressed(KeyCode::ShiftRight) {
-            16.0
-        } else {
-            16.0 / snap_grid.0 as f32
-        };
+        let grid = snap_step(held_shift(&keys), snap_grid.0);
         snapped = Vec3::new(
             (snapped.x * grid).round() / grid,
             0.0,
@@ -836,12 +830,25 @@ pub(crate) fn move_ghost(
 #[derive(Clone, Copy)]
 pub struct Hit {
     /// Which part was struck - unread today, but the grab and future
-    /// tools (paint-by-face, measure) will want to know.
+    /// tools (measure) will want to know.
     #[allow(dead_code)]
     pub entity: Entity,
     pub point: Vec3,
     pub normal: Vec3,
     pub base_y: f32,
+    /// The colour of the very piece under the cursor: its ramp, and its step.
+    ///
+    /// The colour SEEN, not the part's own field. Most of what a maker points at
+    /// has never been repainted - a framed wall is wood timbers and bone panels,
+    /// and its `ramp` is None - so a dropper reading the record would come up empty
+    /// on exactly the colours worth copying. `body_of` is handed the repaint before
+    /// this is read, so a part that HAS been painted answers with the paint.
+    ///
+    /// The ramp is KEPT rather than owned, so a `Hit` stays `Copy` and every reader
+    /// of one goes on costing nothing. A palette holds two dozen ramp words and they
+    /// are interned once each - see [`crate::project::a_kept_word`], which exists
+    /// for the same reason a mark's word does.
+    pub wearing: (&'static str, f32),
 }
 
 /// The cursor's findings, shared by the glow, the grab and the ghost:
@@ -929,7 +936,14 @@ pub(crate) fn ray_scan(
         let origin = inverse * (ray.origin - transform.translation);
         let toward = inverse * Vec3::from(ray.direction);
         let repaint = record.ramp.as_deref().map(|r| (r, record.shade));
-        for Slab { at, size, .. } in body_of(&kind, repaint) {
+        for Slab {
+            at,
+            size,
+            ref ramp,
+            shade,
+            ..
+        } in body_of(&kind, repaint)
+        {
             let low = at - size * 0.5;
             let high = at + size * 0.5;
             let mut enter = f32::NEG_INFINITY;
@@ -973,6 +987,7 @@ pub(crate) fn ray_scan(
                         point: ray.get_point(reach),
                         normal: (spin * face).normalize_or_zero(),
                         base_y: transform.translation.y,
+                        wearing: (crate::project::a_kept_word(ramp), shade),
                     },
                 ));
             }

@@ -17,6 +17,58 @@ pub enum Opening {
     Window,
 }
 
+/// Parts the bench MAKES rather than offers: the leaf a punch hangs in an
+/// opening it has just framed.
+///
+/// Not on any shelf, because nobody places a bare door leaf by hand - a punch
+/// creates them, and only when the wall it went into drew the frame itself. But
+/// they must still be READABLE, which is what this list is for: `kind_from_name`
+/// resolves a prop by searching the shelves, so a part on no shelf came back as
+/// nothing at all. It drew once when punched and then vanished at the next respawn
+/// - a phase change, a save and reopen - and never reached the game, because the
+/// bake skips a name it cannot read. Every framed-wall door in every drawing was
+/// losing its leaf in silence.
+pub(crate) const PUNCHED: [&str; 2] = ["door-leaf", "door-double-leaf"];
+
+/// One opening in a framed wall: what kind, where along it, and how wide.
+///
+/// The width used to be implied by the kind - a door was `DOOR_WIDE` and that was
+/// that - so a double door punched into a framed wall got a single door's hole and
+/// its leaves stood over solid timber. Brett: "double doors dont work when placing
+/// them on framed walls."
+///
+/// In ATOMS, because a wall is solved in atoms: it is the CLEAR span, the hole a
+/// leaf has to fit through, and the jambs gather outside it.
+#[derive(Clone, Copy, PartialEq)]
+pub struct Hole {
+    pub what: Opening,
+    /// How far along the wall from its middle, in metres.
+    pub at: f32,
+    pub wide: i32,
+}
+
+impl Hole {
+    /// An opening at the width its kind usually takes.
+    pub const fn plain(what: Opening, at: f32) -> Hole {
+        Hole {
+            what,
+            at,
+            wide: usual_width(what),
+        }
+    }
+}
+
+/// The width a kind of opening takes when nobody says otherwise.
+///
+/// Also what a NAME leaves out: a hole of the usual width writes no width at all,
+/// so every framed wall drawn before this reads back byte for byte the same.
+pub const fn usual_width(what: Opening) -> i32 {
+    match what {
+        Opening::Door => DOOR_WIDE,
+        Opening::Window => WINDOW_WIDE,
+    }
+}
+
 /// What a shelf entry stands for.
 #[derive(Clone, Copy, PartialEq)]
 pub enum PartKind {
@@ -47,7 +99,7 @@ pub enum PartKind {
         /// name - a wall is its measurements, and a list that could grow without
         /// bound could not be either of those things. Four is more openings than
         /// one wall of a house has ever wanted.
-        openings: [Option<(Opening, f32)>; MOST_OPENINGS],
+        openings: [Option<Hole>; MOST_OPENINGS],
     },
     /// A piece of wall left standing around an opening: the sides of a
     /// doorway, the header above it, the sill strip under a window.
@@ -335,7 +387,7 @@ pub const STRUCTURE: &[CatalogEntry] = &[
         PartKind::Framed {
             long: 3.0,
             high: WALL_HIGH,
-            openings: [Some((Opening::Door, 0.0)), None, None, None],
+            openings: [Some(Hole::plain(Opening::Door, 0.0)), None, None, None],
         },
         "walls",
     ),
@@ -344,7 +396,7 @@ pub const STRUCTURE: &[CatalogEntry] = &[
         PartKind::Framed {
             long: 3.0,
             high: WALL_HIGH,
-            openings: [Some((Opening::Window, 0.0)), None, None, None],
+            openings: [Some(Hole::plain(Opening::Window, 0.0)), None, None, None],
         },
         "walls",
     ),

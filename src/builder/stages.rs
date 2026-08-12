@@ -131,7 +131,7 @@ pub enum StageDeed {
 /// "make step three look like step two again" - there is no new step wanted, and
 /// the one that needs changing already exists.
 #[derive(Resource, Default)]
-pub struct StageHeld(Option<Vec<Placed>>);
+pub struct StageHeld(pub(crate) Option<Vec<Placed>>);
 
 /// Sets out another step of the work.
 ///

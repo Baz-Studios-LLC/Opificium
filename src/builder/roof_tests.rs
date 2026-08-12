@@ -675,7 +675,7 @@ fn a_doorway_is_the_size_of_its_door() {
     let holes = openings_at(
         (4.0 / ATOM).round() as i32,
         tall,
-        &[Some((Opening::Door, 0.0)), None, None, None],
+        &[Some(Hole::plain(Opening::Door, 0.0)), None, None, None],
     );
     let (_, _, _, hy, hh) = holes[0];
     assert!(
@@ -694,7 +694,7 @@ fn a_doorway_is_the_size_of_its_door() {
 
 #[test]
 fn a_framed_wall_is_solid_where_it_is_not_open() {
-    let one = |what, at| [Some((what, at)), None, None, None];
+    let one = |what, at| [Some(Hole::plain(what, at)), None, None, None];
     for (name, openings) in [
         ("plain", [None; MOST_OPENINGS]),
         ("a door", one(Opening::Door, 0.0)),
@@ -706,8 +706,8 @@ fn a_framed_wall_is_solid_where_it_is_not_open() {
         (
             "two windows",
             [
-                Some((Opening::Window, -1.0)),
-                Some((Opening::Window, 1.0)),
+                Some(Hole::plain(Opening::Window, -1.0)),
+                Some(Hole::plain(Opening::Window, 1.0)),
                 None,
                 None,
             ],
@@ -715,8 +715,8 @@ fn a_framed_wall_is_solid_where_it_is_not_open() {
         (
             "a door and a window",
             [
-                Some((Opening::Door, -1.0)),
-                Some((Opening::Window, 1.0)),
+                Some(Hole::plain(Opening::Door, -1.0)),
+                Some(Hole::plain(Opening::Window, 1.0)),
                 None,
                 None,
             ],
@@ -786,7 +786,7 @@ fn an_opening_gathers_its_own_frame() {
             &PartKind::Framed {
                 long: 4.0,
                 high: WALL_HIGH,
-                openings: [Some((hole, 0.0)), None, None, None],
+                openings: [Some(Hole::plain(hole, 0.0)), None, None, None],
             },
             None,
         );
@@ -1897,6 +1897,46 @@ fn a_roof_comes_apart_into_parts_that_exist() {
              breaking one up would leave a hole where a door used to be"
     );
     assert!(!comes_apart(&PartKind::Wall(2.0)), "a wall is a wall");
+
+    // What it comes apart INTO is free of one another. The pieces used to be
+    // stamped with one group, which reads as tidy and is exactly wrong: a click on
+    // a grouped part takes the whole group, so a broken-up roof could not be
+    // painted, tilted or buried a piece at a time - the only reasons anybody breaks
+    // one apart. Brett: "I went to pain the gable and it is painting the entire rood
+    // instead of just the gable."
+    //
+    // Checked on the RECORDS the split writes, since the deed itself needs a world.
+    let roof = PartKind::GableRoof(6.0, 4.0, 0.25, 30.0);
+    let standing = Placed {
+        part: part_name(&roof),
+        at: [0.0, 2.5, 0.0],
+        yaw: 0.0,
+        tilt: 0.0,
+        ramp: None,
+        shade: 0.7,
+        stage: "roof".to_string(),
+        flip: false,
+        group: None,
+        loose: false,
+    };
+    let pieces = pieces_of(&roof, &standing);
+    assert_eq!(pieces.len(), 4, "a gable roof is two slopes and two gables");
+    for (_, piece) in &pieces {
+        assert!(
+            piece.group.is_none(),
+            "a piece came out of the split still grouped, so it cannot be \
+             painted on its own: {}",
+            piece.part
+        );
+        // And it is a real part the bench can read back, not a name it invented.
+        assert!(
+            kind_from_name(&piece.part).is_some(),
+            "{} is not a part this bench knows",
+            piece.part
+        );
+        // Each keeps the roof's own nature, so the cutaway still lifts them all.
+        assert_eq!(piece.stage, "roof", "{} forgot what it is", piece.part);
+    }
 
     // And every part can be told what it is, whether or not it comes apart.
     for kind in [

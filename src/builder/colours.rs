@@ -114,3 +114,269 @@ fn every_ramp_climbs() {
         }
     }
 }
+
+/// Snapping a picked step onto a swatch changes no colour.
+///
+/// The dropper takes the step it FINDS - an authored 0.65, a 0.4 - and moves the
+/// brush onto the nearest of the palette's five, so the armed square can wear the
+/// gold ring. That is only honest if the two render identically, which they do
+/// because `shade` reads the nearest of five steps anyway. Asserted rather than
+/// assumed, since the whole trick rests on it.
+#[test]
+fn a_dropped_colour_snaps_without_changing() {
+    let palette = crate::look::bench_palette();
+    for name in ["wood", "stone", "bone", "earth", "cloth-gold"] {
+        // Every step that appears in a part's own body, and the awkward middles.
+        for shade in [
+            0.0, 0.3, 0.35, 0.4, 0.45, 0.5, 0.65, 0.7, 0.75, 0.85, 0.95, 1.0,
+        ] {
+            let snapped = super::brush::nearest_swatch(shade);
+            assert!(
+                SWATCHES.contains(&snapped),
+                "{shade} snapped to {snapped}, which is not a swatch"
+            );
+            assert_eq!(
+                palette.shade(name, shade),
+                palette.shade(name, snapped),
+                "{name} at {shade} is a different colour from {name} at {snapped}, \
+                 so the dropper would change what it copied"
+            );
+        }
+    }
+}
+
+/// Every part the bench MAKES for itself survives the round trip through its name.
+///
+/// A punch hangs a leaf in an opening a framed wall has framed. Those leaves are on
+/// no shelf, and `kind_from_name` resolves a prop by searching the shelves - so they
+/// drew once and were unreadable ever after: gone at the next phase change, gone on
+/// reopening, and absent from every bake, because a name that reads back as nothing
+/// is skipped. Nothing failed and nothing was logged.
+#[test]
+fn what_the_bench_makes_it_can_also_read() {
+    for made in PUNCHED {
+        let name = format!("prop:{made}");
+        let read = kind_from_name(&name);
+        assert!(
+            matches!(read, Some(PartKind::Prop(word)) if word == made),
+            "{name} reads back as nothing, so it would vanish the first time the \
+             bench rebuilt from records"
+        );
+        // And it writes back out under the same name, or a work would change shape
+        // every time it was opened and saved.
+        assert_eq!(part_name(&read.unwrap()), name);
+        // And it has something to draw. A readable name with an empty body is the
+        // same hole seen from the other side.
+        assert!(
+            !body_of(&PartKind::Prop(made), None).is_empty(),
+            "{name} draws nothing at all"
+        );
+    }
+}
+
+/// An opening lands on the grid G sets, not on whole atoms regardless.
+///
+/// Placing a door was the one thing that ignored the grid - so a maker laying a
+/// wall out in quarter metres had to nudge its door in sixteenths. Brett: "when
+/// placing a door it should respect the grid settings when you press g".
+#[test]
+fn an_opening_lands_on_the_grid() {
+    let along = Vec3::X;
+    let wall = Vec3::ZERO;
+    // A wall four metres long, a door 1.25 wide, aimed at an awkward spot.
+    let aim = Vec3::new(0.31, 0.0, 0.0);
+    for grid in [1, 2, 4, 8, 16] {
+        let step = snap_step(false, grid);
+        let seat = opening_seat(wall, along, 4.0, 1.25, aim, step);
+        let strides = seat * step;
+        assert!(
+            (strides - strides.round()).abs() < 1e-4,
+            "at grid {grid} the door seated at {seat}, which is not a whole stride"
+        );
+    }
+    // Shift is the fine hand, always whole atoms, whatever the grid says.
+    let fine = opening_seat(wall, along, 4.0, 1.25, aim, snap_step(true, 4));
+    let atoms = fine / ATOM;
+    assert!(
+        (atoms - atoms.round()).abs() < 1e-4,
+        "shift left {fine} off the lattice"
+    );
+    // And a coarse grid really is coarser: the same aim seats differently.
+    assert_ne!(
+        opening_seat(wall, along, 4.0, 1.25, aim, snap_step(false, 16)),
+        opening_seat(wall, along, 4.0, 1.25, aim, snap_step(false, 1)),
+        "the grid made no difference to where the door went"
+    );
+}
+
+/// A double door frames a hole its own leaves fit through.
+///
+/// A framed wall used to reserve `DOOR_WIDE` for any door at all, because an
+/// opening's width was implied by its kind - so a double door got a single door's
+/// sixteen atoms and its two leaves stood over solid timber. Brett: "double doors
+/// dont work when placing them on framed walls."
+#[test]
+fn a_double_door_gets_a_double_hole() {
+    // What the one table says each opening needs cleared, and what its leaf spans.
+    let clear_of = |what: &'static str| opening_of(&PartKind::Prop(what)).map(|(.., clear)| clear);
+    let single = clear_of("door").expect("a door");
+    let double = clear_of("door-double").expect("a double door");
+    assert_eq!(single, DOOR_WIDE);
+    assert_eq!(
+        double,
+        DOOR_WIDE * 2,
+        "a double door needs two leaves' worth"
+    );
+
+    // And the leaves really do span that: the reason the number is what it is.
+    let spans = |what: &'static str| {
+        let body = body_of(&PartKind::Prop(what), None);
+        let (mut low, mut high) = (f32::INFINITY, f32::NEG_INFINITY);
+        for piece in &body {
+            // The leaves, not the latches: a latch is a stud of gold on the face.
+            if piece.size.y < 1.0 {
+                continue;
+            }
+            low = low.min(piece.at.x - piece.size.x * 0.5);
+            high = high.max(piece.at.x + piece.size.x * 0.5);
+        }
+        high - low
+    };
+    for (leaf, clear) in [("door-leaf", single), ("door-double-leaf", double)] {
+        let wants = spans(leaf);
+        let got = clear as f32 * ATOM;
+        assert!(
+            (wants - got).abs() < 1e-4,
+            "{leaf} spans {wants}m but its opening clears {got}m"
+        );
+    }
+
+    // The wall really frames the wider hole: a long enough wall, one double door.
+    let span = (6.0 / ATOM) as i32;
+    let tall = (WALL_HIGH / ATOM) as i32;
+    let holes = openings_at(
+        span,
+        tall,
+        &[
+            Some(Hole {
+                what: Opening::Door,
+                at: 0.0,
+                wide: double,
+            }),
+            None,
+            None,
+            None,
+        ],
+    );
+    assert_eq!(holes.len(), 1, "the wall refused a door it has room for");
+    assert_eq!(
+        holes[0].1, double,
+        "the wall framed {} atoms for a door that needs {double}",
+        holes[0].1
+    );
+}
+
+/// A framed wall's name carries an unusual width, and leaves a usual one out.
+///
+/// The second half is what keeps every drawing already on disk readable: a door of
+/// the ordinary width writes exactly the name it always wrote.
+#[test]
+fn a_framed_wall_names_its_openings() {
+    let plain = PartKind::Framed {
+        long: 3.0,
+        high: WALL_HIGH,
+        openings: [Some(Hole::plain(Opening::Door, 0.0)), None, None, None],
+    };
+    let name = part_name(&plain);
+    assert_eq!(name, "framed-3x2.5xd0", "an ordinary door gained a width");
+    assert!(kind_from_name(&name) == Some(plain), "it did not read back");
+
+    let wide = PartKind::Framed {
+        long: 4.0,
+        high: WALL_HIGH,
+        openings: [
+            Some(Hole {
+                what: Opening::Door,
+                at: 0.5,
+                wide: DOOR_WIDE * 2,
+            }),
+            None,
+            None,
+            None,
+        ],
+    };
+    let name = part_name(&wide);
+    assert!(
+        name.ends_with("@32"),
+        "the width never reached the name: {name}"
+    );
+    assert!(
+        kind_from_name(&name) == Some(wide),
+        "a wide door did not read back"
+    );
+
+    // And a name from before widths existed still opens, at the usual width.
+    let older = kind_from_name("framed-3x2.5xd0.25").expect("an older wall opens");
+    let PartKind::Framed { openings, .. } = older else {
+        panic!("not a framed wall")
+    };
+    let hole = openings[0].expect("its door");
+    assert_eq!(
+        hole.wide, DOOR_WIDE,
+        "an older door came back the wrong width"
+    );
+    assert!((hole.at - 0.25).abs() < 1e-6);
+}
+
+/// A swept bench is an empty work: one level, one phase, nothing in it.
+///
+/// Despawning the standing parts only emptied the phase on the stage. Every other
+/// phase and every other level went on existing as records, so switching back
+/// brought them out again and a save wrote them out - a bench that looked swept and
+/// was not. Brett: "sweeping the bench should sweep everystage and everything."
+///
+/// Checked on `Stages` itself, since what was wrong was never what the eye saw.
+#[test]
+fn a_swept_bench_keeps_no_level_at_all() {
+    let part = Placed {
+        part: "wall-2".to_string(),
+        at: [0.0; 3],
+        yaw: 0.0,
+        tilt: 0.0,
+        ramp: None,
+        shade: 0.7,
+        stage: "walls".to_string(),
+        flip: false,
+        group: None,
+        loose: false,
+    };
+    // A work well under way: two levels, several phases apiece, parts in all of them.
+    let busy = Stages::of(vec![
+        Level {
+            name: "base".into(),
+            phases: vec![vec![part.clone()], vec![part.clone(), part.clone()]],
+        },
+        Level {
+            name: "forge".into(),
+            phases: vec![vec![part.clone()]],
+        },
+    ]);
+    assert_eq!(busy.all().len(), 2);
+    assert!(busy.all().iter().any(|level| !level.phases[0].is_empty()));
+
+    // What a sweep leaves: the same thing a bench opens with.
+    let swept = Stages::default();
+    assert_eq!(swept.all().len(), 1, "a swept bench kept a level");
+    assert_eq!(swept.count(), 1, "a swept bench kept a phase");
+    assert_eq!(swept.showing(), 0);
+    for level in swept.all() {
+        for phase in &level.phases {
+            assert!(phase.is_empty(), "a swept bench kept parts in a phase");
+        }
+    }
+    // And nothing of the busy work survives into it.
+    assert!(
+        swept.all().iter().all(|level| level.name.is_empty()),
+        "a swept bench remembered a level's name"
+    );
+}

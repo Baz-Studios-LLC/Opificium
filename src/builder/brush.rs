@@ -24,6 +24,17 @@ impl Default for Brush {
     }
 }
 
+/// The swatch a picked step belongs to.
+///
+/// `Palette::shade` reads the nearest of five steps, so this changes no colour -
+/// it only moves the brush onto a value the palette has a square for.
+pub(super) fn nearest_swatch(shade: f32) -> f32 {
+    crate::builder::SWATCHES
+        .into_iter()
+        .min_by(|a, b| (a - shade).abs().total_cmp(&(b - shade).abs()))
+        .unwrap_or(shade)
+}
+
 /// Paints what is already standing.
 ///
 /// The colour keys only ever spoke to the HAND: a part took its ramp and shade
@@ -49,6 +60,8 @@ impl Default for Brush {
 pub(crate) fn paint_the_work(
     mut commands: Commands,
     keys: Res<ButtonInput<KeyCode>>,
+    buttons: Res<ButtonInput<MouseButton>>,
+    hovered: Res<Hovered>,
     palette: Res<Palette>,
     naming: Res<Naming>,
     mode: Res<crate::gizmo::ToolMode>,
@@ -88,6 +101,33 @@ pub(crate) fn paint_the_work(
     }
     if keys.just_pressed(KeyCode::Backslash) {
         brush.ramp = None;
+    }
+
+    // THE DROPPER. Alt-click takes the colour of whatever is under the cursor
+    // instead of putting one there.
+    //
+    // It reads the PIECE, not the part: most of what a maker wants to copy has
+    // never been repainted - the timbers of a framed wall are wood and its panels
+    // are bone, and the wall's own `ramp` is None - so a dropper that read the
+    // record would come up empty on exactly the colours worth having. See
+    // `Hit::wearing`.
+    //
+    // The step is snapped to a swatch, which costs nothing and buys the gold ring:
+    // `Palette::shade` reads the nearest of five steps, so an authored 0.65 and the
+    // swatch's 0.75 are the same colour on screen - but only the swatch's value
+    // lands on a square the palette can mark as armed.
+    if keys.any_pressed([KeyCode::AltLeft, KeyCode::AltRight])
+        && buttons.just_pressed(MouseButton::Left)
+    {
+        if let Some(hit) = hovered.build {
+            let (ramp, shade) = hit.wearing;
+            brush.ramp = Some(ramp.to_string());
+            brush.shade = nearest_swatch(shade);
+            info!("the brush takes {ramp} at {:.2}", brush.shade);
+        }
+        // Whether or not it found anything: an alt-click is never a stroke, and a
+        // dropper that missed and painted instead would be a poor tool.
+        return;
     }
 
     // A stroke is a CLICK ON A PART, and nothing else. Changing the brush used

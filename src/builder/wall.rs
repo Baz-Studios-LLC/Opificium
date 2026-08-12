@@ -137,15 +137,25 @@ pub(crate) fn heal_wall_at(
 /// it. One table, read both by the ghost that SHOWS the placement and by
 /// the punch that makes it - they each had their own copy once, and the
 /// ghost drifted off onto the roof while the door went into the wall.
-pub fn opening_of(kind: &PartKind) -> Option<(f32, f32, f32, bool)> {
+///
+/// `clear` is the fifth thing it says, and the reason a double door used to fail on
+/// a framed wall: the first number is how far a PLAIN wall parts, in metres, which
+/// includes the frame the prop brings with it - and a framed wall brings its own
+/// frame, so what it needs is the CLEAR span the leaves must fit through, in atoms.
+/// Those are different numbers, and only one table should hold either.
+pub fn opening_of(kind: &PartKind) -> Option<(f32, f32, f32, bool, i32)> {
     match kind {
-        PartKind::Prop("door") => Some((1.25, 2.125, 0.0, true)),
-        // Twice the leaf, so twice the hole.
-        PartKind::Prop("door-double") => Some((2.25, 2.125, 0.0, true)),
+        // One leaf a metre wide: sixteen atoms of clear.
+        PartKind::Prop("door") => Some((1.25, 2.125, 0.0, true, DOOR_WIDE)),
+        // Twice the leaf, so twice the hole - and twice the clear, which is the
+        // half that was missing. `door-double-leaf` hangs two metre-wide leaves at
+        // either side of the middle, spanning two metres, so a framed wall that
+        // reserved a single door's sixteen atoms put them over solid timber.
+        PartKind::Prop("door-double") => Some((2.25, 2.125, 0.0, true, DOOR_WIDE * 2)),
         // A bare doorway needs no widget: the gap itself is the portal,
         // and a widget would only say it twice.
-        PartKind::Prop("doorway") => Some((1.25, 2.125, 0.0, false)),
-        PartKind::Prop("window") => Some((1.25, 2.0, 0.75, false)),
+        PartKind::Prop("doorway") => Some((1.25, 2.125, 0.0, false, DOOR_WIDE)),
+        PartKind::Prop("window") => Some((1.25, 2.0, 0.75, false, WINDOW_WIDE)),
         _ => None,
     }
 }
@@ -169,11 +179,25 @@ pub fn door_lanes(kind: &PartKind) -> &'static [f32] {
 
 /// Where along a wall an opening aimed at `point` actually lands: on the
 /// lattice, and never spilling past either end.
-pub fn opening_seat(wall_at: Vec3, along: Vec3, length: f32, wide: f32, point: Vec3) -> f32 {
+pub fn opening_seat(
+    wall_at: Vec3,
+    along: Vec3,
+    length: f32,
+    wide: f32,
+    point: Vec3,
+    grid: f32,
+) -> f32 {
     let half = length * 0.5;
     let reach = (half - wide * 0.5).max(0.0);
     let t = (point - wall_at).dot(along).clamp(-reach, reach);
-    ((t * 16.0).round() / 16.0).clamp(-reach, reach)
+    // On the grid G sets, not on whole atoms always. An opening was the one thing a
+    // hand placed that ignored the grid entirely - Brett: "when placing a door it
+    // should respect the grid settings when you press g" - so a maker laying out a
+    // wall in quarter metres had to nudge its door by sixteenths.
+    //
+    // The step is measured from the wall's own middle, so a door moves in grid
+    // strides along the timber it is going into rather than along the world.
+    ((t * grid).round() / grid).clamp(-reach, reach)
 }
 
 pub(crate) fn punchable_length(record: &Placed) -> Option<f32> {
@@ -206,7 +230,9 @@ pub(crate) fn punch_wall(
     head: f32,
     sill: f32,
     is_door: bool,
+    clear: i32,
     hand: &Hand,
+    grid: f32,
 ) -> bool {
     // The wall the cursor's own ray touches wins outright; the search
     // by proximity is the fallback for a blind click.
@@ -254,7 +280,7 @@ pub(crate) fn punch_wall(
         .get(wall)
         .map(|(_, tf, _, _)| tf.translation)
         .unwrap_or(at);
-    let middle = opening_seat(wall_at, along, length, wide, wall_at + along * t);
+    let middle = opening_seat(wall_at, along, length, wide, wall_at + along * t, grid);
 
     // A FRAMED wall is not cut. It is told.
     //
@@ -270,14 +296,18 @@ pub(crate) fn punch_wall(
         mut openings,
     }) = kind_from_name(&record.part)
     {
-        let want = Some((
-            if is_door {
+        let want = Some(Hole {
+            what: if is_door {
                 Opening::Door
             } else {
                 Opening::Window
             },
-            on_the_lattice(middle),
-        ));
+            at: on_the_lattice(middle),
+            // The width the OPENING needs, carried in from the one table rather
+            // than implied by its kind. This is the whole of the fix: a double
+            // door frames a hole its leaves fit through.
+            wide: clear,
+        });
         // Into the first empty slot, so a second window joins the first rather
         // than replacing it. With every slot taken, the nearest one moves - a
         // wall that quietly ignores the drop would look broken, and a maker who
@@ -285,8 +315,8 @@ pub(crate) fn punch_wall(
         match openings.iter_mut().find(|slot| slot.is_none()) {
             Some(slot) => *slot = want,
             None => {
-                let nearest = openings.iter_mut().flatten().min_by(|(_, a), (_, b)| {
-                    let (a, b) = ((a - middle).abs(), (b - middle).abs());
+                let nearest = openings.iter_mut().flatten().min_by(|a, b| {
+                    let (a, b) = ((a.at - middle).abs(), (b.at - middle).abs());
                     a.partial_cmp(&b).unwrap_or(std::cmp::Ordering::Equal)
                 });
                 if let Some(hole) = nearest {

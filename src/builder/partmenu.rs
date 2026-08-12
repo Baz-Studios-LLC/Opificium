@@ -611,7 +611,6 @@ pub(crate) fn work_part_menu(
                 }
                 if let Some(kind) = kind_from_name(&record.part) {
                     let record = record.clone();
-                    let together = a_fresh_group(held.iter().map(|(_, _, record)| record));
                     ungroup(
                         &mut commands,
                         &mut meshes,
@@ -620,7 +619,6 @@ pub(crate) fn work_part_menu(
                         &kind,
                         &record,
                         part,
-                        together,
                     );
                 }
             }
@@ -775,18 +773,15 @@ pub(crate) fn work_part_menu(
 /// Undo needs no help here. The bench remembers whole states rather than deeds,
 /// so four parts appearing and one leaving is one step back like anything else.
 #[allow(clippy::too_many_arguments)]
-pub(crate) fn ungroup(
-    commands: &mut Commands,
-    meshes: &mut Assets<Mesh>,
-    materials: &mut Assets<StandardMaterial>,
-    palette: &Palette,
-    kind: &PartKind,
-    record: &Placed,
-    part: Entity,
-    together: u32,
-) {
+/// What a part comes APART into: the pieces, as records, and nothing placed yet.
+///
+/// Split from `ungroup` so the answer can be checked without a world to put it in.
+/// The deed needs meshes, materials and a palette; what it comes apart into needs
+/// none of those, and that is the half worth testing - it is where a piece being
+/// born already grouped went unnoticed.
+pub(crate) fn pieces_of(kind: &PartKind, record: &Placed) -> Vec<(PartKind, Placed)> {
     let PartKind::GableRoof(long, span, over, degrees) = *kind else {
-        return;
+        return Vec::new();
     };
     let pitch = degrees.clamp(PITCH_LEAST, PITCH_MOST).to_radians();
     let half = span * 0.5;
@@ -848,10 +843,41 @@ pub(crate) fn ungroup(
         ));
     }
 
-    // One number across the pieces, so the roof that WAS one thing to move is
-    // still one thing to move.
-    for (kind, mut record) in born {
-        record.group = Some(together);
+    born
+}
+
+/// Breaks a part into its own pieces, and leaves them FREE of one another.
+pub(crate) fn ungroup(
+    commands: &mut Commands,
+    meshes: &mut Assets<Mesh>,
+    materials: &mut Assets<StandardMaterial>,
+    palette: &Palette,
+    kind: &PartKind,
+    record: &Placed,
+    part: Entity,
+) {
+    let born = pieces_of(kind, record);
+    if born.is_empty() {
+        return;
+    }
+    // FREE, not gathered under one number.
+    //
+    // They used to come out sharing a group, so a roof that was one thing to move
+    // stayed one thing to move - and that quietly denied the deed its own purpose.
+    // A click on a grouped part takes the whole group, which is what grouping
+    // MEANS, so the pieces could not be painted, tilted or buried one at a time:
+    // the only reasons anybody breaks a roof apart. Brett, having done it: "I went
+    // to pain the gable and it is painting the entire rood instead of just the
+    // gable."
+    //
+    // Worse, it took TWO presses to get here and the first one looked like nothing
+    // had happened - the pieces stand exactly where the slabs stood, so the roof is
+    // unchanged to the eye - and the second press only worked because UNGROUP does
+    // a different job when it finds a group than when it does not.
+    //
+    // A maker who wants them moving together can say so: that is what GROUP is for.
+    // "ungroup should o it all".
+    for (kind, record) in born {
         spawn_part(commands, meshes, materials, palette, &kind, &record, false);
     }
     commands.entity(part).despawn();

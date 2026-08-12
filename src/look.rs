@@ -82,6 +82,15 @@ pub mod theme {
     }
 }
 
+/// How wide the panels down either edge stand.
+///
+/// One number for both, because they flank the same stage: a bench with mismatched
+/// margins reads as a bench that was assembled rather than drawn. It was written out
+/// in four places - the rail, the shelf, the palette and the body shelf - which was
+/// harmless while nothing else cared, and stopped being harmless the moment
+/// something had to know where the VIEW begins. It begins here.
+pub const PANEL_WIDE: f32 = 212.0;
+
 /// A pane the wheel scrolls when the cursor is over it.
 #[derive(Component)]
 pub struct Scrollable;

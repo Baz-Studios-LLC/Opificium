@@ -83,6 +83,26 @@ impl Default for Stages {
 }
 
 impl Stages {
+    /// A work of these levels, showing the first phase of the first.
+    ///
+    /// For the tests, which need a work well under way without a world to build it
+    /// in. The level bar will want it too, and can drop the attribute then.
+    #[cfg(test)]
+    pub(crate) fn of(levels: Vec<Level>) -> Stages {
+        Stages {
+            levels: if levels.is_empty() {
+                vec![Level {
+                    name: String::new(),
+                    phases: vec![Vec::new()],
+                }]
+            } else {
+                levels
+            },
+            level: 0,
+            showing: 0,
+        }
+    }
+
     /// How many phases the level being worked on has.
     pub fn count(&self) -> usize {
         self.phases().len()
@@ -95,6 +115,16 @@ impl Stages {
     /// Which level is being worked on.
     pub fn level(&self) -> usize {
         self.level.min(self.levels.len().saturating_sub(1))
+    }
+
+    /// Every level of the work.
+    ///
+    /// For the tests alone today - what a sweep leaves behind is checked through it -
+    /// so it is marked as such rather than carried as dead weight. The level bar will
+    /// want it, and can drop the attribute when it does.
+    #[cfg(test)]
+    pub(crate) fn all(&self) -> &[Level] {
+        &self.levels
     }
 
     /// The phases of the level being worked on.

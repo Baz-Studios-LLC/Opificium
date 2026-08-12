@@ -14,7 +14,7 @@ pub(crate) fn raise_shelf(mut commands: Commands, fonts: Res<Fonts>, palette: Re
                 // Wide enough for the longest thing on it - ROOF, GABLE,
                 // STRETCH - on one line. A shelf that wraps its own names is a
                 // shelf a maker reads twice.
-                width: Val::Px(212.0),
+                width: Val::Px(crate::look::PANEL_WIDE),
                 flex_direction: FlexDirection::Column,
                 padding: UiRect::all(Val::Px(12.0)),
                 row_gap: Val::Px(3.0),
@@ -29,16 +29,41 @@ pub(crate) fn raise_shelf(mut commands: Commands, fonts: Res<Fonts>, palette: Re
         ))
         .id();
 
+    // WHAT THE HAND WILL DO, over the stage rather than filed on the shelf.
+    //
+    // It lived at the top of the shelf in eleven-point dim bone, which is where a
+    // maker never looked: it answers a question - where will this land? - that is
+    // asked with the eyes on the work. Brett: "this is small and hard to read, I
+    // think it should be bigger and maybe in the upper lefthand of the view area?"
+    //
+    // The upper left of the VIEW, which begins where the rail ends - see
+    // `look::PANEL_WIDE` - and below the menu bar. The mode buttons are centred, so
+    // this corner is empty at every window width.
+    let word = commands
+        .spawn((
+            SnapModeText,
+            Node {
+                position_type: PositionType::Absolute,
+                left: Val::Px(crate::look::PANEL_WIDE + 14.0),
+                top: Val::Px(crate::menu::BAR_HIGH + 10.0),
+                padding: UiRect::axes(Val::Px(9.0), Val::Px(4.0)),
+                ..default()
+            },
+            // Its own faint ground. The stage is near-black and reads fine, but a
+            // building is not - a pale panel behind pale text is text nobody can
+            // read, and the whole point of moving this was reading it.
+            BackgroundColor(Color::BLACK.with_alpha(0.35)),
+        ))
+        .id();
     commands.spawn((
-        SnapModeText,
         Text::new("face snap - on (F)"),
         TextFont {
             font: fonts.text.clone().into(),
-            font_size: FontSize::Px(11.0),
+            font_size: FontSize::Px(15.0),
             ..default()
         },
-        TextColor(theme::text_dim(&palette)),
-        ChildOf(shelf),
+        TextColor(theme::text(&palette).with_alpha(0.9)),
+        ChildOf(word),
     ));
 
     // The drawers of parts.
@@ -183,9 +208,21 @@ pub(crate) fn show_shelf(
     bench: Res<Bench>,
     mode: Res<crate::gizmo::ToolMode>,
     mut shelves: Query<&mut Visibility, With<Shelf>>,
+    mut words: Query<&mut Visibility, (With<SnapModeText>, Without<Shelf>)>,
 ) {
     if !bench.is_changed() && !mode.is_changed() {
         return;
+    }
+    // The snap word follows the BENCH alone, not the tool. It used to ride on the
+    // shelf and so vanished whenever the colours came out - but F and G work in
+    // every mode of the building bench, and a line that blinks off while its keys
+    // still work reads as a fault.
+    for mut visibility in &mut words {
+        *visibility = if *bench == Bench::Builder {
+            Visibility::Inherited
+        } else {
+            Visibility::Hidden
+        };
     }
     // Painting is not placing: the parts go away while the colours are out.
     let standing = *bench == Bench::Builder && *mode != crate::gizmo::ToolMode::Paint;

@@ -179,7 +179,7 @@ pub fn raise_rail(mut commands: Commands, fonts: Res<Fonts>, palette: Res<Palett
                 // The shelf's own width. The two stand either side of the same
                 // stage and a bench with mismatched margins reads as a bench
                 // that was assembled rather than drawn.
-                width: Val::Px(212.0),
+                width: Val::Px(crate::look::PANEL_WIDE),
                 flex_direction: FlexDirection::Column,
                 padding: UiRect::all(Val::Px(14.0)),
                 row_gap: Val::Px(8.0),
@@ -448,6 +448,13 @@ shift-click the lot,
 \\ empties the brush",
         ),
         (
+            "alt-click",
+            "the dropper: the brush
+takes the colour of the
+piece under the cursor,
+painted or authored",
+        ),
+        (
             "right-click",
             "a part's menu, or a saved
 work's - group, ungroup,
@@ -660,7 +667,11 @@ off, walls down as well",
     let broom = icon_face(&mut commands, &palette, tools);
     commands.entity(broom).insert((
         crate::builder::ClearButton,
-        Word("Clear the bench: every part comes off it"),
+        Word(
+            "Clear the bench and start again: every part, \
+             every phase, every level. What was there is kept in \
+             the project's workbench file first",
+        ),
     ));
     let stack = commands
         .spawn((
@@ -986,9 +997,10 @@ fn follow_with_a_word(
 /// The width every button on the stage bar takes, step or deed alike. Wide
 /// enough for STAGE 10, which is further than any building has needed to go.
 ///
-/// One width, because the row is one row: buttons sized to their own words step
-/// in and out as the eye runs along them, and "-" beside "+ COPY" made the
-/// smallest and the largest of them neighbours.
+/// One width, because the row is one row: buttons sized to their own words step in
+/// and out as the eye runs along them, and a bare "+" beside "STAGE 10" would make
+/// the smallest and the largest of them neighbours. The glyphs are the narrowest
+/// things on it now, which is exactly why they are not allowed to shrink.
 const STAGE_BUTTON_WIDTH: f32 = 80.0;
 
 fn stage_face(
@@ -1092,8 +1104,11 @@ fn hang_the_stage_bar(
     // Adding and dropping sit apart from the steps, so a miss lands on nothing
     // rather than on a step being deleted.
     for (deed, label) in [
-        (crate::builder::StageDeed::Add, "+ STEP"),
-        (crate::builder::StageDeed::Drop, "- STEP"),
+        // The glyph alone. "+ STEP" beside "STAGE 3" read as two kinds of word
+        // where one of them is a picture - Brett: "we can have the buttons just be +
+        // and - no need for the word step".
+        (crate::builder::StageDeed::Add, "+"),
+        (crate::builder::StageDeed::Drop, "-"),
         // A step taken from here and put on another. The `+` pair make a NEW
         // step; these two change one that already stands, which is a different
         // job and reads as one.
@@ -1106,7 +1121,10 @@ fn hang_the_stage_bar(
             &palette,
             bar,
             label.to_string(),
-            if label == "+ COPY" { 12.0 } else { 0.0 },
+            // A gap before the deeds, so a miss lands on nothing rather than on a
+            // step being dropped. It used to be measured against "+ COPY", a button
+            // that has not existed for some time, so it was never applied at all.
+            if label == "+" { 12.0 } else { 0.0 },
         );
         commands.entity(button).insert(StageDeedButton(deed));
     }
@@ -1117,7 +1135,15 @@ fn work_stage_bar(
     palette: Res<Palette>,
     stages: Res<crate::builder::Stages>,
     mut wish: ResMut<crate::builder::StageWish>,
-    deeds: Query<(&Interaction, &StageDeedButton)>,
+    // On the CHANGE into Pressed, not on Pressed. Bevy holds `Pressed` for as long
+    // as the button is held down, so one press of `+` was read on every frame until
+    // the row was rebuilt with fresh buttons - and the rebuild lags a frame, so a
+    // single click added two steps. Brett: "when there is one stage and you press +
+    // it adds two instead of 1."
+    //
+    // The step buttons below need no such guard: pressing STAGE 2 twice asks to show
+    // the step already showing, which the test beside them refuses.
+    deeds: Query<(&Interaction, &StageDeedButton), Changed<Interaction>>,
     mut buttons: Query<(
         &Interaction,
         &StageButton,
