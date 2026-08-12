@@ -10,6 +10,9 @@
 	<string>com.bazstudios.opificium</string>
 	<key>CFBundleExecutable</key>
 	<string>opificium</string>
+	<!-- Names the file in Contents/Resources, extension optional. -->
+	<key>CFBundleIconFile</key>
+	<string>Opificium</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleInfoDictionaryVersion</key>

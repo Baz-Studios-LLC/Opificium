@@ -27,9 +27,11 @@ strip "$APP/Contents/MacOS/opificium" 2>/dev/null || true
 
 cp -R "$ROOT/assets" "$APP/Contents/MacOS/assets"
 
-# No icon yet, so no CFBundleIconFile in the plist and macOS shows its
-# generic one. Drop an Opificium.icns in here and name it in Info.plist
-# when there is one to drop.
+# The icon, which Info.plist names as CFBundleIconFile. It goes in Resources,
+# which is where macOS looks for it and nowhere else - a .icns beside the binary
+# is a .icns nobody sees.
+cp "$HERE/Opificium.icns" "$APP/Contents/Resources/Opificium.icns"
+
 sed "s/__VERSION__/$VERSION/g" "$HERE/Info.plist" > "$APP/Contents/Info.plist"
 
 # Ad-hoc sign so macOS runs it without a "damaged" error; the launcher also
