@@ -37,25 +37,20 @@ fi
 
 # Which project the bench will open.
 #
-# The same order `project::opening()` takes: named on the command line, then
-# OPIFICIUM_PROJECT, then the last one worked in. Worked out again here ONLY to
-# print it — the bench itself decides, so if these two ever disagree the wrong
-# thing is a line of text rather than a folder.
+# Only what was NAMED, the way `project::named_outright` reads it: a path, then
+# OPIFICIUM_PROJECT. With neither, the bench asks which game to open, and a script
+# that guessed the answer to a question would be worse than one that says a
+# question is coming.
 #
-# Worth printing because the bench holds no game's content, so "which project"
-# is the difference between one game's palette and another's, and a bench that
-# opened quietly in the wrong one looked for a while like a bench that had lost
-# its colours.
+# Worked out again here ONLY to print it — the bench itself decides, so if these
+# two ever disagree the wrong thing is a line of text rather than a folder. Worth
+# printing because the bench holds no game's content, so "which project" is the
+# difference between one game's palette and another's.
 opening=""
 if [[ -n "$1" ]]; then
   opening="$1"
 elif [[ -n "$OPIFICIUM_PROJECT" ]]; then
   opening="$OPIFICIUM_PROJECT"
-else
-  remembered="$HOME/Library/Application Support/Opificium/recent.json"
-  if [[ -f "$remembered" ]]; then
-    opening=$(sed -n 's/.*"\(.*\)".*/\1/p' "$remembered" | head -1)
-  fi
 fi
 
 print -r -- ""
@@ -68,7 +63,7 @@ if [[ -n "$opening" ]]; then
     print -r -- "             own 24 ramps until the game exports its own"
   fi
 else
-  print -r -- "  project    none remembered — the bench will ask for a folder"
+  print -r -- "  project    the bench will ask which game to open"
 fi
 print -r -- ""
 print -r -- "  another    ./Opificium.command /path/to/game/opificium"

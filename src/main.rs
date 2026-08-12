@@ -19,6 +19,7 @@ mod camera;
 mod gizmo;
 mod look;
 mod menu;
+mod opening;
 mod project;
 mod rail;
 mod rig;
@@ -44,10 +45,19 @@ fn main() {
         std::process::exit(bake::run(&ask));
     }
 
-    // The project comes first, before a single plugin starts: the palette
-    // and the bodies are both read during startup, and they are read out
-    // of whichever game's folder is open.
-    let opened = open_a_project();
+    // WHICH GAME, before anything else. A path on argv or in the environment is
+    // an instruction and is obeyed; a bench with nothing to go on asks, rather
+    // than opening whichever game it happened to open last. Choosing reopens the
+    // bench pointed at the answer, so `ask` never returns to here.
+    //
+    // The project has to be settled before a single plugin starts: the palette and
+    // the bodies are both read while the plugins are built, out of whichever game's
+    // folder is open.
+    let Some(road) = project::named_outright() else {
+        opening::ask();
+        return;
+    };
+    let opened = open_a_project(&road);
     let title = match &opened {
         Some(project) => format!("Opificium — {}", project.name),
         None => "Opificium".to_string(),
@@ -76,34 +86,22 @@ fn main() {
         .run();
 }
 
-/// Finds the project to work in, and says so on the way past.
+/// Opens the project the bench was TOLD to open, and says so on the way past.
 ///
-/// In order: one named on the command line, then the last one worked in,
-/// then - only on a bench that has never been opened before - a folder
-/// picker. A maker who dismisses the picker still gets a working bench
-/// standing in whatever folder it was started from, because refusing to
-/// open at all would be a poor greeting.
-fn open_a_project() -> Option<project::Project> {
-    if let Some(road) = project::opening() {
-        match project::open(&road) {
-            Ok(project) => {
-                info!("project: {} ({})", project.name, project.root.display());
-                return Some(project);
-            }
-            Err(why) => warn!("could not open {}: {why}", road.display()),
-        }
-    }
-
-    let picked = rfd::FileDialog::new()
-        .set_title("Open a project folder")
-        .pick_folder()?;
-    match project::open(&picked) {
+/// No choosing left to do by the time this runs: either a path was named outright
+/// or `opening::ask` has already asked and reopened the bench with the answer on
+/// argv. This only carries it out.
+fn open_a_project(road: &std::path::Path) -> Option<project::Project> {
+    match project::open(road) {
         Ok(project) => {
             info!("project: {} ({})", project.name, project.root.display());
             Some(project)
         }
         Err(why) => {
-            warn!("could not open {}: {why}", picked.display());
+            // A bench standing in no project still draws - it takes every default
+            // and paints in its own colours - which is a better greeting than
+            // refusing to open at all.
+            warn!("could not open {}: {why}", road.display());
             None
         }
     }

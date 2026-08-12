@@ -31,8 +31,9 @@ Opificium at an empty directory and start working.
 opificium /path/to/your-game/opificium
 ```
 
-With no argument it opens the last project you worked in, and asks for a
-folder only the first time it is ever run.
+With no argument it ASKS which game to open, listing the ones you have
+worked in before. A path names one outright and skips the question, which
+is what scripts, the launcher and the bench's own project switcher all do.
 
 [`FORMATS.md`](FORMATS.md) is the single word on every file that passes
 between a game and the bench — the palette going in, the blueprints and

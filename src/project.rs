@@ -767,27 +767,41 @@ pub fn remember(root: &Path) {
     }
 }
 
-/// The project to open at startup: the one named on the command line, or
-/// the last one worked in.
+/// A project named OUTRIGHT: on the command line, or in the environment.
 ///
-/// `opificium /path/to/game` is how a second game gets opened without
-/// touching the bench's memory of the first.
-pub fn opening() -> Option<PathBuf> {
+/// Split from [`opening`] because the two are different questions. A path on argv
+/// is an INSTRUCTION - from a script, from the launcher, or from the bench
+/// reopening itself after a maker chose a game - and it is obeyed without asking.
+/// The last project worked in is only a GUESS at what somebody wants, and a guess
+/// is the kind of thing worth asking about. See [`crate::opening::ask`].
+///
+/// This is also what stops the asking from repeating: choosing a game relaunches
+/// the bench with that game on argv, so the new process is told rather than asked.
+pub fn named_outright() -> Option<PathBuf> {
     if let Some(said) = std::env::args().nth(1) {
         let road = PathBuf::from(said);
         if road.is_dir() {
             return Some(road);
         }
     }
-    // The same thing without a command line: scripts, CI, and the
-    // headless bake, none of which own argv.
+    // The same thing without a command line: scripts, CI, and the headless bake,
+    // none of which own argv.
     if let Ok(said) = std::env::var("OPIFICIUM_PROJECT") {
         let road = PathBuf::from(said);
         if road.is_dir() {
             return Some(road);
         }
     }
-    recent().into_iter().next()
+    None
+}
+
+/// The project to open at startup: the one named on the command line, or
+/// the last one worked in.
+///
+/// `opificium /path/to/game` is how a second game gets opened without
+/// touching the bench's memory of the first.
+pub fn opening() -> Option<PathBuf> {
+    named_outright().or_else(|| recent().into_iter().next())
 }
 
 /// Opens whatever `opening()` names, without disturbing the recent list.
