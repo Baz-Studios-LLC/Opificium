@@ -75,6 +75,8 @@ pub enum MenuDeed {
     Cutaway,
     Grid,
     FaceSnap,
+    /// Put a piece of the window's furniture away, or take it back out.
+    Show(crate::look::Tool),
     Quit,
 }
 
@@ -140,6 +142,14 @@ enum Glyph {
     OpenProject,
     Keys,
 }
+
+/// The ON or OFF beside a piece of furniture in the TOOLS menu.
+///
+/// A word rather than a tick, because the two fonts on the bench are a Garamond and a
+/// Cinzel and neither is guaranteed to carry a check mark - a menu whose state shows as a
+/// missing-glyph box is worse than one that spells it out.
+#[derive(Component)]
+struct ToolWord(crate::look::Tool);
 
 /// One line of a menu.
 enum Line {
@@ -241,6 +251,19 @@ const MENUS: &[(&str, &[Line])] = &[
         ],
     ),
     (
+        "TOOLS",
+        &[
+            Line::Deed("THE TOP BAR", "", MenuDeed::Show(crate::look::Tool::TopBar)),
+            Line::Deed(
+                "THE STAGE BAR",
+                "",
+                MenuDeed::Show(crate::look::Tool::StageBar),
+            ),
+            Line::Deed("THE SHELF", "", MenuDeed::Show(crate::look::Tool::Shelf)),
+            Line::Deed("THE RAIL", "", MenuDeed::Show(crate::look::Tool::Rail)),
+        ],
+    ),
+    (
         "BENCH",
         &[
             Line::Deed("THE BUILDER", "", MenuDeed::Bench(crate::Bench::Builder)),
@@ -289,6 +312,7 @@ impl Plugin for MenuPlugin {
                 (
                     work_the_titles,
                     show_the_menus,
+                    say_which_tools_are_out,
                     light_the_lines,
                     dim_what_does_not_apply,
                     work_the_lines,
@@ -429,6 +453,20 @@ fn hang_the_bar(mut commands: Commands, fonts: Res<Fonts>, palette: Res<Palette>
                     ChildOf(row),
                 ));
             }
+            // A toggle says which way it is set, in the same place a shortcut would be -
+            // that column already means "what this line will do to you".
+            if let Line::Deed(_, _, MenuDeed::Show(tool)) = line {
+                commands.spawn((
+                    ToolWord(*tool),
+                    Text::new(""),
+                    TextFont {
+                        font_size: crate::look::text_at(10.0),
+                        ..default()
+                    },
+                    TextColor(theme::text_dim(&palette).with_alpha(0.55)),
+                    ChildOf(row),
+                ));
+            }
             // And what makes the line act. Either a deed of this module's own, or
             // the very component the rail's own glyph wears.
             match line {
@@ -508,6 +546,22 @@ fn work_the_titles(
         && open.0 != Some(which)
     {
         open.0 = Some(which);
+    }
+}
+
+/// Keeps each toggle's word matching the way it is actually set.
+fn say_which_tools_are_out(
+    showing: Res<crate::look::Showing>,
+    mut words: Query<(&mut Text, &ToolWord)>,
+) {
+    if !showing.is_changed() {
+        return;
+    }
+    for (mut text, which) in &mut words {
+        let said = if showing.wanted(which.0) { "ON" } else { "OFF" };
+        if text.0 != said {
+            *text = Text::new(said);
+        }
     }
 }
 
@@ -605,6 +659,7 @@ fn work_the_lines(
     mut lifted: ResMut<crate::builder::RoofsLifted>,
     mut grid: ResMut<crate::builder::SnapGrid>,
     mut snap: ResMut<crate::builder::SnapMode>,
+    mut showing: ResMut<crate::look::Showing>,
     chosen: Query<(&Interaction, &MenuDeed), Changed<Interaction>>,
 ) {
     for (touch, deed) in &chosen {
@@ -643,6 +698,7 @@ fn work_the_lines(
                 };
             }
             MenuDeed::FaceSnap => snap.face = !snap.face,
+            MenuDeed::Show(tool) => showing.flip(*tool),
             MenuDeed::Quit => {
                 leaving.write(AppExit::Success);
             }

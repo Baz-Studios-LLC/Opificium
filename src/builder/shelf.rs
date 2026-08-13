@@ -207,10 +207,11 @@ pub(crate) fn button_label(
 pub(crate) fn show_shelf(
     bench: Res<Bench>,
     mode: Res<crate::gizmo::ToolMode>,
+    showing: Res<crate::look::Showing>,
     mut shelves: Query<&mut Visibility, With<Shelf>>,
     mut words: Query<&mut Visibility, (With<SnapModeText>, Without<Shelf>)>,
 ) {
-    if !bench.is_changed() && !mode.is_changed() {
+    if !bench.is_changed() && !mode.is_changed() && !showing.is_changed() {
         return;
     }
     // The snap word follows the BENCH alone, not the tool. It used to ride on the
@@ -225,7 +226,9 @@ pub(crate) fn show_shelf(
         };
     }
     // Painting is not placing: the parts go away while the colours are out.
-    let standing = *bench == Bench::Builder && *mode != crate::gizmo::ToolMode::Paint;
+    let standing = *bench == Bench::Builder
+        && *mode != crate::gizmo::ToolMode::Paint
+        && showing.wanted(crate::look::Tool::Shelf);
     for mut visibility in &mut shelves {
         *visibility = if standing {
             Visibility::Inherited

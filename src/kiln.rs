@@ -48,7 +48,10 @@ const PURSE: &str = "https://api.3daistudio.com/account/user/wallet/";
 
 /// Where credits are bought. Opened in the maker's own browser, since a bench has no
 /// business handling anybody's card.
-const TILL: &str = "https://www.3daistudio.com/pricing";
+///
+/// Brett's own link, and it replaces the marketing pricing page I had picked: this is the
+/// platform's credit section, which is where somebody with an API key actually tops up.
+const TILL: &str = "https://www.3daistudio.com/Platform/API#credit-balance";
 
 /// Which machine does the work.
 ///
@@ -404,6 +407,19 @@ fn took_it(said: &str) -> Result<String, String> {
 enum Step {
     Waiting(String, Option<f32>),
     Ready(String),
+    /// It says FINISHED, has handed over nothing, and has not said why.
+    ///
+    /// Treated as NOT YET rather than as a failure, and this is the difference between a
+    /// bench that works and one that does not. Twice in a row a firing came back
+    /// `{"status":"FINISHED","progress":100,"results":[{"asset":null,...}],
+    /// "failure_reason":null}` - finished, complete, no model, no complaint. Everything
+    /// null at once is not what a refusal looks like; a refusal has a reason, and this
+    /// provider does give one when it means it. It is what a record looks like BEFORE the
+    /// file is attached to it.
+    ///
+    /// So the bench keeps asking for a while. The credits are already spent by this point,
+    /// so waiting is free and giving up early is the only expensive choice.
+    Settling,
 }
 
 /// Reads a progress report: where it is, and the model if it is finished.
@@ -462,6 +478,11 @@ fn how_it_goes(said: &str) -> Result<Step, String> {
                         .collect::<Vec<_>>()
                         .join(", ")
                 )),
+                // FINISHED, nothing handed over, and NO REASON: almost certainly not
+                // ready rather than refused. Keep asking - see `Step::Settling`. A
+                // finish that names a reason is a real refusal and fails at once,
+                // because no amount of waiting fixes a rejected image.
+                None if report.failure_reason.is_none() => Ok(Step::Settling),
                 None => Err(blame()),
             }
         }
@@ -570,6 +591,11 @@ pub fn commission(
     // rather than poll for ever, since a job that has not finished in a quarter of an
     // hour is a job that has gone wrong at the far end.
     let began = std::time::Instant::now();
+    // How many empty finishes to sit through before calling it a failure. At five seconds
+    // apart that is a minute and a half, which is generous for attaching a file to a
+    // record that already says it is complete.
+    const SETTLING: u32 = 18;
+    let mut settling = 0;
     let url = loop {
         if began.elapsed() > std::time::Duration::from_secs(15 * 60) {
             return Err("the kiln never finished; the job may still be on your account".into());
@@ -585,6 +611,24 @@ pub fn commission(
         match how_it_goes(&said)? {
             Step::Waiting(word, how_far) => say(Firing::Working(word, how_far)),
             Step::Ready(url) => break url,
+            Step::Settling => {
+                if settling == 0 {
+                    info!("the kiln says finished and has attached nothing yet: {said}");
+                }
+                settling += 1;
+                if settling > SETTLING {
+                    error!("the kiln's whole answer: {said}");
+                    return Err(format!(
+                        "the kiln said it finished, sent no model and gave no reason, \
+                         for {} seconds. It said: {}",
+                        settling * 5,
+                        first_words(&said)
+                    ));
+                }
+                // Honest about which part is outstanding: the making is done by its own
+                // account, and what is missing is the file.
+                say(Firing::Working("ATTACHING".to_string(), Some(100.0)));
+            }
         }
     };
 
@@ -725,12 +769,18 @@ mod tests {
         // Finished, with a model.
         let done = r#"{"status":"FINISHED","results":[{"asset":"https://x/y.glb","asset_type":"3D_MODEL"}]}"#;
         assert!(matches!(how_it_goes(done), Ok(Step::Ready(url)) if url == "https://x/y.glb"));
-        // Finished with NOTHING in it is a failure, not a success. The one shape
-        // that would otherwise leave the bench saying it worked and holding no file.
+        // Finished with NOTHING in it is never a SUCCESS - the one shape that would
+        // otherwise leave the bench saying it worked and holding no file. It is not a
+        // failure yet either, since no reason came with it: it settles, and fails only if
+        // it stays that way. See `Step::Settling`.
         let empty = r#"{"status":"FINISHED","results":[]}"#;
         assert!(
-            how_it_goes(empty).is_err(),
-            "an empty finish read as success"
+            matches!(how_it_goes(empty), Ok(Step::Settling)),
+            "an empty finish must neither succeed nor be given up on"
+        );
+        assert!(
+            !matches!(how_it_goes(empty), Ok(Step::Ready(_))),
+            "an empty finish read as a model"
         );
         assert!(how_it_goes(r#"{"status":"FAILED"}"#).is_err());
         // And something that is not the API at all - a proxy's error page, say -
@@ -767,10 +817,27 @@ mod tests {
             "the machine's own reason never reached the bench: {why}"
         );
 
-        // With no reason given it still reads as a failure, rather than as a model at
-        // a URL of "null".
-        let mute = r#"{"status":"FINISHED","results":[{"asset":null,"asset_type":"3D_MODEL"}]}"#;
-        assert!(how_it_goes(mute).is_err());
+        // WITH NO REASON GIVEN it is not a failure yet, and this is the payload two real
+        // firings came back with - finished, a hundred percent, every field null. A
+        // refusal has a reason; a record with nothing attached looks exactly like this,
+        // so the bench keeps asking rather than throwing away a model it has paid for.
+        let mute = r#"{"status":"FINISHED","progress":100,
+            "results":[{"asset":null,"asset_type":"3D_MODEL","metadata":null}],
+            "failure_reason":null}"#;
+        assert!(
+            matches!(how_it_goes(mute), Ok(Step::Settling)),
+            "a mute finish must be waited on, not given up on"
+        );
+        // Missing entirely says the same as null.
+        let bare = r#"{"status":"FINISHED","results":[{"asset":null,"asset_type":"3D_MODEL"}]}"#;
+        assert!(matches!(how_it_goes(bare), Ok(Step::Settling)));
+
+        // But a finish that names a reason fails AT ONCE. No amount of waiting fixes an
+        // image the far end has already rejected, and pretending otherwise would leave a
+        // maker watching a bar for another minute and a half for nothing.
+        let refused = r#"{"status":"FINISHED","results":[{"asset":null}],
+            "failure_reason":"the image has no clear subject"}"#;
+        assert!(how_it_goes(refused).is_err());
 
         // A FAILED report's reason comes through the same door.
         let failed = r#"{"status":"FAILED","failure_reason":"content policy"}"#;
@@ -877,6 +944,10 @@ struct KilnBar;
 /// The line that says what the next firing will cost.
 #[derive(Component)]
 struct KilnPrice;
+
+/// Where the chosen picture hangs.
+#[derive(Component)]
+struct Thumbnail;
 
 /// The line saying what the account has left.
 #[derive(Component)]
@@ -990,6 +1061,8 @@ struct Kiln {
     standing: Option<PathBuf>,
     /// When the firing began, on the app's own clock, so a wait can be counted.
     began: f32,
+    /// The picture last chosen, and whether it has been put on the shelf yet.
+    picture: Option<PathBuf>,
     /// How tall the thing IS, in metres.
     ///
     /// A generated mesh arrives at whatever size the machine felt like, and this
@@ -1005,6 +1078,7 @@ impl Default for Kiln {
             firing: Firing::Cold,
             coming: None,
             began: 0.0,
+            picture: None,
             standing: None,
             // Waist high: a thing you can see the shape of on a bench, and a round
             // number of atoms.
@@ -1039,6 +1113,7 @@ impl Plugin for KilnPlugin {
                     hear_the_purse,
                     work_the_till,
                     say_what_is_left,
+                    hang_the_picture,
                     dress_the_choices,
                     stand_the_model,
                     work_the_height,
@@ -1233,6 +1308,28 @@ fn hang_the_kiln(mut commands: Commands, fonts: Res<Fonts>, palette: Res<Palette
         },
         BackgroundColor(theme::accent(&palette)),
         ChildOf(trough),
+    ));
+
+    // THE PICTURE, above the button that chose it. Brett: "When we add an image can we get
+    // a preview of the image that loads on the shelf?" - and it is worth more than a
+    // courtesy: a firing costs credits and takes minutes, and the one mistake worth
+    // catching before spending either is having picked the wrong file.
+    //
+    // Empty until there is one. A frame standing empty on every launch would be a hole in
+    // the panel rather than a place where something goes.
+    commands.spawn((
+        Thumbnail,
+        Node {
+            margin: UiRect::top(Val::Px(6.0)),
+            width: Val::Percent(100.0),
+            // Tall as it is wide, and the picture fits INSIDE that - see `hang_the_picture`.
+            // A square keeps the panel from jumping about as pictures of different shapes
+            // are chosen, and the buttons underneath from moving out from under the cursor.
+            aspect_ratio: Some(1.0),
+            ..default()
+        },
+        BackgroundColor(Color::NONE),
+        ChildOf(panel),
     ));
 
     // WHAT IS LEFT, and where to get more. Under the bar rather than beside the price,
@@ -1441,12 +1538,17 @@ fn say_what_is_left(
 }
 
 /// The panel belongs to the kiln bench.
-fn show_the_kiln(bench: Res<crate::Bench>, mut panels: Query<&mut Visibility, With<KilnPanel>>) {
-    if !bench.is_changed() {
+fn show_the_kiln(
+    bench: Res<crate::Bench>,
+    showing: Res<crate::look::Showing>,
+    mut panels: Query<&mut Visibility, With<KilnPanel>>,
+) {
+    if !bench.is_changed() && !showing.is_changed() {
         return;
     }
-    for mut showing in &mut panels {
-        *showing = if *bench == crate::Bench::Kiln {
+    let out = *bench == crate::Bench::Kiln && showing.wanted(crate::look::Tool::Shelf);
+    for mut it in &mut panels {
+        *it = if out {
             Visibility::Inherited
         } else {
             Visibility::Hidden
@@ -1713,6 +1815,7 @@ fn work_the_kiln(
     else {
         return;
     };
+    kiln.picture = Some(image.clone());
     let name = a_plain_name(
         &image
             .file_stem()
@@ -1769,6 +1872,70 @@ fn how_full(how_far: Option<f32>, waited: f32, takes: f32) -> (f32, bool) {
 fn as_a_clock(seconds: f32) -> String {
     let seconds = seconds.max(0.0) as u32;
     format!("{}:{:02}", seconds / 60, seconds % 60)
+}
+
+/// Puts the chosen picture on the shelf.
+///
+/// DECODED HERE rather than loaded by the asset server, because a maker's picture lives
+/// wherever they keep their pictures - outside the bench's `assets/` and outside the
+/// project, which are the only two places the asset server has been told to look. Reading
+/// the bytes and handing over a decoded image asks nothing of the file's whereabouts.
+///
+/// A picture that cannot be decoded leaves the frame empty and says nothing. The firing is
+/// about to say it far more plainly, since whatever the bench cannot read it also cannot
+/// send.
+fn hang_the_picture(
+    mut commands: Commands,
+    kiln: Res<Kiln>,
+    mut pictures: ResMut<Assets<Image>>,
+    frames: Query<Entity, With<Thumbnail>>,
+    mut showing: Local<Option<PathBuf>>,
+) {
+    if *showing == kiln.picture {
+        return;
+    }
+    showing.clone_from(&kiln.picture);
+    let Ok(frame) = frames.single() else {
+        return;
+    };
+    commands.entity(frame).despawn_related::<Children>();
+    let Some(road) = kiln.picture.clone() else {
+        return;
+    };
+    let Some(picture) = a_picture_from(&road, &mut pictures) else {
+        warn!("could not read {} to show it", road.display());
+        return;
+    };
+    commands.spawn((
+        ImageNode::new(picture),
+        Node {
+            // CONTAINED, not stretched: the frame is square and a picture rarely is, so
+            // the picture is fitted inside it whole. A stretched preview would misreport
+            // the one thing it is being looked at for - the shape of what is being sent.
+            width: Val::Percent(100.0),
+            height: Val::Percent(100.0),
+            ..default()
+        },
+        ChildOf(frame),
+    ));
+}
+
+/// Reads a picture off the disk into something the bench can draw.
+fn a_picture_from(road: &Path, pictures: &mut Assets<Image>) -> Option<Handle<Image>> {
+    let bytes = std::fs::read(road).ok()?;
+    let kind = road
+        .extension()
+        .map(|e| e.to_string_lossy().to_lowercase())?;
+    let picture = Image::from_buffer(
+        &bytes,
+        bevy::image::ImageType::Extension(&kind),
+        bevy::image::CompressedImageFormats::NONE,
+        true,
+        bevy::image::ImageSampler::linear(),
+        bevy::asset::RenderAssetUsages::RENDER_WORLD,
+    )
+    .ok()?;
+    Some(pictures.add(picture))
 }
 
 /// Asks what the account has left, off the frame loop.

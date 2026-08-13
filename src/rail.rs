@@ -48,6 +48,10 @@ pub(crate) struct SettingsButton;
 #[derive(Component)]
 struct SettingsPanel;
 
+/// The rail itself, so it can be put away.
+#[derive(Component)]
+pub struct Rail;
+
 pub struct RailPlugin;
 
 impl Plugin for RailPlugin {
@@ -62,8 +66,57 @@ impl Plugin for RailPlugin {
                 hang_the_stage_bar,
                 follow_with_a_word,
                 work_projects,
+                put_the_furniture_out,
             ),
         );
+    }
+}
+
+/// Puts out the window's furniture, or puts it away.
+///
+/// Two questions for each piece, and it needs both: does it belong to the bench the maker
+/// is standing at, and do they want it there at all. See `look::Showing`.
+///
+/// This is also where the MODE BAR is hidden away from the building bench. Nothing did
+/// that for a while: the only system that hid it lived in the rig bench and went out with
+/// the body-and-clips code, so the builder's row of modes stood over the kiln and the rig
+/// as well - which is how furniture ends up in the wrong room when each room hides the
+/// others' things.
+///
+/// The three queries spell out what they are NOT. Bevy cannot prove two `&mut Visibility`
+/// queries are disjoint from the markers alone - nothing says a node cannot wear two of
+/// them - and it refuses to run a system whose parameters might overlap rather than
+/// letting one silently win.
+fn put_the_furniture_out(
+    bench: Res<Bench>,
+    showing: Res<crate::look::Showing>,
+    mut modes: Query<&mut Visibility, (With<ModeBar>, Without<StageBar>, Without<Rail>)>,
+    mut steps: Query<&mut Visibility, (With<StageBar>, Without<ModeBar>, Without<Rail>)>,
+    mut rails: Query<&mut Visibility, (With<Rail>, Without<ModeBar>, Without<StageBar>)>,
+) {
+    if !bench.is_changed() && !showing.is_changed() {
+        return;
+    }
+    let how = |out: bool| {
+        if out {
+            Visibility::Inherited
+        } else {
+            Visibility::Hidden
+        }
+    };
+    // Both of these are the BUILDING bench's own: the modes move and paint parts, and the
+    // steps are a building's phases. Neither means anything at a bench with no parts.
+    let building = *bench == Bench::Builder;
+    for mut showing_it in &mut modes {
+        *showing_it = how(building && showing.wanted(crate::look::Tool::TopBar));
+    }
+    for mut showing_it in &mut steps {
+        *showing_it = how(building && showing.wanted(crate::look::Tool::StageBar));
+    }
+    // The rail belongs to no bench: it is how a maker LEAVES one. Put away only when
+    // asked, and the BENCH menu still moves between them while it is gone.
+    for mut showing_it in &mut rails {
+        *showing_it = how(showing.wanted(crate::look::Tool::Rail));
     }
 }
 
@@ -170,6 +223,7 @@ pub fn raise_rail(mut commands: Commands, fonts: Res<Fonts>, palette: Res<Palett
 
     let rail = commands
         .spawn((
+            Rail,
             Node {
                 position_type: PositionType::Absolute,
                 left: Val::Px(0.0),

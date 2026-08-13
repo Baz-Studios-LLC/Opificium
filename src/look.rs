@@ -91,6 +91,72 @@ pub mod theme {
 /// something had to know where the VIEW begins. It begins here.
 pub const PANEL_WIDE: f32 = 232.0;
 
+/// One piece of the window's furniture, that a maker may put away.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum Tool {
+    /// The row across the top: the modes at the builder, the model's name at the rig.
+    TopBar,
+    /// The phases along the bottom.
+    StageBar,
+    /// The panel down the right, whichever bench's it is.
+    Shelf,
+    /// The rail down the left.
+    Rail,
+}
+
+/// Which pieces of furniture the maker wants on the bench.
+///
+/// Brett: "tools like the top bar and the stage bar that you could toggle them on or off?
+/// They arent needed in some places." A bench is for looking at the work, and every row of
+/// buttons is a strip of the work it covers.
+///
+/// This says what the MAKER wants. Whether a piece is actually on screen is that AND
+/// whether it belongs to the bench they are standing at - a builder's mode row switched on
+/// is still no business of the kiln's. Every system that hides furniture reads both.
+#[derive(Resource)]
+pub struct Showing {
+    top_bar: bool,
+    stage_bar: bool,
+    shelf: bool,
+    rail: bool,
+}
+
+impl Default for Showing {
+    fn default() -> Self {
+        // All of it, because a bench that opened with its tools put away would look
+        // broken to somebody who never asked for them to be.
+        Showing {
+            top_bar: true,
+            stage_bar: true,
+            shelf: true,
+            rail: true,
+        }
+    }
+}
+
+impl Showing {
+    /// Whether the maker wants this piece at all.
+    pub fn wanted(&self, tool: Tool) -> bool {
+        match tool {
+            Tool::TopBar => self.top_bar,
+            Tool::StageBar => self.stage_bar,
+            Tool::Shelf => self.shelf,
+            Tool::Rail => self.rail,
+        }
+    }
+
+    /// Puts it away, or takes it back out.
+    pub fn flip(&mut self, tool: Tool) {
+        let now = !self.wanted(tool);
+        match tool {
+            Tool::TopBar => self.top_bar = now,
+            Tool::StageBar => self.stage_bar = now,
+            Tool::Shelf => self.shelf = now,
+            Tool::Rail => self.rail = now,
+        }
+    }
+}
+
 /// How much bigger every word on the bench is than it was first drawn.
 ///
 /// ONE KNOB for the whole app. Brett: "this small text is used throughout the app, is
@@ -184,6 +250,7 @@ impl Plugin for LookPlugin {
         app.insert_resource(load_palette())
             .insert_resource(ClearColor(Color::srgb(0.035, 0.04, 0.05)))
             .init_resource::<OverPane>()
+            .init_resource::<Showing>()
             .add_systems(PreStartup, load_fonts)
             .add_systems(Update, scroll_panes);
     }

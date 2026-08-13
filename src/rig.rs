@@ -338,22 +338,26 @@ fn say_what_stands(rig: Res<Rig>, mut words: Query<&mut Text, With<RigWord>>) {
 /// The bench's own furniture, shown here and put away everywhere else.
 fn show_the_furniture(
     bench: Res<Bench>,
+    showing: Res<crate::look::Showing>,
     mut shelves: Query<&mut Visibility, With<ModelShelf>>,
     mut bars: Query<&mut Visibility, (With<RigBar>, Without<ModelShelf>)>,
 ) {
-    if !bench.is_changed() {
+    if !bench.is_changed() && !showing.is_changed() {
         return;
     }
-    let how = if *bench == Bench::Rig {
-        Visibility::Inherited
-    } else {
-        Visibility::Hidden
+    let here = *bench == Bench::Rig;
+    let how = |out: bool| {
+        if out {
+            Visibility::Inherited
+        } else {
+            Visibility::Hidden
+        }
     };
-    for mut showing in &mut shelves {
-        *showing = how;
+    for mut it in &mut shelves {
+        *it = how(here && showing.wanted(crate::look::Tool::Shelf));
     }
-    for mut showing in &mut bars {
-        *showing = how;
+    for mut it in &mut bars {
+        *it = how(here && showing.wanted(crate::look::Tool::TopBar));
     }
 }
 
