@@ -1877,6 +1877,7 @@ fn work_the_height(
 /// by a factor of ten. `model::stand` does the measuring.
 fn stand_the_model(
     mut commands: Commands,
+    bench: Res<crate::Bench>,
     kiln: Res<Kiln>,
     assets: Res<AssetServer>,
     standing: Query<Entity, With<OnTheStage>>,
@@ -1897,6 +1898,15 @@ fn stand_the_model(
         OnTheStage,
         crate::stage::KilnFurniture,
         crate::model::stand(&assets, &road, Some(tall)),
+        // Hidden if the maker is not here. A firing finishes on its own schedule, and it
+        // can easily land while they have walked over to the builder - and what puts a
+        // bench's furniture away only runs when the bench CHANGES, so a model spawned
+        // visible now would stand on the builder's stage until they next moved benches.
+        if *bench == crate::Bench::Kiln {
+            Visibility::Inherited
+        } else {
+            Visibility::Hidden
+        },
     ));
 }
 
