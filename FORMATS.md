@@ -28,7 +28,6 @@ from the table below.
 | ----------- | ------------------- | ----------------------------------------------- |
 | `name`      | the folder's name   | what the bench calls this project                |
 | `palette`   | `data/palette.json` | the game's colour ramps                          |
-| `bodies`    | `data/bodies`       | the game's people, for the rig                   |
 | `templates` | `templates`         | starting shapes to draw from                     |
 | `work`      | `out/buildings`     | the maker's own saved work                       |
 | `baked`     | `out/baked`         | exported work, ready for the game                |
@@ -57,14 +56,6 @@ it its own way. Re-run whenever the game's palette changes.
 Colour in every other file is spoken as `{ "ramp": "wood", "shade": 0.7 }` —
 a name and a 0..1 step, never raw RGB — so authored work inherits palette
 changes for free.
-
-### `data/rig.json` (to come)
-
-The canonical body: part names, joint pivots, segment lengths as fractions,
-exported from the game's builder so the Rig bench animates the true shape.
-Parts: `body, head, leg-l, shin-l, leg-r, shin-r, arm-l, forearm-l, arm-r,
-forearm-r` (hinges are children of their upper joints; rotations are about
-local X: positive carries the free end forward).
 
 ## Opificium → game
 
@@ -134,25 +125,26 @@ game already understands, so the carrying-in is mechanical:
 - `stage`: `footing | frame | walls | roof | furnishing` — the order the
   village raises it; `widget` entries never become boxes at all.
 
-### Clips: `out/anim/<name>.json`
+### Models: `out/models/<name>.glb`
 
-```json
-{
-  "format": 1,
-  "name": "sleeping",
-  "seconds": 2.4,
-  "looped": true,
-  "tracks": [
-    { "part": "shin-l", "keys": [ { "t": 0.0, "x": -0.1 }, { "t": 1.2, "x": -0.16 } ] }
-  ]
-}
-```
+A glTF binary, made at the kiln from an image and kept by the maker under a name.
+Loaded WHOLE - it is not parts, not boxes, and carries its own materials and
+textures, so there is nothing in it for a game to translate.
 
-- `t` in seconds; rotation in radians about the part's local X (`x`), with
-  optional `y`/`z` for the head and body. Linear blend between keys; a
-  looped clip blends its last key back into its first.
-- Parts are the rig names above. Clips carry rotations only — the game
-  retargets them across every genome's proportions.
+- **Metres, standing on its own origin.** The bench bakes both into the file when
+  it keeps one: the maker states a height and the mesh is scaled to it, and the
+  model is lifted so its lowest point sits at y=0. So `translation` is a place to
+  put it on the ground and needs no offset of the game's own.
+- **+X is the front**, the same as a building's, when the maker points it that way.
+  Nothing in the file enforces it.
+- Textures are usually JPEG. Engines that leave JPEG out of their image formats
+  fail the whole file rather than the texture - see this bench's own `Cargo.toml`.
+- The bench never reopens a `.glb` to change it. A model is the finished thing; the
+  image it was made from is the source, and it lives wherever the maker keeps it.
+
+There was a clip format promised here - `out/anim/<name>.json`, rotations on a
+timeline - for a body-and-clips bench that has since been retired. It was never
+written by anything, so nothing read it. It is not deprecated; it never shipped.
 
 ### The baked building: `assets/buildings/<name>.json`
 

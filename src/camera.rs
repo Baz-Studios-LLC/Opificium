@@ -40,11 +40,27 @@ impl OrbitRig {
     }
 }
 
+/// What the eye turns about, at the benches that lock it there.
+///
+/// Stated by the bench rather than fixed here, because the thing being looked at decides:
+/// a body's chest is at a metre, and a model's middle is at half of whatever the model
+/// happens to be. The eye that orbits it needs to be told.
+#[derive(Resource)]
+pub struct Centre(pub Vec3);
+
+impl Default for Centre {
+    fn default() -> Self {
+        // Chest height on a person, which is the right guess before anything stands.
+        Self(Vec3::new(0.0, 1.0, 0.0))
+    }
+}
+
 pub struct CameraPlugin;
 
 impl Plugin for CameraPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<OrbitRig>()
+            .init_resource::<Centre>()
             .add_systems(Startup, spawn_camera)
             // After the panes have had the wheel: they decide whether the
             // cursor is over a list, and a stale answer made the zoom
@@ -69,6 +85,7 @@ fn steer(
     dims: Res<crate::builder::DimsEntry>,
     bench: Res<crate::Bench>,
     over_pane: Res<crate::look::OverPane>,
+    centre: Res<Centre>,
     buttons: Res<ButtonInput<MouseButton>>,
     motion: Res<AccumulatedMouseMotion>,
     scroll: Res<AccumulatedMouseScroll>,
@@ -111,11 +128,12 @@ fn steer(
     // something to correct.
     if *bench == crate::Bench::Rig {
         if scroll.delta.y != 0.0 && !over_pane.0 {
-            rig.distance = (rig.distance * (1.0 - scroll.delta.y * 0.08)).clamp(1.2, 20.0);
+            // Closer than a body ever needed. A model can be a fifth of a metre tall,
+            // and a floor of 1.2m would hold the eye further out than the whole thing.
+            rig.distance = (rig.distance * (1.0 - scroll.delta.y * 0.08)).clamp(0.15, 20.0);
         }
-        let chest = Vec3::new(0.0, 1.0, 0.0);
-        if rig.focus.distance(chest) > 1e-4 {
-            rig.focus = chest;
+        if rig.focus.distance(centre.0) > 1e-4 {
+            rig.focus = centre.0;
         }
         return;
     }

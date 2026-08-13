@@ -183,15 +183,6 @@ pub fn where_the_key_goes() -> String {
     key_file().display().to_string()
 }
 
-/// Where a finished model is kept: the project's own folder.
-///
-/// Beside the drawings rather than among them - a `.glb` is not a work the bench can
-/// reopen and change, it is the finished thing. The bake carries it into the game
-/// from here.
-pub fn models_home() -> PathBuf {
-    crate::project::root().join("out/models")
-}
-
 /// What the machine says when a job is taken.
 #[derive(Deserialize)]
 struct Taken {
@@ -424,7 +415,7 @@ pub fn a_plain_name(said: &str) -> String {
 
 /// Where this model will be kept, without treading on one already there.
 pub fn a_free_road(name: &str) -> PathBuf {
-    let home = models_home();
+    let home = crate::model::home();
     let first = home.join(format!("{name}.glb"));
     if !first.exists() {
         return first;
@@ -459,7 +450,7 @@ pub fn commission(
 ) -> Result<PathBuf, String> {
     // Before any credit: the picture, the folder, the name.
     let uri = data_uri(image)?;
-    let home = models_home();
+    let home = crate::model::home();
     std::fs::create_dir_all(&home).map_err(|why| format!("{}: {why}", home.display()))?;
     let road = a_free_road(name);
 
@@ -1160,160 +1151,6 @@ fn show_the_kiln(bench: Res<crate::Bench>, mut panels: Query<&mut Visibility, Wi
     }
 }
 
-/// Writes a GLB out at a chosen height, under a chosen name.
-///
-/// The SCALE GOES INTO THE FILE, rather than beside it in a note the game has to
-/// read. A model that is the right size is a model a game can load and forget; a
-/// model plus a number is two things to keep together, and one of them will go
-/// missing.
-///
-/// It is done by wrapping, not by editing: a new node carries the scale and adopts
-/// whatever the scene's roots were. Rewriting the existing nodes would mean
-/// composing with transforms already on them, and a bench that starts composing
-/// glTF node trees has become a glTF editor by accident.
-pub fn keep_at_height(from: &Path, to: &Path, tall: f32) -> Result<PathBuf, String> {
-    let bytes = std::fs::read(from).map_err(|why| format!("{}: {why}", from.display()))?;
-    let mut doc = the_json_of(&bytes).ok_or("that file is not a GLB")?;
-    let (low, was) = bounds_of(from).ok_or("cannot measure that model, so cannot fit it")?;
-    let fit = tall / was;
-
-    let nodes = doc
-        .get_mut("nodes")
-        .and_then(|nodes| nodes.as_array_mut())
-        .ok_or("that GLB has no nodes")?;
-    let wrapper = nodes.len();
-    let scenes = doc
-        .get("scenes")
-        .and_then(|scenes| scenes.as_array())
-        .ok_or("that GLB has no scenes")?;
-    let roots: Vec<serde_json::Value> = scenes
-        .first()
-        .and_then(|scene| scene.get("nodes"))
-        .and_then(|nodes| nodes.as_array())
-        .cloned()
-        .unwrap_or_default();
-
-    doc["nodes"]
-        .as_array_mut()
-        .expect("just read")
-        .push(serde_json::json!({
-            "name": "opificium-fit",
-            // Standing ON its origin, not straddling it, for the same reason the
-            // height is baked in: a game that has to know a model's mesh sits 40cm
-            // below its own origin is a game keeping a second fact about the file.
-            // Everything else this bench makes is authored from the ground up, and a
-            // model it keeps should load the same way.
-            //
-            // glTF applies scale before translation, so this is in fitted metres.
-            "translation": [0.0, -low * fit, 0.0],
-            "scale": [fit, fit, fit],
-            "children": roots,
-        }));
-    doc["scenes"].as_array_mut().expect("just read")[0]["nodes"] = serde_json::json!([wrapper]);
-
-    // A GLB is chunks with their own lengths, each padded to four bytes - the JSON
-    // with spaces, the binary with zeroes - and a total length in the header that has
-    // to agree with the file. Every one of those is recomputed rather than adjusted:
-    // a length that disagrees by one byte is a file every loader refuses.
-    let mut json = serde_json::to_vec(&doc).map_err(|why| format!("{why}"))?;
-    while json.len() % 4 != 0 {
-        json.push(b' ');
-    }
-    let binary = the_binary_of(&bytes).unwrap_or_default();
-    let mut out = Vec::with_capacity(28 + json.len() + binary.len());
-    out.extend_from_slice(b"glTF");
-    out.extend_from_slice(&2u32.to_le_bytes());
-    let total = 12
-        + 8
-        + json.len()
-        + if binary.is_empty() {
-            0
-        } else {
-            8 + binary.len()
-        };
-    out.extend_from_slice(&(total as u32).to_le_bytes());
-    out.extend_from_slice(&(json.len() as u32).to_le_bytes());
-    out.extend_from_slice(b"JSON");
-    out.extend_from_slice(&json);
-    if !binary.is_empty() {
-        out.extend_from_slice(&(binary.len() as u32).to_le_bytes());
-        out.extend_from_slice(b"BIN\0");
-        out.extend_from_slice(&binary);
-    }
-
-    let road = to.to_path_buf();
-    // The folder, first. A firing makes it on the way past, but keeping a model is
-    // not always preceded by one - a project opened fresh and handed a file has
-    // nowhere to put it yet.
-    if let Some(under) = road.parent() {
-        std::fs::create_dir_all(under).map_err(|why| format!("{}: {why}", under.display()))?;
-    }
-    std::fs::write(&road, out).map_err(|why| format!("{}: {why}", road.display()))?;
-    Ok(road)
-}
-
-/// The binary chunk of a GLB, if it has one. Padded to four bytes already, by
-/// whoever wrote it.
-fn the_binary_of(bytes: &[u8]) -> Option<Vec<u8>> {
-    let json = u32::from_le_bytes(bytes.get(12..16)?.try_into().ok()?) as usize;
-    let at = 20 + json;
-    let len = u32::from_le_bytes(bytes.get(at..at + 4)?.try_into().ok()?) as usize;
-    if bytes.get(at + 4..at + 8)? != b"BIN\0" {
-        return None;
-    }
-    bytes.get(at + 8..at + 8 + len).map(<[u8]>::to_vec)
-}
-
-/// Where a GLB's own geometry sits and how tall it is, in its own units: the lowest
-/// point, and the height above it.
-///
-/// Read out of the file rather than guessed: a generated mesh has no idea what size
-/// the thing it depicts really is, and two from the same machine differ by a factor
-/// of ten. Every `POSITION` accessor carries a `min` and a `max` - the spec requires
-/// it - so both are known without decoding a single vertex.
-///
-/// The LOWEST POINT matters as much as the height, because a generated model's origin
-/// is wherever the machine left it, which is usually the middle of the thing. Standing
-/// such a model at the floor buries half of it.
-///
-/// Both are spans of the whole model, not the largest of each primitive: a mesh cut
-/// into a body and two wings has each part measuring short, and the model is as tall
-/// as the distance from the lowest of them to the highest.
-///
-/// Node transforms are not applied. Generated models put their geometry at the root
-/// with no scaling, and reading the whole node tree to be sure would be a glTF
-/// importer - which this bench has no business being when Bevy is already doing it
-/// properly two lines further down.
-fn bounds_of(road: &Path) -> Option<(f32, f32)> {
-    let bytes = std::fs::read(road).ok()?;
-    let doc = the_json_of(&bytes)?;
-    let (mut low, mut high) = (f32::MAX, f32::MIN);
-    for mesh in doc.get("meshes")?.as_array()? {
-        for prim in mesh.get("primitives")?.as_array()? {
-            let at = prim.get("attributes")?.get("POSITION")?.as_u64()? as usize;
-            let accessor = doc.get("accessors")?.as_array()?.get(at)?;
-            low = low.min(accessor.get("min")?.as_array()?.get(1)?.as_f64()? as f32);
-            high = high.max(accessor.get("max")?.as_array()?.get(1)?.as_f64()? as f32);
-        }
-    }
-    (high - low > 1e-6).then_some((low, high - low))
-}
-
-/// The JSON chunk of a GLB.
-///
-/// A GLB is "glTF", a version, a total length, and then chunks: the first is always
-/// the JSON. Twelve bytes of header, eight of chunk header, then the document.
-fn the_json_of(bytes: &[u8]) -> Option<serde_json::Value> {
-    if bytes.len() < 20 || &bytes[..4] != b"glTF" {
-        return None;
-    }
-    let chunk = u32::from_le_bytes(bytes[12..16].try_into().ok()?) as usize;
-    if &bytes[16..20] != b"JSON" || 20 + chunk > bytes.len() {
-        return None;
-    }
-    serde_json::from_slice(&bytes[20..20 + chunk]).ok()
-}
-
 /// Names the model and writes it at the height it stands.
 ///
 /// A save dialog rather than the builder's naming card, for the reason the rig bench
@@ -1334,7 +1171,7 @@ fn keep_the_model(
         kiln.firing = Firing::Failed("nothing stands on the bench to keep".to_string());
         return;
     };
-    let home = models_home();
+    let home = crate::model::home();
     let _ = std::fs::create_dir_all(&home);
     let suggested = from
         .file_stem()
@@ -1350,7 +1187,7 @@ fn keep_the_model(
         return;
     };
     let tall = kiln.tall;
-    match keep_at_height(&from, &to, tall) {
+    match crate::model::keep_at_height(&from, &to, tall) {
         Ok(road) => {
             info!("kept {} at {tall:.2}m", road.display());
             // What was kept is what now stands, so the height reads as one it has
@@ -1404,13 +1241,9 @@ fn work_the_height(
 
 /// Stands the model on the stage, and fits it to the height it was told.
 ///
-/// `project://` is the second asset root - see `main` - so this loads out of whichever
-/// game is open rather than out of the bench's own folder.
-///
-/// The scale is worked out from the GLB's OWN bounds, read off the file rather than
-/// guessed: a generated mesh has no idea what size the thing it depicts is, and two
-/// models from the same machine differ by a factor of ten. The height a maker states
-/// is the one fact that settles it.
+/// The height a maker states is the one fact that settles the size, because a generated
+/// mesh has no idea what size the thing it depicts is - two from the same machine differ
+/// by a factor of ten. `model::stand` does the measuring.
 fn stand_the_model(
     mut commands: Commands,
     kiln: Res<Kiln>,
@@ -1429,30 +1262,10 @@ fn stand_the_model(
     let Some((road, tall)) = wanted else {
         return;
     };
-    // How big it came, so the height can be honoured. A file the bench cannot measure
-    // is stood up unscaled rather than not at all - seeing it wrong beats not seeing
-    // it.
-    let (low, across) = bounds_of(&road).unwrap_or((0.0, 1.0));
-    let fit = if across > 1e-4 { tall / across } else { 1.0 };
-    let name = road
-        .file_name()
-        .map(|name| name.to_string_lossy().to_string())
-        .unwrap_or_default();
     commands.spawn((
         OnTheStage,
         crate::stage::KilnFurniture,
-        // `WorldAssetRoot` in this Bevy, renamed from `SceneRoot` when the next
-        // scene system took the word "scene" for itself. The label is the glTF
-        // convention: the file's first scene.
-        bevy::world_serialization::WorldAssetRoot(
-            assets.load(format!("project://out/models/{name}#Scene0")),
-        ),
-        // Its feet on the floor, not its middle. A generated model's origin is wherever
-        // the machine left it - usually the centre of the thing - so standing it at the
-        // floor sinks half of it into the stage. Lifted by its own lowest point, AFTER
-        // scaling, since that is the distance in the stage's metres rather than the
-        // model's units.
-        Transform::from_xyz(0.0, -low * fit, 0.0).with_scale(Vec3::splat(fit)),
+        crate::model::stand(&assets, &road, Some(tall)),
     ));
 }
 
@@ -1849,85 +1662,5 @@ pub fn from_the_command_line() -> Option<i32> {
             eprintln!("the kiln: {why}");
             Some(1)
         }
-    }
-}
-
-#[cfg(test)]
-mod fitting {
-    use super::*;
-
-    /// A GLB written at a height is still a GLB, and says it is that tall.
-    ///
-    /// Built here rather than fetched: a minimal glTF with a known bounding box, so
-    /// the arithmetic can be checked without a network or a fixture. The chunk
-    /// lengths and the total are the part worth pinning - a GLB whose header
-    /// disagrees with its body by one byte is refused by every loader, and nothing
-    /// about the file looks wrong until something tries to open it.
-    #[test]
-    fn a_model_can_be_written_at_a_height() {
-        // Two metres tall in its own units, so a fit to 0.5 must scale by a quarter.
-        let doc = serde_json::json!({
-            "asset": { "version": "2.0" },
-            "scenes": [ { "nodes": [0] } ],
-            "nodes": [ { "mesh": 0 } ],
-            "meshes": [ { "primitives": [ { "attributes": { "POSITION": 0 } } ] } ],
-            "accessors": [ { "min": [0.0, -1.0, 0.0], "max": [1.0, 1.0, 1.0] } ],
-        });
-        let mut json = serde_json::to_vec(&doc).expect("json");
-        while json.len() % 4 != 0 {
-            json.push(b' ');
-        }
-        let mut glb = Vec::new();
-        glb.extend_from_slice(b"glTF");
-        glb.extend_from_slice(&2u32.to_le_bytes());
-        glb.extend_from_slice(&((12 + 8 + json.len()) as u32).to_le_bytes());
-        glb.extend_from_slice(&(json.len() as u32).to_le_bytes());
-        glb.extend_from_slice(b"JSON");
-        glb.extend_from_slice(&json);
-
-        let home = std::env::temp_dir().join("opificium-test-kiln");
-        let _ = std::fs::remove_dir_all(&home);
-        std::fs::create_dir_all(&home).expect("a folder");
-        let from = home.join("two-metres.glb");
-        std::fs::write(&from, &glb).expect("write");
-
-        // Two units tall, and its lowest point one unit BELOW its own origin - which
-        // is where a generated model usually leaves it.
-        assert_eq!(
-            bounds_of(&from),
-            Some((-1.0, 2.0)),
-            "it measured the wrong bounds"
-        );
-
-        // Fitted to half a metre: a quarter of what it was.
-        let out = keep_at_height(&from, &home.join("fitted.glb"), 0.5).expect("kept");
-        let kept = std::fs::read(&out).expect("read it back");
-        assert_eq!(&kept[..4], b"glTF", "what came out is not a GLB");
-        let declared = u32::from_le_bytes(kept[8..12].try_into().unwrap()) as usize;
-        assert_eq!(declared, kept.len(), "the header disagrees with the file");
-
-        let doc = the_json_of(&kept).expect("its json");
-        let scene_roots = doc["scenes"][0]["nodes"].as_array().expect("roots");
-        assert_eq!(
-            scene_roots.len(),
-            1,
-            "the scene should point at the one wrapper"
-        );
-        let wrapper = &doc["nodes"][scene_roots[0].as_u64().unwrap() as usize];
-        let scale = wrapper["scale"].as_array().expect("a scale");
-        assert!(
-            (scale[1].as_f64().unwrap() - 0.25).abs() < 1e-6,
-            "{scale:?}"
-        );
-        // And STANDING on its origin rather than straddling it. Its lowest point was a
-        // unit under the origin, so at a quarter scale it has to be lifted a quarter of
-        // a metre - not the whole unit, because glTF scales before it translates.
-        let up = wrapper["translation"].as_array().expect("a translation");
-        assert!(
-            (up[1].as_f64().unwrap() - 0.25).abs() < 1e-6,
-            "the kept model does not stand on the ground: {up:?}"
-        );
-        // And it adopted what the scene used to hold, rather than orphaning it.
-        assert_eq!(wrapper["children"], serde_json::json!([0]));
     }
 }

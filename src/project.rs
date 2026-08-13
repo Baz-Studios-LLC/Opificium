@@ -1,7 +1,7 @@
 //! A project: one game's own folder of work.
 //!
 //! Opificium holds no game's content. The bench is the program; the
-//! buildings, the palette, the bodies and the templates all belong to
+//! buildings, the palette and the templates all belong to
 //! whichever game asked for them, and they live in that game's own
 //! repository beside its code. A project is simply the folder where they
 //! sit, described by an `opificium.json` at its root.
@@ -41,8 +41,6 @@ struct Manifest {
     #[serde(skip_serializing_if = "Option::is_none")]
     palette: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    bodies: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     templates: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     kinds: Option<String>,
@@ -65,7 +63,6 @@ pub struct Project {
     pub name: String,
     pub root: PathBuf,
     pub palette: PathBuf,
-    pub bodies: PathBuf,
     pub templates: PathBuf,
     /// What this game raises a baked drawing AS - see [`kinds`].
     pub kinds: PathBuf,
@@ -171,7 +168,6 @@ impl Project {
                     .unwrap_or_else(|| "Untitled".into())
             }),
             palette: under(manifest.palette, "data/palette.json"),
-            bodies: under(manifest.bodies, "data/bodies"),
             templates: under(manifest.templates, "templates"),
             kinds: under(manifest.kinds, "data/kinds.json"),
             widgets: under(manifest.widgets, "data/widgets.json"),
@@ -262,10 +258,10 @@ file described here.
 | `data/palette.json` | the game      | the colour ramps the bench paints with            |
 | `data/kinds.json`   | either        | what a finished drawing may be baked AS           |
 | `data/widgets.json` | either        | the marks the bench may place, and their colours  |
-| `data/bodies/`      | the game      | bodies for the animation bench to pose            |
 | `templates/`        | you           | starting shapes to draw from                      |
 | `out/buildings/`    | the bench     | saved drawings, `.baz` - **the source of truth**  |
 | `out/baked/`        | the bench     | baked output, only if `install` is set empty      |
+| `out/models/`       | the bench     | models the kiln made, `.glb` - load these whole   |
 
 A `.baz` is JSON. It is the editable drawing and the thing worth keeping.
 
@@ -406,7 +402,7 @@ pub fn called(root: &Path) -> String {
 
 /// Leaves this bench and opens another project in a fresh one.
 ///
-/// A RESTART rather than a swap, and deliberately. The palette, the bodies, the
+/// A RESTART rather than a swap, and deliberately. The palette, the kinds, the
 /// shelf of saved works and the window's own title are each read once and kept in
 /// half a dozen places, so switching in place means remembering to refresh every
 /// one of them - and the one that gets forgotten does not fail, it goes quietly
@@ -668,13 +664,6 @@ pub fn palette() -> PathBuf {
     current()
         .map(|project| project.palette)
         .unwrap_or_else(|| root().join("data/palette.json"))
-}
-
-/// The bodies the rig animates.
-pub fn bodies() -> PathBuf {
-    current()
-        .map(|project| project.bodies)
-        .unwrap_or_else(|| root().join("data/bodies"))
 }
 
 /// Where this game's list of building kinds lives.

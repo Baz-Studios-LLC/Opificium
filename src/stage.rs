@@ -1,4 +1,4 @@
-//! The stage: floor, grid, axis marks, lights, and the rig bench's pedestal.
+//! The stage: floor, grid, axis marks and lights.
 
 use bevy::prelude::*;
 
@@ -12,7 +12,7 @@ const REACH: f32 = 14.0;
 #[derive(Component)]
 pub struct BuilderFurniture;
 
-/// Stage furniture that belongs to the rig bench.
+/// Stage furniture that belongs to the rig bench: the model standing on it.
 #[derive(Component)]
 pub struct RigFurniture;
 
@@ -131,23 +131,10 @@ fn dress_stage(
         Transform::from_xyz(REACH + 0.6, 0.05, 0.0).with_scale(Vec3::new(0.12, 0.1, 3.0)),
     ));
 
-    // The rig bench's pedestal, waiting for its body.
-    let stone = matte(&mut materials, palette.shade("stone", 0.6));
-    let dark_stone = matte(&mut materials, palette.shade("stone", 0.4));
-    commands.spawn((
-        RigFurniture,
-        Mesh3d(cube.clone()),
-        MeshMaterial3d(dark_stone),
-        Transform::from_xyz(0.0, 0.11, 0.0).with_scale(Vec3::new(3.4, 0.22, 3.4)),
-        Visibility::Hidden,
-    ));
-    commands.spawn((
-        RigFurniture,
-        Mesh3d(cube),
-        MeshMaterial3d(stone),
-        Transform::from_xyz(0.0, 0.34, 0.0).with_scale(Vec3::new(2.6, 0.24, 2.6)),
-        Visibility::Hidden,
-    ));
+    // No pedestal at the rig bench. It had one when it held a body, and a model stands
+    // on the GRID instead: the whole point of looking at a model here is judging its
+    // true size, and a plinth a fifth of a metre high makes every reading off the metre
+    // lines wrong by a fifth of a metre. `RigFurniture` is worn by the model itself now.
 }
 
 fn gold_center(

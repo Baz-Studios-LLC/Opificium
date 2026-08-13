@@ -21,6 +21,7 @@ mod gizmo;
 mod kiln;
 mod look;
 mod menu;
+mod model;
 mod opening;
 mod project;
 mod rail;
