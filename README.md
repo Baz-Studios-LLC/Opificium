@@ -1,8 +1,8 @@
 # Opificium
 
-A maker's bench for buildings and animations. Draw a building by hand out
-of boxes, ramps and roofs; pose a body on a timeline; export both as
-plain files for a game to read.
+A maker's bench for buildings and models. Draw a building by hand out of
+boxes, ramps and roofs; commission a model from a picture and keep it at
+the size you want; export both as plain files for a game to read.
 
 Opificium is a Baz Studios tool, built with Rust and Bevy. It grew up
 inside [Divus Factus](https://github.com/Baz-Studios-LLC/Divus-Factus)

@@ -1,15 +1,15 @@
 //! THE OPIFICIUM — the maker's own bench.
 //!
-//! A standalone maker's bench: buildings and animations are authored here
-//! by hand and exported as JSON for a game to take in. The two programs
-//! share no code — the game exports its palette as data so Opificium
-//! paints with true colours, and Opificium exports blueprints and clips
-//! the game translates at its leisure. See FORMATS.md for every file that
+//! A standalone maker's bench. Buildings are authored here by hand out of boxes
+//! on a lattice and exported as JSON; models are commissioned from a picture and
+//! kept as GLB. The two programs share no code — the game exports its palette as
+//! data so Opificium paints with true colours, and Opificium exports blueprints
+//! and models the game reads at its leisure. See FORMATS.md for every file that
 //! passes between them.
 //!
 //! The bench holds no game's content. What it works on is a PROJECT: one
-//! game's own folder of palette, bodies, templates and work, living in
-//! that game's repository. See `project`.
+//! game's own folder of palette, templates and work, living in that game's
+//! repository. See `project`.
 
 use bevy::asset::AssetApp;
 use bevy::prelude::*;
@@ -34,7 +34,7 @@ pub enum Bench {
     /// Buildings: boxes, ramps and widgets on the ground grid.
     #[default]
     Builder,
-    /// Animation: the canonical body on its pedestal, and the timeline.
+    /// A model, looked at closely - and in time, rigged.
     Rig,
     /// The kiln: an image in, a model out, by way of somebody else's machine.
     ///
@@ -68,9 +68,8 @@ fn main() {
     // than opening whichever game it happened to open last. Choosing reopens the
     // bench pointed at the answer, so `ask` never returns to here.
     //
-    // The project has to be settled before a single plugin starts: the palette and
-    // the bodies are both read while the plugins are built, out of whichever game's
-    // folder is open.
+    // The project has to be settled before a single plugin starts: the palette is read
+    // while the plugins are built, out of whichever game's folder is open.
     let Some(road) = project::named_outright() else {
         opening::ask();
         return;

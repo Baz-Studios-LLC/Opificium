@@ -246,7 +246,7 @@ fn write_the_word(root: &Path) -> Result<(), String> {
 
 This folder is a **project**: one game's own authored work for
 [Opificium](https://github.com/Baz-Studios-LLC/Opificium), a maker's bench for
-buildings and animations. Opificium made this folder and this note.
+buildings and models. Opificium made this folder and this note.
 
 The bench and the game **share no code**. Everything that passes between them is a
 file described here.
