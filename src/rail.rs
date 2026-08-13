@@ -2,7 +2,6 @@
 //! own dress. New tools become new benches here.
 
 use bevy::prelude::*;
-use bevy::text::FontSize;
 
 use crate::Bench;
 use crate::look::{Fonts, Palette, theme};
@@ -143,7 +142,7 @@ pub fn raise_rail(mut commands: Commands, fonts: Res<Fonts>, palette: Res<Palett
             Text::new(label),
             TextFont {
                 font: fonts.display.clone().into(),
-                font_size: FontSize::Px(12.0),
+                font_size: crate::look::text_at(12.0),
                 ..default()
             },
             TextColor(theme::accent(&palette)),
@@ -205,7 +204,7 @@ pub fn raise_rail(mut commands: Commands, fonts: Res<Fonts>, palette: Res<Palett
         Text::new("THE OPIFICIUM"),
         TextFont {
             font: fonts.display.clone().into(),
-            font_size: FontSize::Px(20.0),
+            font_size: crate::look::text_at(20.0),
             ..default()
         },
         TextColor(theme::accent(&palette)),
@@ -218,7 +217,7 @@ pub fn raise_rail(mut commands: Commands, fonts: Res<Fonts>, palette: Res<Palett
         )),
         TextFont {
             font: fonts.text.clone().into(),
-            font_size: FontSize::Px(12.0),
+            font_size: crate::look::text_at(12.0),
             ..default()
         },
         TextColor(theme::text_dim(&palette)),
@@ -242,7 +241,7 @@ pub fn raise_rail(mut commands: Commands, fonts: Res<Fonts>, palette: Res<Palett
         Text::new("THE PROJECT"),
         TextFont {
             font: fonts.display.clone().into(),
-            font_size: FontSize::Px(11.0),
+            font_size: crate::look::text_at(11.0),
             ..default()
         },
         TextColor(theme::text_dim(&palette)),
@@ -350,7 +349,7 @@ pub fn raise_rail(mut commands: Commands, fonts: Res<Fonts>, palette: Res<Palett
             Text::new(label),
             TextFont {
                 font: fonts.display.clone().into(),
-                font_size: FontSize::Px(13.0),
+                font_size: crate::look::text_at(13.0),
                 ..default()
             },
             TextColor(theme::accent(&palette)),
@@ -360,7 +359,7 @@ pub fn raise_rail(mut commands: Commands, fonts: Res<Fonts>, palette: Res<Palett
             Text::new(tale),
             TextFont {
                 font: fonts.text.clone().into(),
-                font_size: FontSize::Px(11.0),
+                font_size: crate::look::text_at(11.0),
                 ..default()
             },
             TextColor(theme::text_dim(&palette)),
@@ -410,7 +409,7 @@ pub fn raise_rail(mut commands: Commands, fonts: Res<Fonts>, palette: Res<Palett
         Text::new("KEYBINDS"),
         TextFont {
             font: fonts.display.clone().into(),
-            font_size: FontSize::Px(13.0),
+            font_size: crate::look::text_at(13.0),
             ..default()
         },
         TextColor(theme::accent(&palette)),
@@ -525,7 +524,7 @@ off, walls down as well",
         commands.spawn((
             Text::new(cap),
             TextFont {
-                font_size: FontSize::Px(10.0),
+                font_size: crate::look::text_at(10.0),
                 ..default()
             },
             TextColor(theme::accent(&palette).with_alpha(0.95)),
@@ -535,7 +534,7 @@ off, walls down as well",
             Text::new(tale),
             TextFont {
                 font: fonts.text.clone().into(),
-                font_size: FontSize::Px(11.0),
+                font_size: crate::look::text_at(11.0),
                 ..default()
             },
             TextColor(theme::text_dim(&palette).with_alpha(0.85)),
@@ -697,7 +696,7 @@ off, walls down as well",
         Text::new(FOOT_SAYING),
         TextFont {
             font: fonts.text.clone().into(),
-            font_size: FontSize::Px(11.0),
+            font_size: crate::look::text_at(11.0),
             ..default()
         },
         TextColor(theme::text_dim(&palette).with_alpha(0.6)),
@@ -772,7 +771,7 @@ fn project_face(
         Text::new(label),
         TextFont {
             font: fonts.display.clone().into(),
-            font_size: FontSize::Px(11.0),
+            font_size: crate::look::text_at(11.0),
             ..default()
         },
         TextColor(if bright {
@@ -975,7 +974,7 @@ fn follow_with_a_word(
                 Text::new(word),
                 TextFont {
                     font: fonts.text.clone().into(),
-                    font_size: FontSize::Px(16.0),
+                    font_size: crate::look::text_at(16.0),
                     ..default()
                 },
                 TextColor(theme::accent(&palette).with_alpha(0.9)),
@@ -1034,7 +1033,7 @@ fn stage_face(
         Text::new(label),
         TextFont {
             font: fonts.display.clone().into(),
-            font_size: FontSize::Px(12.0),
+            font_size: crate::look::text_at(12.0),
             ..default()
         },
         TextColor(theme::accent(palette)),

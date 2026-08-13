@@ -26,7 +26,6 @@
 //! there is nothing else to paint with. See [`crate::look::BENCH_RAMPS`].
 
 use bevy::prelude::*;
-use bevy::text::FontSize;
 
 use crate::look::{Fonts, Palette, theme};
 
@@ -84,7 +83,7 @@ fn raise_the_question(mut commands: Commands, fonts: Res<Fonts>, palette: Res<Pa
         Text::new("THE OPIFICIUM"),
         TextFont {
             font: fonts.display.clone().into(),
-            font_size: FontSize::Px(26.0),
+            font_size: crate::look::text_at(26.0),
             ..default()
         },
         TextColor(theme::accent(&palette)),
@@ -97,7 +96,7 @@ fn raise_the_question(mut commands: Commands, fonts: Res<Fonts>, palette: Res<Pa
         )),
         TextFont {
             font: fonts.text.clone().into(),
-            font_size: FontSize::Px(13.0),
+            font_size: crate::look::text_at(13.0),
             ..default()
         },
         TextColor(theme::text_dim(&palette)),
@@ -119,7 +118,7 @@ fn raise_the_question(mut commands: Commands, fonts: Res<Fonts>, palette: Res<Pa
         }),
         TextFont {
             font: fonts.display.clone().into(),
-            font_size: FontSize::Px(12.0),
+            font_size: crate::look::text_at(12.0),
             ..default()
         },
         TextColor(theme::text_dim(&palette)),
@@ -209,7 +208,7 @@ fn a_choice(
         Text::new(label),
         TextFont {
             font: fonts.display.clone().into(),
-            font_size: FontSize::Px(14.0),
+            font_size: crate::look::text_at(14.0),
             ..default()
         },
         TextColor(if lit {
@@ -224,7 +223,7 @@ fn a_choice(
             Text::new(tale),
             TextFont {
                 font: fonts.text.clone().into(),
-                font_size: FontSize::Px(11.0),
+                font_size: crate::look::text_at(11.0),
                 ..default()
             },
             TextColor(theme::text_dim(palette).with_alpha(0.6)),

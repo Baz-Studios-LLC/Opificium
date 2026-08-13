@@ -831,7 +831,6 @@ mod tests {
 
 use crate::look::{Fonts, Palette, theme};
 use bevy::prelude::*;
-use bevy::text::FontSize;
 use std::sync::Mutex;
 
 /// The kiln's own panel.
@@ -1081,7 +1080,7 @@ fn hang_the_kiln(mut commands: Commands, fonts: Res<Fonts>, palette: Res<Palette
         Text::new("THE KILN"),
         TextFont {
             font: fonts.display.clone().into(),
-            font_size: FontSize::Px(14.0),
+            font_size: crate::look::text_at(14.0),
             ..default()
         },
         TextColor(theme::accent(&palette)),
@@ -1091,7 +1090,7 @@ fn hang_the_kiln(mut commands: Commands, fonts: Res<Fonts>, palette: Res<Palette
         Text::new("an image in, a model out"),
         TextFont {
             font: fonts.text.clone().into(),
-            font_size: FontSize::Px(12.0),
+            font_size: crate::look::text_at(12.0),
             ..default()
         },
         TextColor(theme::text_dim(&palette)),
@@ -1147,7 +1146,7 @@ fn hang_the_kiln(mut commands: Commands, fonts: Res<Fonts>, palette: Res<Palette
             Text::new(label),
             TextFont {
                 font: fonts.display.clone().into(),
-                font_size: FontSize::Px(11.0),
+                font_size: crate::look::text_at(11.0),
                 ..default()
             },
             TextColor(theme::text_dim(&palette)),
@@ -1161,7 +1160,7 @@ fn hang_the_kiln(mut commands: Commands, fonts: Res<Fonts>, palette: Res<Palette
         Text::new(""),
         TextFont {
             font: fonts.text.clone().into(),
-            font_size: FontSize::Px(12.0),
+            font_size: crate::look::text_at(12.0),
             ..default()
         },
         TextColor(theme::accent(&palette).with_alpha(0.9)),
@@ -1192,7 +1191,7 @@ fn hang_the_kiln(mut commands: Commands, fonts: Res<Fonts>, palette: Res<Palette
         Text::new("AN IMAGE..."),
         TextFont {
             font: fonts.display.clone().into(),
-            font_size: FontSize::Px(12.0),
+            font_size: crate::look::text_at(12.0),
             ..default()
         },
         TextColor(theme::accent(&palette)),
@@ -1258,7 +1257,7 @@ fn hang_the_kiln(mut commands: Commands, fonts: Res<Fonts>, palette: Res<Palette
         Text::new(""),
         TextFont {
             font: fonts.text.clone().into(),
-            font_size: FontSize::Px(11.0),
+            font_size: crate::look::text_at(11.0),
             ..default()
         },
         TextColor(theme::text_dim(&palette)),
@@ -1282,7 +1281,7 @@ fn hang_the_kiln(mut commands: Commands, fonts: Res<Fonts>, palette: Res<Palette
         Text::new("GET MORE"),
         TextFont {
             font: fonts.display.clone().into(),
-            font_size: FontSize::Px(10.0),
+            font_size: crate::look::text_at(10.0),
             ..default()
         },
         TextColor(theme::text_dim(&palette)),
@@ -1301,7 +1300,7 @@ fn hang_the_kiln(mut commands: Commands, fonts: Res<Fonts>, palette: Res<Palette
         Text::new("1.00m tall"),
         TextFont {
             font: fonts.text.clone().into(),
-            font_size: FontSize::Px(13.0),
+            font_size: crate::look::text_at(13.0),
             ..default()
         },
         TextColor(theme::text_dim(&palette).with_alpha(0.5)),
@@ -1345,7 +1344,7 @@ fn hang_the_kiln(mut commands: Commands, fonts: Res<Fonts>, palette: Res<Palette
             Text::new(label),
             TextFont {
                 font: fonts.display.clone().into(),
-                font_size: FontSize::Px(13.0),
+                font_size: crate::look::text_at(13.0),
                 ..default()
             },
             TextColor(theme::accent(&palette)),
@@ -1374,7 +1373,7 @@ fn hang_the_kiln(mut commands: Commands, fonts: Res<Fonts>, palette: Res<Palette
         Text::new("KEEP IT AS..."),
         TextFont {
             font: fonts.display.clone().into(),
-            font_size: FontSize::Px(12.0),
+            font_size: crate::look::text_at(12.0),
             ..default()
         },
         TextColor(theme::accent(&palette)),
@@ -1393,7 +1392,7 @@ fn hang_the_kiln(mut commands: Commands, fonts: Res<Fonts>, palette: Res<Palette
         Text::new(""),
         TextFont {
             font: fonts.text.clone().into(),
-            font_size: FontSize::Px(12.0),
+            font_size: crate::look::text_at(12.0),
             ..default()
         },
         // BREAK ANYWHERE. What lands here when a firing fails is the machine's own answer,

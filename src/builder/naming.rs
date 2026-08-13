@@ -44,7 +44,7 @@ pub(crate) fn raise_naming_card(
         }),
         TextFont {
             font: fonts.display.clone().into(),
-            font_size: FontSize::Px(15.0),
+            font_size: crate::look::text_at(15.0),
             ..default()
         },
         TextColor(theme::accent(palette)),
@@ -54,7 +54,7 @@ pub(crate) fn raise_naming_card(
         NameText,
         Text::new("_"),
         TextFont {
-            font_size: FontSize::Px(15.0),
+            font_size: crate::look::text_at(15.0),
             ..default()
         },
         TextColor(theme::text(palette)),
@@ -86,7 +86,7 @@ pub(crate) fn raise_naming_card(
         }),
         TextFont {
             font: fonts.text.clone().into(),
-            font_size: FontSize::Px(11.0),
+            font_size: crate::look::text_at(11.0),
             ..default()
         },
         TextColor(theme::text_dim(palette).with_alpha(0.8)),
@@ -97,7 +97,7 @@ pub(crate) fn raise_naming_card(
             Text::new("WHAT IS IT?"),
             TextFont {
                 font: fonts.display.clone().into(),
-                font_size: FontSize::Px(12.0),
+                font_size: crate::look::text_at(12.0),
                 ..default()
             },
             TextColor(theme::text_dim(palette)),
@@ -145,7 +145,7 @@ pub(crate) fn raise_naming_card(
                 Text::new(label.clone()),
                 TextFont {
                     font: fonts.display.clone().into(),
-                    font_size: FontSize::Px(10.0),
+                    font_size: crate::look::text_at(10.0),
                     ..default()
                 },
                 TextColor(if standing {
@@ -177,7 +177,7 @@ pub(crate) fn raise_naming_card(
             Text::new("+ A NEW KIND"),
             TextFont {
                 font: fonts.display.clone().into(),
-                font_size: FontSize::Px(10.0),
+                font_size: crate::look::text_at(10.0),
                 ..default()
             },
             TextColor(theme::accent(palette)),
@@ -235,7 +235,7 @@ pub(crate) fn raise_naming_card(
             Text::new(label),
             TextFont {
                 font: fonts.display.clone().into(),
-                font_size: FontSize::Px(12.0),
+                font_size: crate::look::text_at(12.0),
                 ..default()
             },
             TextColor(if accent {
@@ -559,7 +559,7 @@ pub(crate) fn dims_panel(
             Text::new(""),
             TextFont {
                 font: fonts.text.clone().into(),
-                font_size: FontSize::Px(13.0),
+                font_size: crate::look::text_at(13.0),
                 ..default()
             },
             TextColor(theme::text(&palette)),

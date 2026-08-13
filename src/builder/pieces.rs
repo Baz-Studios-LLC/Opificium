@@ -73,7 +73,7 @@ pub(crate) fn hang_the_pieces(
             Text::new("choose a few parts, right-click, keep as a piece"),
             TextFont {
                 font: fonts.text.clone().into(),
-                font_size: FontSize::Px(10.0),
+                font_size: crate::look::text_at(10.0),
                 ..default()
             },
             TextColor(theme::text_dim(&palette).with_alpha(0.7)),

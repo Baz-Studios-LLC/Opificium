@@ -119,7 +119,7 @@ pub(crate) fn hang_the_chosen(
         }),
         TextFont {
             font: fonts.display.clone().into(),
-            font_size: FontSize::Px(12.0),
+            font_size: crate::look::text_at(12.0),
             ..default()
         },
         TextColor(theme::accent(&palette)),
@@ -153,7 +153,7 @@ pub(crate) fn hang_the_chosen(
             }),
             TextFont {
                 font: fonts.text.clone().into(),
-                font_size: FontSize::Px(11.0),
+                font_size: crate::look::text_at(11.0),
                 ..default()
             },
             TextColor(theme::text_dim(&palette)),
@@ -172,7 +172,7 @@ pub(crate) fn hang_the_chosen(
         }),
         TextFont {
             font: fonts.text.clone().into(),
-            font_size: FontSize::Px(10.0),
+            font_size: crate::look::text_at(10.0),
             ..default()
         },
         TextColor(theme::text_dim(&palette).with_alpha(0.7)),

@@ -29,7 +29,6 @@
 //! a system reading the keyboard, and those go through [`MenuWish`].
 
 use bevy::prelude::*;
-use bevy::text::FontSize;
 
 use crate::look::{Fonts, Palette, theme};
 
@@ -342,7 +341,7 @@ fn hang_the_bar(mut commands: Commands, fonts: Res<Fonts>, palette: Res<Palette>
             Text::new(*name),
             TextFont {
                 font: fonts.display.clone().into(),
-                font_size: FontSize::Px(12.0),
+                font_size: crate::look::text_at(12.0),
                 ..default()
             },
             TextColor(theme::accent(&palette)),
@@ -408,7 +407,7 @@ fn hang_the_bar(mut commands: Commands, fonts: Res<Fonts>, palette: Res<Palette>
                 Text::new(*label),
                 TextFont {
                     font: fonts.display.clone().into(),
-                    font_size: FontSize::Px(11.0),
+                    font_size: crate::look::text_at(11.0),
                     ..default()
                 },
                 TextColor(theme::text_dim(&palette)),
@@ -423,7 +422,7 @@ fn hang_the_bar(mut commands: Commands, fonts: Res<Fonts>, palette: Res<Palette>
                 commands.spawn((
                     Text::new(*cap),
                     TextFont {
-                        font_size: FontSize::Px(10.0),
+                        font_size: crate::look::text_at(10.0),
                         ..default()
                     },
                     TextColor(theme::text_dim(&palette).with_alpha(0.55)),

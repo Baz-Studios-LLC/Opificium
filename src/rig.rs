@@ -158,7 +158,7 @@ fn fill_the_shelf(
             Text::new("NOTHING YET - FIRE THE KILN"),
             TextFont {
                 font: fonts.display.clone().into(),
-                font_size: FontSize::Px(10.0),
+                font_size: crate::look::text_at(10.0),
                 ..default()
             },
             TextColor(theme::text_dim(&palette).with_alpha(0.6)),
@@ -188,7 +188,7 @@ fn fill_the_shelf(
             Text::new(crate::model::name_of(&road).to_uppercase()),
             TextFont {
                 font: fonts.display.clone().into(),
-                font_size: FontSize::Px(11.0),
+                font_size: crate::look::text_at(11.0),
                 ..default()
             },
             TextColor(theme::text_dim(&palette)),
@@ -204,7 +204,7 @@ fn fill_the_shelf(
             }),
             TextFont {
                 font: fonts.text.clone().into(),
-                font_size: FontSize::Px(10.0),
+                font_size: crate::look::text_at(10.0),
                 ..default()
             },
             TextColor(theme::text_dim(&palette).with_alpha(0.55)),
@@ -307,7 +307,7 @@ fn hang_the_top_bar(mut commands: Commands, fonts: Res<Fonts>, palette: Res<Pale
         Text::new(""),
         TextFont {
             font: fonts.display.clone().into(),
-            font_size: FontSize::Px(12.0),
+            font_size: crate::look::text_at(12.0),
             ..default()
         },
         TextColor(theme::accent(&palette)),

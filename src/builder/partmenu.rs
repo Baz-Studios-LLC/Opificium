@@ -516,7 +516,7 @@ pub(crate) fn raise_part_menu(
             }),
             TextFont {
                 font: fonts.display.clone().into(),
-                font_size: FontSize::Px(11.0),
+                font_size: crate::look::text_at(11.0),
                 ..default()
             },
             TextColor(if standing {

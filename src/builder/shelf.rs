@@ -59,7 +59,7 @@ pub(crate) fn raise_shelf(mut commands: Commands, fonts: Res<Fonts>, palette: Re
         Text::new("face snap - on (F)"),
         TextFont {
             font: fonts.text.clone().into(),
-            font_size: FontSize::Px(15.0),
+            font_size: crate::look::text_at(15.0),
             ..default()
         },
         TextColor(theme::text(&palette).with_alpha(0.9)),
@@ -131,7 +131,7 @@ pub(crate) fn drawer(
             Text::new(format!("{} {}", name, if open { "-" } else { "+" })),
             TextFont {
                 font: fonts.display.clone().into(),
-                font_size: FontSize::Px(13.0),
+                font_size: crate::look::text_at(13.0),
                 ..default()
             },
             TextColor(theme::accent(palette)),
@@ -189,7 +189,7 @@ pub(crate) fn button_label(
             Text::new(label),
             TextFont {
                 font: fonts.text.clone().into(),
-                font_size: FontSize::Px(12.0),
+                font_size: crate::look::text_at(12.0),
                 ..default()
             },
             TextColor(theme::text_dim(palette)),

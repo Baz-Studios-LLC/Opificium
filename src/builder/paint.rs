@@ -70,7 +70,7 @@ pub(crate) fn raise_palette(mut commands: Commands, fonts: Res<Fonts>, palette: 
         Text::new("THE PALETTE"),
         TextFont {
             font: fonts.display.clone().into(),
-            font_size: FontSize::Px(13.0),
+            font_size: crate::look::text_at(13.0),
             ..default()
         },
         TextColor(theme::accent(&palette)),
@@ -122,7 +122,7 @@ pub(crate) fn raise_palette(mut commands: Commands, fonts: Res<Fonts>, palette: 
         Text::new("BARE - its own colours"),
         TextFont {
             font: fonts.display.clone().into(),
-            font_size: FontSize::Px(10.0),
+            font_size: crate::look::text_at(10.0),
             ..default()
         },
         TextColor(theme::text_dim(&palette)),
@@ -146,7 +146,7 @@ pub(crate) fn raise_palette(mut commands: Commands, fonts: Res<Fonts>, palette: 
             Text::new(name.clone()),
             TextFont {
                 font: fonts.display.clone().into(),
-                font_size: FontSize::Px(9.0),
+                font_size: crate::look::text_at(9.0),
                 ..default()
             },
             TextColor(theme::text_dim(&palette)),

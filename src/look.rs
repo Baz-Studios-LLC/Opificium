@@ -89,7 +89,29 @@ pub mod theme {
 /// in four places - the rail, the shelf, the palette and the body shelf - which was
 /// harmless while nothing else cared, and stopped being harmless the moment
 /// something had to know where the VIEW begins. It begins here.
-pub const PANEL_WIDE: f32 = 212.0;
+pub const PANEL_WIDE: f32 = 232.0;
+
+/// How much bigger every word on the bench is than it was first drawn.
+///
+/// ONE KNOB for the whole app. Brett: "this small text is used throughout the app, is
+/// there a way we can make it bigger?" - and the honest answer was no, there wasn't: sixty
+/// call sites each named their own number, so making the small text bigger meant sixty
+/// edits and the next adjustment would mean sixty more.
+///
+/// ADDED rather than multiplied, which is the whole point. The complaint is about the
+/// SMALL text, and adding two lifts a nine-pixel swatch label by a fifth while leaving a
+/// twenty-six-pixel title almost as it was. Multiplying would have grown the headings most
+/// and the labels that are actually hard to read least.
+///
+/// The sizes at the call sites keep their own numbers, because the difference between a
+/// title and a label is real design and not something to flatten into one name. This only
+/// moves them all together.
+pub const BIGGER: f32 = 2.0;
+
+/// A size of text, in pixels, grown by [`BIGGER`].
+pub fn text_at(px: f32) -> bevy::text::FontSize {
+    bevy::text::FontSize::Px(px + BIGGER)
+}
 
 /// A pane the wheel scrolls when the cursor is over it.
 #[derive(Component)]

@@ -6,7 +6,6 @@
 //! place *does*. You build the toys; the legos come pre-measured.
 
 use bevy::prelude::*;
-use bevy::text::FontSize;
 use serde::{Deserialize, Serialize};
 
 use crate::Bench;

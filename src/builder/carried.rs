@@ -86,7 +86,7 @@ pub(crate) fn hang_the_carried(
             Text::new("nothing carried in yet"),
             TextFont {
                 font: fonts.text.clone().into(),
-                font_size: FontSize::Px(11.0),
+                font_size: crate::look::text_at(11.0),
                 ..default()
             },
             TextColor(theme::text_dim(&palette).with_alpha(0.7)),
@@ -142,7 +142,7 @@ pub(crate) fn hang_the_carried(
             }),
             TextFont {
                 font: fonts.text.clone().into(),
-                font_size: FontSize::Px(10.0),
+                font_size: crate::look::text_at(10.0),
                 ..default()
             },
             TextColor(theme::text_dim(&palette).with_alpha(0.75)),
@@ -238,7 +238,7 @@ pub(crate) fn take_one_back_out(
         Text::new(format!("TAKE {} OUT OF THE GAME?", row.name.to_uppercase())),
         TextFont {
             font: fonts.display.clone().into(),
-            font_size: FontSize::Px(14.0),
+            font_size: crate::look::text_at(14.0),
             ..default()
         },
         TextColor(theme::accent(&palette)),
@@ -248,7 +248,7 @@ pub(crate) fn take_one_back_out(
         Text::new("the drawing on the bench is untouched - only the game's copy goes"),
         TextFont {
             font: fonts.text.clone().into(),
-            font_size: FontSize::Px(11.0),
+            font_size: crate::look::text_at(11.0),
             ..default()
         },
         TextColor(theme::text_dim(&palette).with_alpha(0.8)),
@@ -292,7 +292,7 @@ pub(crate) fn take_one_back_out(
             Text::new(if take { "TAKE IT OUT" } else { "LEAVE IT" }),
             TextFont {
                 font: fonts.display.clone().into(),
-                font_size: FontSize::Px(12.0),
+                font_size: crate::look::text_at(12.0),
                 ..default()
             },
             TextColor(if take {
