@@ -945,6 +945,14 @@ struct KilnBar;
 #[derive(Component)]
 struct KilnPrice;
 
+/// The button that actually spends the credits.
+#[derive(Component)]
+struct FireIt;
+
+/// Its word, dimmed until there is a picture to send.
+#[derive(Component)]
+struct FireWord;
+
 /// Where the chosen picture hangs.
 #[derive(Component)]
 struct Thumbnail;
@@ -1114,6 +1122,8 @@ impl Plugin for KilnPlugin {
                     work_the_till,
                     say_what_is_left,
                     hang_the_picture,
+                    take_a_picture,
+                    dress_the_fire_button,
                     dress_the_choices,
                     stand_the_model,
                     work_the_height,
@@ -1272,14 +1282,76 @@ fn hang_the_kiln(mut commands: Commands, fonts: Res<Fonts>, palette: Res<Palette
         TextColor(theme::accent(&palette)),
         ChildOf(button),
     ));
-    // What it costs, said before it is spent rather than after.
     commands.spawn((
         crate::rail::Word(
-            "Pick a picture and the kiln makes a model of it. \
-             It spends credits on your 3D AI Studio account and \
-             sends the picture to them",
+            "Pick a picture to make a model of. Nothing is sent \
+             and nothing is spent until you press GENERATE",
         ),
         ChildOf(button),
+    ));
+
+    // THE PICTURE, under the button that chose it. Brett: "When we add an image can we get
+    // a preview of the image that loads on the shelf?" - and it is worth more than a
+    // courtesy: a firing costs credits and takes minutes, and the one mistake worth
+    // catching before spending either is having picked the wrong file.
+    //
+    // Empty until there is one. A frame standing empty on every launch would be a hole in
+    // the panel rather than a place where something goes.
+    commands.spawn((
+        Thumbnail,
+        Node {
+            margin: UiRect::top(Val::Px(6.0)),
+            width: Val::Percent(100.0),
+            // Tall as it is wide, and the picture fits INSIDE that - see `hang_the_picture`.
+            // A square keeps the panel from jumping about as pictures of different shapes
+            // are chosen, and the buttons underneath from moving out from under the cursor.
+            aspect_ratio: Some(1.0),
+            ..default()
+        },
+        BackgroundColor(Color::NONE),
+        ChildOf(panel),
+    ));
+
+    // GENERATE, its own press. Brett: "you should have a generate button to make it
+    // generate instead of auto generating when you add the image."
+    //
+    // Choosing and spending were one action before, which meant the preview arrived at the
+    // same moment as the charge - a picture you could inspect only after paying to use it.
+    // Two presses put the look between the choice and the credits, which is the only place
+    // it is worth anything.
+    let fire = commands
+        .spawn((
+            FireIt,
+            Interaction::default(),
+            Node {
+                margin: UiRect::top(Val::Px(6.0)),
+                padding: UiRect::axes(Val::Px(9.0), Val::Px(6.0)),
+                border: UiRect::all(Val::Px(1.0)),
+                justify_content: JustifyContent::Center,
+                ..default()
+            },
+            BackgroundColor(Color::BLACK.with_alpha(0.18)),
+            BorderColor::all(theme::panel_border(&palette)),
+            ChildOf(panel),
+        ))
+        .id();
+    commands.spawn((
+        FireWord,
+        Text::new("GENERATE"),
+        TextFont {
+            font: fonts.display.clone().into(),
+            font_size: crate::look::text_at(12.0),
+            ..default()
+        },
+        TextColor(theme::text_dim(&palette).with_alpha(0.45)),
+        ChildOf(fire),
+    ));
+    commands.spawn((
+        crate::rail::Word(
+            "Send the picture and make the model. THIS is what \
+             spends credits on your 3D AI Studio account",
+        ),
+        ChildOf(fire),
     ));
 
     // The bar fills on the machine's OWN number - the status report carries a
@@ -1308,28 +1380,6 @@ fn hang_the_kiln(mut commands: Commands, fonts: Res<Fonts>, palette: Res<Palette
         },
         BackgroundColor(theme::accent(&palette)),
         ChildOf(trough),
-    ));
-
-    // THE PICTURE, above the button that chose it. Brett: "When we add an image can we get
-    // a preview of the image that loads on the shelf?" - and it is worth more than a
-    // courtesy: a firing costs credits and takes minutes, and the one mistake worth
-    // catching before spending either is having picked the wrong file.
-    //
-    // Empty until there is one. A frame standing empty on every launch would be a hole in
-    // the panel rather than a place where something goes.
-    commands.spawn((
-        Thumbnail,
-        Node {
-            margin: UiRect::top(Val::Px(6.0)),
-            width: Val::Percent(100.0),
-            // Tall as it is wide, and the picture fits INSIDE that - see `hang_the_picture`.
-            // A square keeps the panel from jumping about as pictures of different shapes
-            // are chosen, and the buttons underneath from moving out from under the cursor.
-            aspect_ratio: Some(1.0),
-            ..default()
-        },
-        BackgroundColor(Color::NONE),
-        ChildOf(panel),
     ));
 
     // WHAT IS LEFT, and where to get more. Under the bar rather than beside the price,
@@ -1762,7 +1812,7 @@ fn work_the_kiln(
     recipe: Res<Recipe>,
     mut firings: ResMut<Firings>,
     clock: Res<Time>,
-    picks: Query<&Interaction, (Changed<Interaction>, With<PickAnImage>)>,
+    picks: Query<&Interaction, (Changed<Interaction>, With<FireIt>)>,
 ) {
     // Whatever the thread has said since last frame, in order.
     let mut heard = Vec::new();
@@ -1777,10 +1827,9 @@ fn work_the_kiln(
         // What lands, stands. The stage is where a maker judges whether it was
         // worth the credits, which is the whole reason to show it at all.
         if let Firing::Done(road) = &word {
-            // What it took, filed under the settings that took it. Timed from the moment
-            // the image was chosen, not from the press - the seconds a maker spends in the
-            // file dialog are theirs, not the machine's, and counting them would inflate
-            // every estimate by however long they browsed.
+            // What it took, filed under the settings that took it. Timed from the press of
+            // GENERATE, which is now purely the machine's own work: choosing the picture is
+            // a separate press, so no part of a maker's browsing is counted.
             firings.note(&recipe.as_a_key(), clock.elapsed_secs() - kiln.began);
             write_the_firings(&firings);
             kiln.standing = Some(road.clone());
@@ -1872,6 +1921,65 @@ fn how_full(how_far: Option<f32>, waited: f32, takes: f32) -> (f32, bool) {
 fn as_a_clock(seconds: f32) -> String {
     let seconds = seconds.max(0.0) as u32;
     format!("{}:{:02}", seconds / 60, seconds % 60)
+}
+
+/// Chooses a picture. Sends nothing and spends nothing.
+///
+/// Its own press, apart from the firing. Brett: "after you add the image it should load the
+/// preview and then you should have a generate button to make it generate instead of auto
+/// generating when you add the image." The two used to be one action, so the preview
+/// arrived at the same instant as the charge - a picture a maker could inspect only after
+/// paying to use it.
+///
+/// No key is needed to choose one, either. Being told to go and find an API key is a
+/// reasonable thing to hear when about to spend credits, and a strange thing to hear when
+/// opening a file dialog.
+fn take_a_picture(
+    _main_thread: bevy::ecs::system::NonSendMarker,
+    bench: Res<crate::Bench>,
+    mut kiln: ResMut<Kiln>,
+    picks: Query<&Interaction, (Changed<Interaction>, With<PickAnImage>)>,
+) {
+    if *bench != crate::Bench::Kiln || matches!(kiln.firing, Firing::Working(..)) {
+        return;
+    }
+    if !picks.iter().any(|touch| *touch == Interaction::Pressed) {
+        return;
+    }
+    if let Some(image) = rfd::FileDialog::new()
+        .set_title("An image for the kiln")
+        .add_filter("Pictures", &["png", "jpg", "jpeg", "webp"])
+        .pick_file()
+    {
+        kiln.picture = Some(image);
+    }
+}
+
+/// GENERATE reads as live only when there is something to send.
+fn dress_the_fire_button(
+    kiln: Res<Kiln>,
+    palette: Res<Palette>,
+    mut words: Query<&mut TextColor, With<FireWord>>,
+    mut buttons: Query<&mut BorderColor, With<FireIt>>,
+) {
+    if !kiln.is_changed() {
+        return;
+    }
+    let ready = kiln.picture.is_some() && !matches!(kiln.firing, Firing::Working(..));
+    for mut colour in &mut words {
+        *colour = TextColor(if ready {
+            theme::accent(&palette)
+        } else {
+            theme::text_dim(&palette).with_alpha(0.45)
+        });
+    }
+    for mut edge in &mut buttons {
+        *edge = BorderColor::all(if ready {
+            theme::accent(&palette).with_alpha(0.6)
+        } else {
+            theme::panel_border(&palette)
+        });
+    }
 }
 
 /// Puts the chosen picture on the shelf.
