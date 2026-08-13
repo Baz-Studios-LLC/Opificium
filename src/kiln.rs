@@ -839,7 +839,6 @@ impl Plugin for KilnPlugin {
                     work_the_kiln,
                     say_how_it_goes,
                     dress_the_choices,
-                    stand_the_last_one,
                     stand_the_model,
                     work_the_height,
                     keep_the_model,
@@ -1313,33 +1312,6 @@ fn the_json_of(bytes: &[u8]) -> Option<serde_json::Value> {
         return None;
     }
     serde_json::from_slice(&bytes[20..20 + chunk]).ok()
-}
-
-/// The last model this project made, stood up when the maker arrives.
-///
-/// A bench that opens on an empty stage having made a dozen models is a bench that
-/// looks broken. The newest is the one a maker was last thinking about.
-fn stand_the_last_one(bench: Res<crate::Bench>, mut kiln: ResMut<Kiln>) {
-    if *bench != crate::Bench::Kiln || !bench.is_changed() || kiln.standing.is_some() {
-        return;
-    }
-    let Ok(entries) = std::fs::read_dir(models_home()) else {
-        return;
-    };
-    let newest = entries
-        .flatten()
-        .map(|entry| entry.path())
-        .filter(|road| road.extension().is_some_and(|kind| kind == "glb"))
-        .filter_map(|road| {
-            let when = road.metadata().and_then(|it| it.modified()).ok()?;
-            Some((when, road))
-        })
-        .max_by_key(|(when, _)| *when)
-        .map(|(_, road)| road);
-    if let Some(road) = newest {
-        info!("the kiln stands {}", road.display());
-        kiln.standing = Some(road);
-    }
 }
 
 /// Names the model and writes it at the height it stands.
