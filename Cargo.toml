@@ -11,7 +11,12 @@ description = "A maker's bench for buildings and animations: authored by hand, e
 [workspace]
 
 [dependencies]
-bevy = "0.19"
+# `jpeg` is not one of Bevy's default image formats, and a generated model's
+# textures usually are JPEG - without it the whole glTF fails to load with
+# "invalid image mime type: image/jpeg" and the model is simply absent. Fly on
+# the Wall hit this with its own fly and wrote the same note; the kiln hit it the
+# first time it stood a model on the stage.
+bevy = { version = "0.19", features = ["jpeg"] }
 rfd = "0.17.2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"

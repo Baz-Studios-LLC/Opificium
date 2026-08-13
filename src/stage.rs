@@ -16,6 +16,10 @@ pub struct BuilderFurniture;
 #[derive(Component)]
 pub struct RigFurniture;
 
+/// Stage furniture that belongs to the kiln: the model standing on it.
+#[derive(Component)]
+pub struct KilnFurniture;
+
 pub struct StagePlugin;
 
 impl Plugin for StagePlugin {
@@ -163,6 +167,18 @@ fn follow_bench(
     bench: Res<Bench>,
     mut builder: Query<&mut Visibility, (With<BuilderFurniture>, Without<RigFurniture>)>,
     mut rig: Query<&mut Visibility, With<RigFurniture>>,
+    // Disjoint from BOTH the others, spelled out. Two `&mut Visibility` queries that
+    // merely exclude the rig are not provably disjoint from each other - nothing says
+    // an entity cannot wear two furniture markers - and Bevy refuses to run a system
+    // whose parameters might overlap. It refused this one on the first launch.
+    mut kiln: Query<
+        &mut Visibility,
+        (
+            With<KilnFurniture>,
+            Without<RigFurniture>,
+            Without<BuilderFurniture>,
+        ),
+    >,
 ) {
     if !bench.is_changed() {
         return;
@@ -176,6 +192,13 @@ fn follow_bench(
     }
     for mut visibility in &mut rig {
         *visibility = if *bench == Bench::Rig {
+            Visibility::Inherited
+        } else {
+            Visibility::Hidden
+        };
+    }
+    for mut visibility in &mut kiln {
+        *visibility = if *bench == Bench::Kiln {
             Visibility::Inherited
         } else {
             Visibility::Hidden

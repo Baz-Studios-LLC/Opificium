@@ -762,6 +762,22 @@ enum Choice {
     Detailed,
 }
 
+/// The model standing on the kiln's stage, so it can be swept when another comes.
+#[derive(Component)]
+struct OnTheStage;
+
+/// The button that names the model and writes it at the height it stands.
+#[derive(Component)]
+struct KeepAs;
+
+/// A button that changes how tall the model stands.
+#[derive(Component, Clone, Copy)]
+struct Taller(i32);
+
+/// The line that says how tall it is.
+#[derive(Component)]
+struct HeightWord;
+
 /// The bar that fills as the kiln works.
 #[derive(Component)]
 struct KilnBar;
@@ -774,10 +790,32 @@ struct KilnPrice;
 ///
 /// A `Receiver` is `Send` but not `Sync`, and a resource must be both - hence the
 /// lock. There is one reader and it runs on the main thread, so it never waits.
-#[derive(Resource, Default)]
+#[derive(Resource)]
 struct Kiln {
     firing: Firing,
     coming: Option<Mutex<std::sync::mpsc::Receiver<Firing>>>,
+    /// The model on the stage: the file it came out of, and how tall it should be.
+    standing: Option<PathBuf>,
+    /// How tall the thing IS, in metres.
+    ///
+    /// A generated mesh arrives at whatever size the machine felt like, and this
+    /// bench's one promise is the sixteenth-metre lattice - so a model is fitted to a
+    /// height a maker states rather than trusted. The number is also the only thing
+    /// about scale a game could want.
+    tall: f32,
+}
+
+impl Default for Kiln {
+    fn default() -> Self {
+        Kiln {
+            firing: Firing::Cold,
+            coming: None,
+            standing: None,
+            // Waist high: a thing you can see the shape of on a bench, and a round
+            // number of atoms.
+            tall: 1.0,
+        }
+    }
 }
 
 impl Default for Firing {
@@ -801,6 +839,10 @@ impl Plugin for KilnPlugin {
                     work_the_kiln,
                     say_how_it_goes,
                     dress_the_choices,
+                    stand_the_last_one,
+                    stand_the_model,
+                    work_the_height,
+                    keep_the_model,
                 )
                     .chain(),
             );
@@ -993,6 +1035,101 @@ fn hang_the_kiln(mut commands: Commands, fonts: Res<Fonts>, palette: Res<Palette
         ChildOf(trough),
     ));
 
+    // HOW TALL, and what to call it. Both only mean anything once something stands
+    // on the stage, and both are quiet until then rather than absent - a control that
+    // appears out of nowhere is a control nobody was looking for.
+    commands.spawn((
+        HeightWord,
+        Text::new("1.00m tall"),
+        TextFont {
+            font: fonts.text.clone().into(),
+            font_size: FontSize::Px(13.0),
+            ..default()
+        },
+        TextColor(theme::text_dim(&palette).with_alpha(0.5)),
+        Node {
+            margin: UiRect::top(Val::Px(10.0)),
+            ..default()
+        },
+        ChildOf(panel),
+    ));
+    let row = commands
+        .spawn((
+            Node {
+                flex_direction: FlexDirection::Row,
+                column_gap: Val::Px(4.0),
+                ..default()
+            },
+            ChildOf(panel),
+        ))
+        .id();
+    for (by, label, tale) in [
+        (-1, "-", "a quarter metre shorter"),
+        (1, "+", "a quarter metre taller"),
+    ] {
+        let button = commands
+            .spawn((
+                Taller(by),
+                Interaction::default(),
+                Node {
+                    width: Val::Px(38.0),
+                    padding: UiRect::vertical(Val::Px(3.0)),
+                    border: UiRect::all(Val::Px(1.0)),
+                    justify_content: JustifyContent::Center,
+                    ..default()
+                },
+                BackgroundColor(Color::BLACK.with_alpha(0.18)),
+                BorderColor::all(theme::panel_border(&palette)),
+                ChildOf(row),
+            ))
+            .id();
+        commands.spawn((
+            Text::new(label),
+            TextFont {
+                font: fonts.display.clone().into(),
+                font_size: FontSize::Px(13.0),
+                ..default()
+            },
+            TextColor(theme::accent(&palette)),
+            ChildOf(button),
+        ));
+        commands.spawn((crate::rail::Word(tale), ChildOf(button)));
+    }
+
+    let keep = commands
+        .spawn((
+            KeepAs,
+            Interaction::default(),
+            Node {
+                margin: UiRect::top(Val::Px(6.0)),
+                padding: UiRect::axes(Val::Px(10.0), Val::Px(5.0)),
+                border: UiRect::all(Val::Px(1.0)),
+                justify_content: JustifyContent::Center,
+                ..default()
+            },
+            BackgroundColor(Color::BLACK.with_alpha(0.18)),
+            BorderColor::all(theme::accent(&palette).with_alpha(0.5)),
+            ChildOf(panel),
+        ))
+        .id();
+    commands.spawn((
+        Text::new("KEEP IT AS..."),
+        TextFont {
+            font: fonts.display.clone().into(),
+            font_size: FontSize::Px(12.0),
+            ..default()
+        },
+        TextColor(theme::accent(&palette)),
+        ChildOf(keep),
+    ));
+    commands.spawn((
+        crate::rail::Word(
+            "name it, and write it at the height it stands - \
+             the game reads it out of the project",
+        ),
+        ChildOf(keep),
+    ));
+
     commands.spawn((
         KilnWord,
         Text::new(""),
@@ -1022,6 +1159,310 @@ fn show_the_kiln(bench: Res<crate::Bench>, mut panels: Query<&mut Visibility, Wi
             Visibility::Hidden
         };
     }
+}
+
+/// Writes a GLB out at a chosen height, under a chosen name.
+///
+/// The SCALE GOES INTO THE FILE, rather than beside it in a note the game has to
+/// read. A model that is the right size is a model a game can load and forget; a
+/// model plus a number is two things to keep together, and one of them will go
+/// missing.
+///
+/// It is done by wrapping, not by editing: a new node carries the scale and adopts
+/// whatever the scene's roots were. Rewriting the existing nodes would mean
+/// composing with transforms already on them, and a bench that starts composing
+/// glTF node trees has become a glTF editor by accident.
+pub fn keep_at_height(from: &Path, to: &Path, tall: f32) -> Result<PathBuf, String> {
+    let bytes = std::fs::read(from).map_err(|why| format!("{}: {why}", from.display()))?;
+    let mut doc = the_json_of(&bytes).ok_or("that file is not a GLB")?;
+    let was = tall_of(from).ok_or("cannot measure that model, so cannot fit it")?;
+    let fit = tall / was;
+
+    let nodes = doc
+        .get_mut("nodes")
+        .and_then(|nodes| nodes.as_array_mut())
+        .ok_or("that GLB has no nodes")?;
+    let wrapper = nodes.len();
+    let scenes = doc
+        .get("scenes")
+        .and_then(|scenes| scenes.as_array())
+        .ok_or("that GLB has no scenes")?;
+    let roots: Vec<serde_json::Value> = scenes
+        .first()
+        .and_then(|scene| scene.get("nodes"))
+        .and_then(|nodes| nodes.as_array())
+        .cloned()
+        .unwrap_or_default();
+
+    doc["nodes"]
+        .as_array_mut()
+        .expect("just read")
+        .push(serde_json::json!({
+            "name": "opificium-fit",
+            "scale": [fit, fit, fit],
+            "children": roots,
+        }));
+    doc["scenes"].as_array_mut().expect("just read")[0]["nodes"] = serde_json::json!([wrapper]);
+
+    // A GLB is chunks with their own lengths, each padded to four bytes - the JSON
+    // with spaces, the binary with zeroes - and a total length in the header that has
+    // to agree with the file. Every one of those is recomputed rather than adjusted:
+    // a length that disagrees by one byte is a file every loader refuses.
+    let mut json = serde_json::to_vec(&doc).map_err(|why| format!("{why}"))?;
+    while json.len() % 4 != 0 {
+        json.push(b' ');
+    }
+    let binary = the_binary_of(&bytes).unwrap_or_default();
+    let mut out = Vec::with_capacity(28 + json.len() + binary.len());
+    out.extend_from_slice(b"glTF");
+    out.extend_from_slice(&2u32.to_le_bytes());
+    let total = 12
+        + 8
+        + json.len()
+        + if binary.is_empty() {
+            0
+        } else {
+            8 + binary.len()
+        };
+    out.extend_from_slice(&(total as u32).to_le_bytes());
+    out.extend_from_slice(&(json.len() as u32).to_le_bytes());
+    out.extend_from_slice(b"JSON");
+    out.extend_from_slice(&json);
+    if !binary.is_empty() {
+        out.extend_from_slice(&(binary.len() as u32).to_le_bytes());
+        out.extend_from_slice(b"BIN\0");
+        out.extend_from_slice(&binary);
+    }
+
+    let road = to.to_path_buf();
+    // The folder, first. A firing makes it on the way past, but keeping a model is
+    // not always preceded by one - a project opened fresh and handed a file has
+    // nowhere to put it yet.
+    if let Some(under) = road.parent() {
+        std::fs::create_dir_all(under).map_err(|why| format!("{}: {why}", under.display()))?;
+    }
+    std::fs::write(&road, out).map_err(|why| format!("{}: {why}", road.display()))?;
+    Ok(road)
+}
+
+/// The binary chunk of a GLB, if it has one. Padded to four bytes already, by
+/// whoever wrote it.
+fn the_binary_of(bytes: &[u8]) -> Option<Vec<u8>> {
+    let json = u32::from_le_bytes(bytes.get(12..16)?.try_into().ok()?) as usize;
+    let at = 20 + json;
+    let len = u32::from_le_bytes(bytes.get(at..at + 4)?.try_into().ok()?) as usize;
+    if bytes.get(at + 4..at + 8)? != b"BIN\0" {
+        return None;
+    }
+    bytes.get(at + 8..at + 8 + len).map(<[u8]>::to_vec)
+}
+
+/// How tall a GLB's own geometry is, in its own units.
+///
+/// Read out of the file rather than guessed: a generated mesh has no idea what size
+/// the thing it depicts really is, and two from the same machine differ by a factor
+/// of ten. Every `POSITION` accessor carries a `min` and a `max` - the spec requires
+/// it - so the height is the tallest of them without decoding a single vertex.
+///
+/// Node transforms are not applied. Generated models put their geometry at the root
+/// with no scaling, and reading the whole node tree to be sure would be a glTF
+/// importer - which this bench has no business being when Bevy is already doing it
+/// properly two lines further down.
+fn tall_of(road: &Path) -> Option<f32> {
+    let bytes = std::fs::read(road).ok()?;
+    let doc = the_json_of(&bytes)?;
+    let mut tallest: f32 = 0.0;
+    for mesh in doc.get("meshes")?.as_array()? {
+        for prim in mesh.get("primitives")?.as_array()? {
+            let at = prim.get("attributes")?.get("POSITION")?.as_u64()? as usize;
+            let accessor = doc.get("accessors")?.as_array()?.get(at)?;
+            let low = accessor.get("min")?.as_array()?.get(1)?.as_f64()? as f32;
+            let high = accessor.get("max")?.as_array()?.get(1)?.as_f64()? as f32;
+            tallest = tallest.max(high - low);
+        }
+    }
+    (tallest > 1e-6).then_some(tallest)
+}
+
+/// The JSON chunk of a GLB.
+///
+/// A GLB is "glTF", a version, a total length, and then chunks: the first is always
+/// the JSON. Twelve bytes of header, eight of chunk header, then the document.
+fn the_json_of(bytes: &[u8]) -> Option<serde_json::Value> {
+    if bytes.len() < 20 || &bytes[..4] != b"glTF" {
+        return None;
+    }
+    let chunk = u32::from_le_bytes(bytes[12..16].try_into().ok()?) as usize;
+    if &bytes[16..20] != b"JSON" || 20 + chunk > bytes.len() {
+        return None;
+    }
+    serde_json::from_slice(&bytes[20..20 + chunk]).ok()
+}
+
+/// The last model this project made, stood up when the maker arrives.
+///
+/// A bench that opens on an empty stage having made a dozen models is a bench that
+/// looks broken. The newest is the one a maker was last thinking about.
+fn stand_the_last_one(bench: Res<crate::Bench>, mut kiln: ResMut<Kiln>) {
+    if *bench != crate::Bench::Kiln || !bench.is_changed() || kiln.standing.is_some() {
+        return;
+    }
+    let Ok(entries) = std::fs::read_dir(models_home()) else {
+        return;
+    };
+    let newest = entries
+        .flatten()
+        .map(|entry| entry.path())
+        .filter(|road| road.extension().is_some_and(|kind| kind == "glb"))
+        .filter_map(|road| {
+            let when = road.metadata().and_then(|it| it.modified()).ok()?;
+            Some((when, road))
+        })
+        .max_by_key(|(when, _)| *when)
+        .map(|(_, road)| road);
+    if let Some(road) = newest {
+        info!("the kiln stands {}", road.display());
+        kiln.standing = Some(road);
+    }
+}
+
+/// Names the model and writes it at the height it stands.
+///
+/// A save dialog rather than the builder's naming card, for the reason the rig bench
+/// keeps its clips the same way: the card was written when the only place a thing
+/// could go was the bench's own folder, and a dialog names a file and finds it a home
+/// in one gesture. It opens in the project's own `out/models`, which is where a game
+/// reads them from.
+fn keep_the_model(
+    _main_thread: bevy::ecs::system::NonSendMarker,
+    bench: Res<crate::Bench>,
+    mut kiln: ResMut<Kiln>,
+    pressed: Query<&Interaction, (Changed<Interaction>, With<KeepAs>)>,
+) {
+    if *bench != crate::Bench::Kiln || !pressed.iter().any(|touch| *touch == Interaction::Pressed) {
+        return;
+    }
+    let Some(from) = kiln.standing.clone() else {
+        kiln.firing = Firing::Failed("nothing stands on the bench to keep".to_string());
+        return;
+    };
+    let home = models_home();
+    let _ = std::fs::create_dir_all(&home);
+    let suggested = from
+        .file_stem()
+        .map(|stem| stem.to_string_lossy().to_string())
+        .unwrap_or_else(|| "model".to_string());
+    let Some(to) = rfd::FileDialog::new()
+        .set_title("Keep the model")
+        .add_filter("glTF binary", &["glb"])
+        .set_directory(&home)
+        .set_file_name(format!("{suggested}.glb"))
+        .save_file()
+    else {
+        return;
+    };
+    let tall = kiln.tall;
+    match keep_at_height(&from, &to, tall) {
+        Ok(road) => {
+            info!("kept {} at {tall:.2}m", road.display());
+            // What was kept is what now stands, so the height reads as one it has
+            // rather than one it is waiting for.
+            kiln.standing = Some(road.clone());
+            kiln.firing = Firing::Done(road);
+        }
+        Err(why) => kiln.firing = Firing::Failed(why),
+    }
+}
+
+/// Raises and lowers the model, and says how tall it stands.
+///
+/// In quarter metres, and on the lattice like everything else on this bench: a model
+/// is going into a game whose walls are 2.5 metres, and a fly the size of a longhouse
+/// is the first thing anybody notices.
+fn work_the_height(
+    bench: Res<crate::Bench>,
+    mut kiln: ResMut<Kiln>,
+    palette: Res<Palette>,
+    pressed: Query<(&Interaction, &Taller), Changed<Interaction>>,
+    mut words: Query<(&mut Text, &mut TextColor), With<HeightWord>>,
+) {
+    if *bench == crate::Bench::Kiln {
+        for (touch, by) in &pressed {
+            if *touch != Interaction::Pressed {
+                continue;
+            }
+            // Four atoms a press, and never nothing: a model of no height is a model
+            // nobody can see.
+            let step = by.0 as f32 * 0.25;
+            kiln.tall = (kiln.tall + step).clamp(0.25, 20.0);
+        }
+    }
+    if !kiln.is_changed() {
+        return;
+    }
+    let said = format!("{:.2}m tall", kiln.tall);
+    for (mut text, mut dye) in &mut words {
+        if text.0 != said {
+            *text = Text::new(said.clone());
+        }
+        // Gold while something stands to be measured, quiet when the stage is bare.
+        *dye = TextColor(if kiln.standing.is_some() {
+            theme::accent(&palette)
+        } else {
+            theme::text_dim(&palette).with_alpha(0.5)
+        });
+    }
+}
+
+/// Stands the model on the stage, and fits it to the height it was told.
+///
+/// `project://` is the second asset root - see `main` - so this loads out of whichever
+/// game is open rather than out of the bench's own folder.
+///
+/// The scale is worked out from the GLB's OWN bounds, read off the file rather than
+/// guessed: a generated mesh has no idea what size the thing it depicts is, and two
+/// models from the same machine differ by a factor of ten. The height a maker states
+/// is the one fact that settles it.
+fn stand_the_model(
+    mut commands: Commands,
+    kiln: Res<Kiln>,
+    assets: Res<AssetServer>,
+    standing: Query<Entity, With<OnTheStage>>,
+    mut showing: Local<Option<(PathBuf, f32)>>,
+) {
+    let wanted = kiln.standing.as_ref().map(|road| (road.clone(), kiln.tall));
+    if *showing == wanted {
+        return;
+    }
+    showing.clone_from(&wanted);
+    for old in &standing {
+        commands.entity(old).despawn();
+    }
+    let Some((road, tall)) = wanted else {
+        return;
+    };
+    // How big it came, so the height can be honoured. A file the bench cannot measure
+    // is stood up unscaled rather than not at all - seeing it wrong beats not seeing
+    // it.
+    let across = tall_of(&road).unwrap_or(1.0);
+    let fit = if across > 1e-4 { tall / across } else { 1.0 };
+    let name = road
+        .file_name()
+        .map(|name| name.to_string_lossy().to_string())
+        .unwrap_or_default();
+    commands.spawn((
+        OnTheStage,
+        crate::stage::KilnFurniture,
+        // `WorldAssetRoot` in this Bevy, renamed from `SceneRoot` when the next
+        // scene system took the word "scene" for itself. The label is the glTF
+        // convention: the file's first scene.
+        bevy::world_serialization::WorldAssetRoot(
+            assets.load(format!("project://out/models/{name}#Scene0")),
+        ),
+        // Its feet on the floor, not its middle: a model half sunk into the stage is a
+        // model whose height nobody can read.
+        Transform::from_xyz(0.0, 0.0, 0.0).with_scale(Vec3::splat(fit)),
+    ));
 }
 
 /// A press on a choice changes what the NEXT firing asks for.
@@ -1122,6 +1563,11 @@ fn work_the_kiln(
         }
     }
     for word in heard {
+        // What lands, stands. The stage is where a maker judges whether it was
+        // worth the credits, which is the whole reason to show it at all.
+        if let Firing::Done(road) = &word {
+            kiln.standing = Some(road.clone());
+        }
         let ended = matches!(word, Firing::Done(_) | Firing::Failed(_));
         kiln.firing = word;
         if ended {
@@ -1412,5 +1858,71 @@ pub fn from_the_command_line() -> Option<i32> {
             eprintln!("the kiln: {why}");
             Some(1)
         }
+    }
+}
+
+#[cfg(test)]
+mod fitting {
+    use super::*;
+
+    /// A GLB written at a height is still a GLB, and says it is that tall.
+    ///
+    /// Built here rather than fetched: a minimal glTF with a known bounding box, so
+    /// the arithmetic can be checked without a network or a fixture. The chunk
+    /// lengths and the total are the part worth pinning - a GLB whose header
+    /// disagrees with its body by one byte is refused by every loader, and nothing
+    /// about the file looks wrong until something tries to open it.
+    #[test]
+    fn a_model_can_be_written_at_a_height() {
+        // Two metres tall in its own units, so a fit to 0.5 must scale by a quarter.
+        let doc = serde_json::json!({
+            "asset": { "version": "2.0" },
+            "scenes": [ { "nodes": [0] } ],
+            "nodes": [ { "mesh": 0 } ],
+            "meshes": [ { "primitives": [ { "attributes": { "POSITION": 0 } } ] } ],
+            "accessors": [ { "min": [0.0, -1.0, 0.0], "max": [1.0, 1.0, 1.0] } ],
+        });
+        let mut json = serde_json::to_vec(&doc).expect("json");
+        while json.len() % 4 != 0 {
+            json.push(b' ');
+        }
+        let mut glb = Vec::new();
+        glb.extend_from_slice(b"glTF");
+        glb.extend_from_slice(&2u32.to_le_bytes());
+        glb.extend_from_slice(&((12 + 8 + json.len()) as u32).to_le_bytes());
+        glb.extend_from_slice(&(json.len() as u32).to_le_bytes());
+        glb.extend_from_slice(b"JSON");
+        glb.extend_from_slice(&json);
+
+        let home = std::env::temp_dir().join("opificium-test-kiln");
+        let _ = std::fs::remove_dir_all(&home);
+        std::fs::create_dir_all(&home).expect("a folder");
+        let from = home.join("two-metres.glb");
+        std::fs::write(&from, &glb).expect("write");
+
+        assert_eq!(tall_of(&from), Some(2.0), "it measured the wrong height");
+
+        // Fitted to half a metre: a quarter of what it was.
+        let out = keep_at_height(&from, &home.join("fitted.glb"), 0.5).expect("kept");
+        let kept = std::fs::read(&out).expect("read it back");
+        assert_eq!(&kept[..4], b"glTF", "what came out is not a GLB");
+        let declared = u32::from_le_bytes(kept[8..12].try_into().unwrap()) as usize;
+        assert_eq!(declared, kept.len(), "the header disagrees with the file");
+
+        let doc = the_json_of(&kept).expect("its json");
+        let scene_roots = doc["scenes"][0]["nodes"].as_array().expect("roots");
+        assert_eq!(
+            scene_roots.len(),
+            1,
+            "the scene should point at the one wrapper"
+        );
+        let wrapper = &doc["nodes"][scene_roots[0].as_u64().unwrap() as usize];
+        let scale = wrapper["scale"].as_array().expect("a scale");
+        assert!(
+            (scale[1].as_f64().unwrap() - 0.25).abs() < 1e-6,
+            "{scale:?}"
+        );
+        // And it adopted what the scene used to hold, rather than orphaning it.
+        assert_eq!(wrapper["children"], serde_json::json!([0]));
     }
 }

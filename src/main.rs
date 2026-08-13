@@ -11,6 +11,7 @@
 //! game's own folder of palette, bodies, templates and work, living in
 //! that game's repository. See `project`.
 
+use bevy::asset::AssetApp;
 use bevy::prelude::*;
 
 mod bake;
@@ -79,7 +80,25 @@ fn main() {
         None => "Opificium".to_string(),
     };
 
-    App::new()
+    let mut bench = App::new();
+    // The PROJECT as a second asset root, registered before `DefaultPlugins` because
+    // that is when the asset plugin is built and sources cannot be added afterwards.
+    //
+    // A model the kiln commissions is kept in the project, which is a game's own
+    // repository - not in the bench's `assets/`, where Bevy looks by default. Copying
+    // it in would work from a source tree and fail in the shipped `.app`, which is
+    // read-only and signed. So the bench learns a second place to look, and
+    // `project://models/x.glb` means whatever game is open.
+    if let Some(open) = &opened {
+        bench.register_asset_source(
+            "project",
+            bevy::asset::io::AssetSourceBuilder::platform_default(
+                &open.root.to_string_lossy(),
+                None,
+            ),
+        );
+    }
+    bench
         .add_plugins(DefaultPlugins.set(WindowPlugin {
             primary_window: Some(Window {
                 title,
