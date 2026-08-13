@@ -41,6 +41,15 @@ use std::path::{Path, PathBuf};
 /// Where the machine lives.
 const HOUSE: &str = "https://api.3daistudio.com/v1";
 
+/// The account's own purse. NOT under `/v1` - it sits at the root, unlike every other
+/// call the bench makes, so it gets its own address rather than a version it does not
+/// have.
+const PURSE: &str = "https://api.3daistudio.com/account/user/wallet/";
+
+/// Where credits are bought. Opened in the maker's own browser, since a bench has no
+/// business handling anybody's card.
+const TILL: &str = "https://www.3daistudio.com/pricing";
+
 /// Which machine does the work.
 ///
 /// Two, not a zoo. One is built for what this bench is for and the other is cheap
@@ -222,6 +231,52 @@ pub fn key() -> Option<String> {
 /// Where to tell a maker to put the key, when there is none.
 pub fn where_the_key_goes() -> String {
     key_file().display().to_string()
+}
+
+/// What the account has left, in credits.
+///
+/// The number arrives as a STRING - `{"balance": "1490.00", "rate_limit": 3}`, checked
+/// against a live account - which is worth reading off their documentation rather than
+/// assuming: a float here would have failed to parse the whole answer and reported the
+/// account empty, which is a frightening thing to be told wrongly about money. A number is
+/// accepted too, in case that ever changes.
+///
+/// Their answer carries a field the documentation does not mention, so only `balance` is
+/// taken and the rest is left alone.
+fn the_balance(key: &str) -> Result<f32, String> {
+    let answer = ureq::get(PURSE)
+        .header("Authorization", &format!("Bearer {key}"))
+        .call()
+        .map_err(|why| format!("could not ask what the account has: {why}"))?;
+    let said: serde_json::Value = answer
+        .into_body()
+        .read_json()
+        .map_err(|why| format!("the purse answered something else: {why}"))?;
+    a_balance_in(&said)
+}
+
+/// The reading of it, apart from the fetching, so the shape can be pinned by a test.
+fn a_balance_in(said: &serde_json::Value) -> Result<f32, String> {
+    let balance = said.get("balance").ok_or("the purse named no balance")?;
+    balance
+        .as_str()
+        .and_then(|said| said.trim().parse::<f32>().ok())
+        .or_else(|| balance.as_f64().map(|had| had as f32))
+        .ok_or_else(|| format!("the purse said {balance}, which is not a number of credits"))
+}
+
+/// Opens a page in the maker's own browser.
+fn open_in_a_browser(url: &str) {
+    let opener = if cfg!(target_os = "macos") {
+        "open"
+    } else if cfg!(target_os = "windows") {
+        "explorer"
+    } else {
+        "xdg-open"
+    };
+    if let Err(why) = std::process::Command::new(opener).arg(url).spawn() {
+        warn!("could not open {url}: {why}");
+    }
 }
 
 /// What the machine says when a job is taken.
@@ -824,6 +879,14 @@ struct KilnBar;
 #[derive(Component)]
 struct KilnPrice;
 
+/// The line saying what the account has left.
+#[derive(Component)]
+struct PurseWord;
+
+/// The button that opens the till.
+#[derive(Component)]
+struct GetMore;
+
 /// How long past firings took, filed under the settings that made them.
 ///
 /// Brett: "What about recording the last build time and using that as an estimate?" It is
@@ -903,6 +966,19 @@ fn write_the_firings(firings: &Firings) {
     }
 }
 
+/// What the account has left, and the wire while asking.
+///
+/// Asked on ARRIVAL at the bench and again after every firing, not every frame: it is a
+/// call over the network, and the only two moments the number can have changed from the
+/// maker's point of view are when they walk up to the bench and when they have just spent
+/// some.
+#[derive(Resource, Default)]
+struct Purse {
+    /// Credits, when last asked. `None` means nobody has managed to ask yet.
+    left: Option<f32>,
+    coming: Option<Mutex<std::sync::mpsc::Receiver<Result<f32, String>>>>,
+}
+
 /// The kiln's state, and the thread's end of the wire.
 ///
 /// A `Receiver` is `Send` but not `Sync`, and a resource must be both - hence the
@@ -951,6 +1027,7 @@ impl Plugin for KilnPlugin {
         app.init_resource::<Kiln>()
             .init_resource::<Recipe>()
             .insert_resource(read_the_firings())
+            .init_resource::<Purse>()
             .add_systems(Startup, hang_the_kiln)
             .add_systems(
                 Update,
@@ -959,6 +1036,10 @@ impl Plugin for KilnPlugin {
                     take_the_choices,
                     work_the_kiln,
                     say_how_it_goes,
+                    ask_the_purse,
+                    hear_the_purse,
+                    work_the_till,
+                    say_what_is_left,
                     dress_the_choices,
                     stand_the_model,
                     work_the_height,
@@ -1155,6 +1236,63 @@ fn hang_the_kiln(mut commands: Commands, fonts: Res<Fonts>, palette: Res<Palette
         ChildOf(trough),
     ));
 
+    // WHAT IS LEFT, and where to get more. Under the bar rather than beside the price,
+    // because the price is what THIS firing costs and this is what the account holds -
+    // two different facts that would read as one number if they shared a line.
+    let purse_row = commands
+        .spawn((
+            Node {
+                margin: UiRect::top(Val::Px(8.0)),
+                width: Val::Percent(100.0),
+                flex_direction: FlexDirection::Row,
+                justify_content: JustifyContent::SpaceBetween,
+                align_items: AlignItems::Center,
+                column_gap: Val::Px(6.0),
+                ..default()
+            },
+            ChildOf(panel),
+        ))
+        .id();
+    commands.spawn((
+        PurseWord,
+        Text::new(""),
+        TextFont {
+            font: fonts.text.clone().into(),
+            font_size: FontSize::Px(11.0),
+            ..default()
+        },
+        TextColor(theme::text_dim(&palette)),
+        ChildOf(purse_row),
+    ));
+    let more = commands
+        .spawn((
+            GetMore,
+            Interaction::default(),
+            Node {
+                padding: UiRect::axes(Val::Px(7.0), Val::Px(3.0)),
+                border: UiRect::all(Val::Px(1.0)),
+                ..default()
+            },
+            BackgroundColor(Color::BLACK.with_alpha(0.18)),
+            BorderColor::all(theme::panel_border(&palette)),
+            ChildOf(purse_row),
+        ))
+        .id();
+    commands.spawn((
+        Text::new("GET MORE"),
+        TextFont {
+            font: fonts.display.clone().into(),
+            font_size: FontSize::Px(10.0),
+            ..default()
+        },
+        TextColor(theme::text_dim(&palette)),
+        ChildOf(more),
+    ));
+    commands.spawn((
+        crate::rail::Word("Open 3D AI Studio's pricing page in your browser"),
+        ChildOf(more),
+    ));
+
     // HOW TALL, and what to call it. Both only mean anything once something stands
     // on the stage, and both are quiet until then rather than absent - a control that
     // appears out of nowhere is a control nobody was looking for.
@@ -1272,6 +1410,35 @@ fn hang_the_kiln(mut commands: Commands, fonts: Res<Fonts>, palette: Res<Palette
         },
         ChildOf(panel),
     ));
+}
+
+/// Says what the account has left, and warns when a firing would not fit in it.
+fn say_what_is_left(
+    purse: Res<Purse>,
+    recipe: Res<Recipe>,
+    palette: Res<Palette>,
+    mut words: Query<(&mut Text, &mut TextColor), With<PurseWord>>,
+) {
+    if !purse.is_changed() && !recipe.is_changed() {
+        return;
+    }
+    let (said, dye) = match purse.left {
+        // Not enough for the firing about to be asked for, which is worth saying BEFORE
+        // the button is pressed rather than after the machine refuses.
+        Some(left) if left < recipe.credits() as f32 => (
+            format!("{left:.0} left - not enough"),
+            palette.shade("cloth-red", 0.85),
+        ),
+        Some(left) => (format!("{left:.0} credits left"), theme::text_dim(&palette)),
+        // Nothing said until there is something true to say.
+        None => (String::new(), theme::text_dim(&palette)),
+    };
+    for (mut text, mut colour) in &mut words {
+        if text.0 != said {
+            *text = Text::new(said.clone());
+            *colour = TextColor(dye);
+        }
+    }
 }
 
 /// The panel belongs to the kiln bench.
@@ -1605,6 +1772,70 @@ fn as_a_clock(seconds: f32) -> String {
     format!("{}:{:02}", seconds / 60, seconds % 60)
 }
 
+/// Asks what the account has left, off the frame loop.
+///
+/// A firing that has just finished spent credits, so the number on the panel is stale the
+/// moment it succeeds - which is exactly when a maker looks at it.
+fn ask_the_purse(
+    bench: Res<crate::Bench>,
+    kiln: Res<Kiln>,
+    mut purse: ResMut<Purse>,
+    mut was: Local<Option<Firing>>,
+) {
+    let spent = was.as_ref() != Some(&kiln.firing) && matches!(kiln.firing, Firing::Done(_));
+    if was.as_ref() != Some(&kiln.firing) {
+        *was = Some(kiln.firing.clone());
+    }
+    let arrived = bench.is_changed() && *bench == crate::Bench::Kiln;
+    // One question at a time, and never before there is a key to ask with.
+    if (!arrived && !spent) || purse.coming.is_some() {
+        return;
+    }
+    let Some(key) = key() else {
+        return;
+    };
+    let (say, hear) = std::sync::mpsc::channel();
+    purse.coming = Some(Mutex::new(hear));
+    std::thread::spawn(move || {
+        let _ = say.send(the_balance(&key));
+    });
+}
+
+/// Takes the answer when it comes.
+fn hear_the_purse(mut purse: ResMut<Purse>) {
+    let heard = purse
+        .coming
+        .as_ref()
+        .and_then(|wire| wire.lock().ok().and_then(|wire| wire.try_recv().ok()));
+    let Some(heard) = heard else {
+        return;
+    };
+    purse.coming = None;
+    match heard {
+        Ok(left) => {
+            info!("the account has {left:.0} credits");
+            purse.left = Some(left);
+        }
+        // A purse that cannot be counted is left unsaid rather than reported as a fault.
+        // It is a courtesy on the panel, and a maker who cannot reach it has a firing to
+        // get on with; the failure of the firing itself will say so far more clearly.
+        Err(why) => info!("the kiln could not read the account's balance: {why}"),
+    }
+}
+
+/// A press on GET MORE opens the till in the maker's own browser.
+fn work_the_till(
+    bench: Res<crate::Bench>,
+    picks: Query<&Interaction, (Changed<Interaction>, With<GetMore>)>,
+) {
+    if *bench != crate::Bench::Kiln {
+        return;
+    }
+    if picks.iter().any(|touch| *touch == Interaction::Pressed) {
+        open_in_a_browser(TILL);
+    }
+}
+
 /// Says where the firing has got to, in the panel.
 fn say_how_it_goes(
     kiln: Res<Kiln>,
@@ -1758,6 +1989,48 @@ mod waiting {
         assert_eq!(as_a_clock(154.0), "2:34");
         // A clock that ran backwards would be a negative-second string.
         assert_eq!(as_a_clock(-5.0), "0:00");
+    }
+}
+
+#[cfg(test)]
+mod the_purse {
+    use super::*;
+
+    /// A balance arrives as a STRING, and is read as one.
+    ///
+    /// Their own documentation shows `{"balance": "150.00"}` - quoted. Typed as a number
+    /// this would have failed to parse and the panel would have said the account was
+    /// empty, which is an alarming thing to be told wrongly about money.
+    #[test]
+    fn a_balance_is_quoted() {
+        let said = serde_json::json!({ "balance": "150.00" });
+        assert_eq!(a_balance_in(&said), Ok(150.0));
+        // The answer a live account actually gave, which carries a field their
+        // documentation does not mention - so the reading must take what it came for and
+        // ignore the rest rather than insisting on a shape.
+        let real = serde_json::json!({ "balance": "1490.00", "rate_limit": 3 });
+        assert_eq!(a_balance_in(&real), Ok(1490.0));
+        // And read as a number too, in case that ever changes under us.
+        assert_eq!(
+            a_balance_in(&serde_json::json!({ "balance": 150 })),
+            Ok(150.0)
+        );
+        assert_eq!(
+            a_balance_in(&serde_json::json!({ "balance": 42.5 })),
+            Ok(42.5)
+        );
+    }
+
+    /// An answer with no balance in it is an error, not a nought.
+    ///
+    /// Nought would be indistinguishable from a spent account, and would put "not enough"
+    /// on the panel of somebody with plenty.
+    #[test]
+    fn a_missing_balance_is_not_nothing() {
+        assert!(a_balance_in(&serde_json::json!({})).is_err());
+        assert!(a_balance_in(&serde_json::json!({ "credits": "10" })).is_err());
+        assert!(a_balance_in(&serde_json::json!({ "balance": "plenty" })).is_err());
+        assert!(a_balance_in(&serde_json::json!({ "balance": null })).is_err());
     }
 }
 
