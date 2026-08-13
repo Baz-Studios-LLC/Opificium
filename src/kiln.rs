@@ -1857,14 +1857,13 @@ fn work_the_kiln(
         kiln.firing = Firing::Failed(format!("no key. Put one in {}", where_the_key_goes()));
         return;
     };
-    let Some(image) = rfd::FileDialog::new()
-        .set_title("An image for the kiln")
-        .add_filter("Pictures", &["png", "jpg", "jpeg", "webp"])
-        .pick_file()
-    else {
+    // The picture already chosen, NOT a fresh dialog. `take_a_picture` asked for it and
+    // the preview has been showing it since; asking again would ignore what a maker looked
+    // at and fire on whatever they picked the second time.
+    let Some(image) = kiln.picture.clone() else {
+        kiln.firing = Firing::Failed("pick a picture first".to_string());
         return;
     };
-    kiln.picture = Some(image.clone());
     let name = a_plain_name(
         &image
             .file_stem()
