@@ -1856,7 +1856,21 @@ fn work_the_height(
     if !kiln.is_changed() {
         return;
     }
-    let said = format!("{:.2}m tall", kiln.tall);
+    // WHAT IT ALL COMES TO, not just the number being set. A maker says a couch is a
+    // metre tall and it comes out two and a half metres long - and the length is the one
+    // they recognise as right or wrong on sight, because everybody knows how long a couch
+    // is and nobody is sure how tall one is. Height alone is easy to get wrong by half.
+    let said = match kiln
+        .standing
+        .as_ref()
+        .and_then(|road| crate::model::bounds_of(road))
+    {
+        Some(size) => {
+            let it = size.at(kiln.tall);
+            format!("{:.2} x {:.2} x {:.2} m", it.x, it.y, it.z)
+        }
+        None => format!("{:.2}m tall", kiln.tall),
+    };
     for (mut text, mut dye) in &mut words {
         if text.0 != said {
             *text = Text::new(said.clone());

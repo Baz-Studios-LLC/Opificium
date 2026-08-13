@@ -168,7 +168,7 @@ fn fill_the_shelf(
     }
 
     for road in models {
-        let tall = crate::model::bounds_of(&road).map(|(_, tall)| tall);
+        let size = crate::model::bounds_of(&road);
         let button = commands
             .spawn((
                 ModelButton(road.clone()),
@@ -198,8 +198,15 @@ fn fill_the_shelf(
         // only once it stands: a model kept at the wrong height is the mistake this
         // number catches, and catching it before standing it saves the walk.
         commands.spawn((
-            Text::new(match tall {
-                Some(tall) => format!("{tall:.2}M"),
+            Text::new(match size {
+                // Its SHAPE, since its size is whatever a maker states. Two of these are
+                // proportions and the third is the one they will set.
+                Some(size) => format!(
+                    "{:.2} x {:.2} x {:.2}",
+                    size.wide(),
+                    size.tall(),
+                    size.deep()
+                ),
                 None => "UNREADABLE".to_string(),
             }),
             TextFont {
@@ -324,7 +331,12 @@ fn say_what_stands(rig: Res<Rig>, mut words: Query<&mut Text, With<RigWord>>) {
         Some(road) => {
             let name = crate::model::name_of(road).to_uppercase();
             match crate::model::bounds_of(road) {
-                Some((_, tall)) => format!("{name}  -  {tall:.2}M TALL"),
+                Some(size) => format!(
+                    "{name}  -  {:.2} x {:.2} x {:.2}",
+                    size.wide(),
+                    size.tall(),
+                    size.deep()
+                ),
                 None => name,
             }
         }
@@ -383,7 +395,7 @@ fn stand_the_camera(
         .standing
         .as_ref()
         .and_then(|road| crate::model::bounds_of(road))
-        .map(|(_, tall)| tall)
+        .map(|size| size.tall())
         .unwrap_or(2.0);
     let middle = Vec3::new(0.0, tall * 0.5, 0.0);
     centre.0 = middle;

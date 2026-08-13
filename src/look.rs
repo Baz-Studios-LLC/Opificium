@@ -102,6 +102,8 @@ pub enum Tool {
     Shelf,
     /// The rail down the left.
     Rail,
+    /// The measuring post on the stage.
+    Ruler,
 }
 
 /// Which pieces of furniture the maker wants on the bench.
@@ -119,6 +121,7 @@ pub struct Showing {
     stage_bar: bool,
     shelf: bool,
     rail: bool,
+    ruler: bool,
 }
 
 impl Default for Showing {
@@ -130,6 +133,9 @@ impl Default for Showing {
             stage_bar: true,
             shelf: true,
             rail: true,
+            // Except the ruler, which is a thing you REACH FOR. A measuring post standing
+            // on the bench at all times is furniture in the way of the work.
+            ruler: false,
         }
     }
 }
@@ -142,6 +148,7 @@ impl Showing {
             Tool::StageBar => self.stage_bar,
             Tool::Shelf => self.shelf,
             Tool::Rail => self.rail,
+            Tool::Ruler => self.ruler,
         }
     }
 
@@ -153,6 +160,7 @@ impl Showing {
             Tool::StageBar => self.stage_bar = now,
             Tool::Shelf => self.shelf = now,
             Tool::Rail => self.rail = now,
+            Tool::Ruler => self.ruler = now,
         }
     }
 }

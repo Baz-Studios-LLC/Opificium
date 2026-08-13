@@ -261,6 +261,8 @@ const MENUS: &[(&str, &[Line])] = &[
             ),
             Line::Deed("THE SHELF", "", MenuDeed::Show(crate::look::Tool::Shelf)),
             Line::Deed("THE RAIL", "", MenuDeed::Show(crate::look::Tool::Rail)),
+            Line::Rule,
+            Line::Deed("THE RULER", "", MenuDeed::Show(crate::look::Tool::Ruler)),
         ],
     ),
     (

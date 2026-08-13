@@ -16,6 +16,10 @@ pub struct BuilderFurniture;
 #[derive(Component)]
 pub struct RigFurniture;
 
+/// The measuring post: one band per decimetre, a brighter one per metre.
+#[derive(Component)]
+pub struct Ruler;
+
 /// Stage furniture that belongs to the kiln: the model standing on it.
 #[derive(Component)]
 pub struct KilnFurniture;
@@ -25,7 +29,7 @@ pub struct StagePlugin;
 impl Plugin for StagePlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(Startup, dress_stage)
-            .add_systems(Update, follow_bench);
+            .add_systems(Update, (follow_bench, follow_the_ruler));
     }
 }
 
@@ -131,10 +135,68 @@ fn dress_stage(
         Transform::from_xyz(REACH + 0.6, 0.05, 0.0).with_scale(Vec3::new(0.12, 0.1, 3.0)),
     ));
 
+    raise_the_ruler(&mut commands, &mut meshes, &mut materials, &palette);
+
     // No pedestal at the rig bench. It had one when it held a body, and a model stands
     // on the GRID instead: the whole point of looking at a model here is judging its
     // true size, and a plinth a fifth of a metre high makes every reading off the metre
     // lines wrong by a fifth of a metre. `RigFurniture` is worn by the model itself now.
+}
+
+/// How tall the post stands, in metres. Two is a doorway, which is as much as anything
+/// on this bench has ever needed and still short enough to see past.
+const POST: i32 = 20;
+
+/// Raises the measuring post.
+///
+/// Bands of a decimetre each, alternating, with every metre wearing a wider gold collar -
+/// the same trick the floor grid uses, and for the same reason: you can count a stack of
+/// ten by eye without counting at all.
+///
+/// It stands OFF to one side rather than at the origin, because a post through the middle
+/// of the model is a post you cannot see past and the model cannot be judged around. Half
+/// a metre out on both axes puts it clear of anything small and against the corner of
+/// anything large.
+fn raise_the_ruler(
+    commands: &mut Commands,
+    meshes: &mut Assets<Mesh>,
+    materials: &mut Assets<StandardMaterial>,
+    palette: &Palette,
+) {
+    let cube = meshes.add(Cuboid::new(1.0, 1.0, 1.0));
+    let matte = |materials: &mut Assets<StandardMaterial>, color: Color| {
+        materials.add(StandardMaterial {
+            base_color: color,
+            perceptual_roughness: 0.95,
+            reflectance: 0.03,
+            ..default()
+        })
+    };
+    let pale = matte(materials, palette.shade("bone", 0.75));
+    let dark = matte(materials, palette.shade("bone", 0.28));
+    let gold = matte(materials, palette.shade("cloth-gold", 0.8));
+    let (at_x, at_z) = (0.5, 0.5);
+    for band in 0..POST {
+        let metre = band % 10 == 0;
+        let material = if metre {
+            gold.clone()
+        } else if band % 2 == 0 {
+            pale.clone()
+        } else {
+            dark.clone()
+        };
+        // A metre's collar stands proud of the post, so it reads as a mark rather than as
+        // one more stripe among ten.
+        let thick = if metre { 0.075 } else { 0.05 };
+        commands.spawn((
+            Ruler,
+            Mesh3d(cube.clone()),
+            MeshMaterial3d(material),
+            Transform::from_xyz(at_x, band as f32 * 0.1 + 0.05, at_z)
+                .with_scale(Vec3::new(thick, 0.1, thick)),
+            Visibility::Hidden,
+        ));
+    }
 }
 
 fn gold_center(
@@ -150,6 +212,25 @@ fn gold_center(
 }
 
 /// Each bench keeps its own furniture on stage and the other's put away.
+/// The ruler stands wherever the maker asked for it, at any bench - a thing to measure with
+/// is not one bench's property, and a building wants measuring as much as a model does.
+fn follow_the_ruler(
+    showing: Res<crate::look::Showing>,
+    mut posts: Query<&mut Visibility, With<Ruler>>,
+) {
+    if !showing.is_changed() {
+        return;
+    }
+    let out = showing.wanted(crate::look::Tool::Ruler);
+    for mut it in &mut posts {
+        *it = if out {
+            Visibility::Inherited
+        } else {
+            Visibility::Hidden
+        };
+    }
+}
+
 fn follow_bench(
     bench: Res<Bench>,
     mut builder: Query<&mut Visibility, (With<BuilderFurniture>, Without<RigFurniture>)>,

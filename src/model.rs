@@ -74,9 +74,10 @@ pub fn name_of(road: &Path) -> String {
 /// A file that cannot be measured is stood unscaled rather than not at all: seeing it
 /// wrong beats not seeing it.
 pub fn stand(assets: &AssetServer, road: &Path, tall: Option<f32>) -> impl Bundle {
-    let (low, across) = bounds_of(road).unwrap_or((0.0, 1.0));
-    let fit = match tall {
-        Some(tall) if across > 1e-4 => tall / across,
+    let size = bounds_of(road);
+    let low = size.map(|size| size.low.y).unwrap_or(0.0);
+    let fit = match (tall, size) {
+        (Some(tall), Some(size)) if size.tall() > 1e-4 => tall / size.tall(),
         _ => 1.0,
     };
     let name = road
@@ -111,8 +112,8 @@ pub fn stand(assets: &AssetServer, road: &Path, tall: Option<f32>) -> impl Bundl
 pub fn keep_at_height(from: &Path, to: &Path, tall: f32) -> Result<PathBuf, String> {
     let bytes = std::fs::read(from).map_err(|why| format!("{}: {why}", from.display()))?;
     let mut doc = the_json_of(&bytes).ok_or("that file is not a GLB")?;
-    let (low, was) = bounds_of(from).ok_or("cannot measure that model, so cannot fit it")?;
-    let fit = tall / was;
+    let size = bounds_of(from).ok_or("cannot measure that model, so cannot fit it")?;
+    let (low, fit) = (size.low.y, tall / size.tall());
 
     let nodes = doc
         .get_mut("nodes")
@@ -221,23 +222,194 @@ fn the_binary_of(bytes: &[u8]) -> Option<Vec<u8>> {
 /// into a body and two wings has each part measuring short, and the model is as tall
 /// as the distance from the lowest of them to the highest.
 ///
-/// Node transforms are not applied. Generated models put their geometry at the root
-/// with no scaling, and reading the whole node tree to be sure would be a glTF
-/// importer - which this bench has no business being when Bevy is already doing it
-/// properly two lines further down.
-pub fn bounds_of(road: &Path) -> Option<(f32, f32)> {
+/// NODE TRANSFORMS ARE APPLIED, which they must be: this bench writes some itself. A model
+/// kept at a stated height carries a wrapper node holding the scale and the lift, so
+/// reading the raw accessors would report a fitted couch as half a metre tall and stand it
+/// floating, lifted once by its wrapper and again by the bench.
+fn bounds_of_doc(doc: &serde_json::Value) -> Option<Size> {
+    let mut low = Vec3::splat(f32::MAX);
+    let mut high = Vec3::splat(f32::MIN);
+    let scene = doc.get("scene").and_then(|at| at.as_u64()).unwrap_or(0) as usize;
+    let roots = doc
+        .get("scenes")?
+        .as_array()?
+        .get(scene)?
+        .get("nodes")?
+        .as_array()?;
+    for root in roots {
+        walk_a_node(
+            doc,
+            root.as_u64()? as usize,
+            Mat4::IDENTITY,
+            0,
+            &mut low,
+            &mut high,
+        );
+    }
+    let size = Size { low, high };
+    (size.tall() > 1e-6).then_some(size)
+}
+
+pub fn bounds_of(road: &Path) -> Option<Size> {
     let bytes = std::fs::read(road).ok()?;
-    let doc = the_json_of(&bytes)?;
-    let (mut low, mut high) = (f32::MAX, f32::MIN);
-    for mesh in doc.get("meshes")?.as_array()? {
-        for prim in mesh.get("primitives")?.as_array()? {
-            let at = prim.get("attributes")?.get("POSITION")?.as_u64()? as usize;
-            let accessor = doc.get("accessors")?.as_array()?.get(at)?;
-            low = low.min(accessor.get("min")?.as_array()?.get(1)?.as_f64()? as f32);
-            high = high.max(accessor.get("max")?.as_array()?.get(1)?.as_f64()? as f32);
+    bounds_of_doc(&the_json_of(&bytes)?)
+}
+
+/// Grows the box to hold whatever this node and its children draw.
+///
+/// The eight CORNERS of each primitive's own box are carried through the transform rather
+/// than its two extremes, because a rotation turns a box into a box with different extremes
+/// and taking the min and max of two rotated corners describes neither.
+fn walk_a_node(
+    doc: &serde_json::Value,
+    at: usize,
+    above: Mat4,
+    deep: u32,
+    low: &mut Vec3,
+    high: &mut Vec3,
+) {
+    // A file may name itself its own child. Nothing legitimate is nested this far.
+    if deep > 32 {
+        return;
+    }
+    let Some(node) = doc
+        .get("nodes")
+        .and_then(|nodes| nodes.as_array())
+        .and_then(|nodes| nodes.get(at))
+    else {
+        return;
+    };
+    let here = above * its_own_transform(node);
+    if let Some(mesh) = node.get("mesh").and_then(|mesh| mesh.as_u64())
+        && let Some(prims) = doc
+            .get("meshes")
+            .and_then(|meshes| meshes.as_array())
+            .and_then(|meshes| meshes.get(mesh as usize))
+            .and_then(|mesh| mesh.get("primitives"))
+            .and_then(|prims| prims.as_array())
+    {
+        for prim in prims {
+            let Some(corners) = the_box_of(doc, prim) else {
+                continue;
+            };
+            for corner in corners {
+                let point = here.transform_point3(corner);
+                *low = low.min(point);
+                *high = high.max(point);
+            }
         }
     }
-    (high - low > 1e-6).then_some((low, high - low))
+    if let Some(children) = node.get("children").and_then(|kids| kids.as_array()) {
+        for child in children {
+            if let Some(child) = child.as_u64() {
+                walk_a_node(doc, child as usize, here, deep + 1, low, high);
+            }
+        }
+    }
+}
+
+/// The eight corners of a primitive's own bounding box, from the accessor the spec
+/// requires to carry them.
+fn the_box_of(doc: &serde_json::Value, prim: &serde_json::Value) -> Option<[Vec3; 8]> {
+    let at = prim.get("attributes")?.get("POSITION")?.as_u64()? as usize;
+    let accessor = doc.get("accessors")?.as_array()?.get(at)?;
+    let corner = |which: &str| -> Option<Vec3> {
+        let said = accessor.get(which)?.as_array()?;
+        Some(Vec3::new(
+            said.first()?.as_f64()? as f32,
+            said.get(1)?.as_f64()? as f32,
+            said.get(2)?.as_f64()? as f32,
+        ))
+    };
+    let (low, high) = (corner("min")?, corner("max")?);
+    Some([
+        Vec3::new(low.x, low.y, low.z),
+        Vec3::new(high.x, low.y, low.z),
+        Vec3::new(low.x, high.y, low.z),
+        Vec3::new(low.x, low.y, high.z),
+        Vec3::new(high.x, high.y, low.z),
+        Vec3::new(high.x, low.y, high.z),
+        Vec3::new(low.x, high.y, high.z),
+        Vec3::new(high.x, high.y, high.z),
+    ])
+}
+
+/// A node's own transform: either a matrix outright, or the scale-rotate-translate the
+/// spec says to compose in that order.
+fn its_own_transform(node: &serde_json::Value) -> Mat4 {
+    if let Some(said) = node.get("matrix").and_then(|m| m.as_array())
+        && said.len() == 16
+    {
+        let mut cells = [0.0f32; 16];
+        for (cell, said) in cells.iter_mut().zip(said) {
+            *cell = said.as_f64().unwrap_or(0.0) as f32;
+        }
+        // glTF writes a matrix in column-major order, which is how `Mat4` reads one.
+        return Mat4::from_cols_array(&cells);
+    }
+    let three = |which: &str, fallback: f32| -> Vec3 {
+        node.get(which)
+            .and_then(|it| it.as_array())
+            .filter(|it| it.len() == 3)
+            .map(|it| {
+                Vec3::new(
+                    it[0].as_f64().unwrap_or(fallback as f64) as f32,
+                    it[1].as_f64().unwrap_or(fallback as f64) as f32,
+                    it[2].as_f64().unwrap_or(fallback as f64) as f32,
+                )
+            })
+            .unwrap_or(Vec3::splat(fallback))
+    };
+    let turn = node
+        .get("rotation")
+        .and_then(|it| it.as_array())
+        .filter(|it| it.len() == 4)
+        .map(|it| {
+            // glTF orders a quaternion x, y, z, w.
+            Quat::from_xyzw(
+                it[0].as_f64().unwrap_or(0.0) as f32,
+                it[1].as_f64().unwrap_or(0.0) as f32,
+                it[2].as_f64().unwrap_or(0.0) as f32,
+                it[3].as_f64().unwrap_or(1.0) as f32,
+            )
+        })
+        .unwrap_or(Quat::IDENTITY);
+    Mat4::from_scale_rotation_translation(three("scale", 1.0), turn, three("translation", 0.0))
+}
+
+/// The box a model's geometry fills, in the model's own units.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Size {
+    pub low: Vec3,
+    pub high: Vec3,
+}
+
+impl Size {
+    /// How tall, which is the measurement a maker states and everything else follows from.
+    pub fn tall(&self) -> f32 {
+        self.high.y - self.low.y
+    }
+
+    /// The other two, which are worth SHOWING even though nobody sets them: a couch stated
+    /// at a metre tall comes out two and a half metres long, and that is the number a maker
+    /// recognises as right or wrong at a glance. Height alone is easy to get wrong by half.
+    pub fn wide(&self) -> f32 {
+        self.high.x - self.low.x
+    }
+
+    pub fn deep(&self) -> f32 {
+        self.high.z - self.low.z
+    }
+
+    /// What everything measures once the model is fitted to `tall` metres.
+    pub fn at(&self, tall: f32) -> Vec3 {
+        let fit = if self.tall() > 1e-6 {
+            tall / self.tall()
+        } else {
+            1.0
+        };
+        Vec3::new(self.wide(), self.tall(), self.deep()) * fit
+    }
 }
 
 /// The JSON chunk of a GLB.
@@ -297,7 +469,7 @@ mod fitting {
         // Two units tall, and its lowest point one unit BELOW its own origin - which
         // is where a generated model usually leaves it.
         assert_eq!(
-            bounds_of(&from),
+            bounds_of(&from).map(|size| (size.low.y, size.tall())),
             Some((-1.0, 2.0)),
             "it measured the wrong bounds"
         );
@@ -332,6 +504,23 @@ mod fitting {
         );
         // And it adopted what the scene used to hold, rather than orphaning it.
         assert_eq!(wrapper["children"], serde_json::json!([0]));
+
+        // AND IT MEASURES AS WHAT IT WAS KEPT AS. The whole point of baking the fit into
+        // the file is that the file then says how big the thing is - so reading it back has
+        // to give the stated height, not the raw geometry under the wrapper. Measuring
+        // without applying node transforms reported a fitted couch as half a metre tall and
+        // stood it floating, lifted once by its own wrapper and once again by the bench.
+        let kept = bounds_of(&out).expect("a kept model measures");
+        assert!(
+            (kept.tall() - 0.5).abs() < 1e-4,
+            "kept at half a metre, measures {:.4}",
+            kept.tall()
+        );
+        assert!(
+            kept.low.y.abs() < 1e-4,
+            "a kept model should stand ON the ground, not at {:.4}",
+            kept.low.y
+        );
     }
 
     /// The shelf shows the newest model first, and only models.
