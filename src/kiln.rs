@@ -1175,7 +1175,7 @@ fn show_the_kiln(bench: Res<crate::Bench>, mut panels: Query<&mut Visibility, Wi
 pub fn keep_at_height(from: &Path, to: &Path, tall: f32) -> Result<PathBuf, String> {
     let bytes = std::fs::read(from).map_err(|why| format!("{}: {why}", from.display()))?;
     let mut doc = the_json_of(&bytes).ok_or("that file is not a GLB")?;
-    let was = tall_of(from).ok_or("cannot measure that model, so cannot fit it")?;
+    let (low, was) = bounds_of(from).ok_or("cannot measure that model, so cannot fit it")?;
     let fit = tall / was;
 
     let nodes = doc
@@ -1199,6 +1199,14 @@ pub fn keep_at_height(from: &Path, to: &Path, tall: f32) -> Result<PathBuf, Stri
         .expect("just read")
         .push(serde_json::json!({
             "name": "opificium-fit",
+            // Standing ON its origin, not straddling it, for the same reason the
+            // height is baked in: a game that has to know a model's mesh sits 40cm
+            // below its own origin is a game keeping a second fact about the file.
+            // Everything else this bench makes is authored from the ground up, and a
+            // model it keeps should load the same way.
+            //
+            // glTF applies scale before translation, so this is in fitted metres.
+            "translation": [0.0, -low * fit, 0.0],
             "scale": [fit, fit, fit],
             "children": roots,
         }));
@@ -1257,31 +1265,39 @@ fn the_binary_of(bytes: &[u8]) -> Option<Vec<u8>> {
     bytes.get(at + 8..at + 8 + len).map(<[u8]>::to_vec)
 }
 
-/// How tall a GLB's own geometry is, in its own units.
+/// Where a GLB's own geometry sits and how tall it is, in its own units: the lowest
+/// point, and the height above it.
 ///
 /// Read out of the file rather than guessed: a generated mesh has no idea what size
 /// the thing it depicts really is, and two from the same machine differ by a factor
 /// of ten. Every `POSITION` accessor carries a `min` and a `max` - the spec requires
-/// it - so the height is the tallest of them without decoding a single vertex.
+/// it - so both are known without decoding a single vertex.
+///
+/// The LOWEST POINT matters as much as the height, because a generated model's origin
+/// is wherever the machine left it, which is usually the middle of the thing. Standing
+/// such a model at the floor buries half of it.
+///
+/// Both are spans of the whole model, not the largest of each primitive: a mesh cut
+/// into a body and two wings has each part measuring short, and the model is as tall
+/// as the distance from the lowest of them to the highest.
 ///
 /// Node transforms are not applied. Generated models put their geometry at the root
 /// with no scaling, and reading the whole node tree to be sure would be a glTF
 /// importer - which this bench has no business being when Bevy is already doing it
 /// properly two lines further down.
-fn tall_of(road: &Path) -> Option<f32> {
+fn bounds_of(road: &Path) -> Option<(f32, f32)> {
     let bytes = std::fs::read(road).ok()?;
     let doc = the_json_of(&bytes)?;
-    let mut tallest: f32 = 0.0;
+    let (mut low, mut high) = (f32::MAX, f32::MIN);
     for mesh in doc.get("meshes")?.as_array()? {
         for prim in mesh.get("primitives")?.as_array()? {
             let at = prim.get("attributes")?.get("POSITION")?.as_u64()? as usize;
             let accessor = doc.get("accessors")?.as_array()?.get(at)?;
-            let low = accessor.get("min")?.as_array()?.get(1)?.as_f64()? as f32;
-            let high = accessor.get("max")?.as_array()?.get(1)?.as_f64()? as f32;
-            tallest = tallest.max(high - low);
+            low = low.min(accessor.get("min")?.as_array()?.get(1)?.as_f64()? as f32);
+            high = high.max(accessor.get("max")?.as_array()?.get(1)?.as_f64()? as f32);
         }
     }
-    (tallest > 1e-6).then_some(tallest)
+    (high - low > 1e-6).then_some((low, high - low))
 }
 
 /// The JSON chunk of a GLB.
@@ -1444,7 +1460,7 @@ fn stand_the_model(
     // How big it came, so the height can be honoured. A file the bench cannot measure
     // is stood up unscaled rather than not at all - seeing it wrong beats not seeing
     // it.
-    let across = tall_of(&road).unwrap_or(1.0);
+    let (low, across) = bounds_of(&road).unwrap_or((0.0, 1.0));
     let fit = if across > 1e-4 { tall / across } else { 1.0 };
     let name = road
         .file_name()
@@ -1459,9 +1475,12 @@ fn stand_the_model(
         bevy::world_serialization::WorldAssetRoot(
             assets.load(format!("project://out/models/{name}#Scene0")),
         ),
-        // Its feet on the floor, not its middle: a model half sunk into the stage is a
-        // model whose height nobody can read.
-        Transform::from_xyz(0.0, 0.0, 0.0).with_scale(Vec3::splat(fit)),
+        // Its feet on the floor, not its middle. A generated model's origin is wherever
+        // the machine left it - usually the centre of the thing - so standing it at the
+        // floor sinks half of it into the stage. Lifted by its own lowest point, AFTER
+        // scaling, since that is the distance in the stage's metres rather than the
+        // model's units.
+        Transform::from_xyz(0.0, -low * fit, 0.0).with_scale(Vec3::splat(fit)),
     ));
 }
 
@@ -1900,7 +1919,13 @@ mod fitting {
         let from = home.join("two-metres.glb");
         std::fs::write(&from, &glb).expect("write");
 
-        assert_eq!(tall_of(&from), Some(2.0), "it measured the wrong height");
+        // Two units tall, and its lowest point one unit BELOW its own origin - which
+        // is where a generated model usually leaves it.
+        assert_eq!(
+            bounds_of(&from),
+            Some((-1.0, 2.0)),
+            "it measured the wrong bounds"
+        );
 
         // Fitted to half a metre: a quarter of what it was.
         let out = keep_at_height(&from, &home.join("fitted.glb"), 0.5).expect("kept");
@@ -1921,6 +1946,14 @@ mod fitting {
         assert!(
             (scale[1].as_f64().unwrap() - 0.25).abs() < 1e-6,
             "{scale:?}"
+        );
+        // And STANDING on its origin rather than straddling it. Its lowest point was a
+        // unit under the origin, so at a quarter scale it has to be lifted a quarter of
+        // a metre - not the whole unit, because glTF scales before it translates.
+        let up = wrapper["translation"].as_array().expect("a translation");
+        assert!(
+            (up[1].as_f64().unwrap() - 0.25).abs() < 1e-6,
+            "the kept model does not stand on the ground: {up:?}"
         );
         // And it adopted what the scene used to hold, rather than orphaning it.
         assert_eq!(wrapper["children"], serde_json::json!([0]));
