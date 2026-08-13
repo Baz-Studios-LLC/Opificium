@@ -655,7 +655,11 @@ pub fn commission(
     };
 
     // A hundred, because the making is done and only the wire is left.
-    say(Firing::Working("FETCHING".to_string(), Some(100.0)));
+    // No number yet: what follows is a download, and how far along IT is has nothing to do
+    // with how far along the making was. Saying a hundred here - which this did - put the
+    // bar at full strength and the word FETCHING beside it, so a maker was shown a finished
+    // job that then sat there. Brett: "it says fetching....100%?"
+    say(Firing::Working("FETCHING".to_string(), None));
     // STREAMED to the file, not gathered in memory first.
     //
     // `read_to_vec` carries a ten-megabyte cap, and a textured GLB goes past it
@@ -665,6 +669,13 @@ pub fn commission(
     // no size a bench should be guessing at.
     eprintln!("  fetching {url}");
     let answer = ureq::get(&url)
+        // A stop on the whole fetch. Without one a stalled connection leaves the bench
+        // saying FETCHING for ever, with a model that is paid for and half on the disk -
+        // and no way to tell that from a slow line. Ten minutes is far past any model on
+        // any connection worth waiting on.
+        .config()
+        .timeout_global(Some(std::time::Duration::from_secs(10 * 60)))
+        .build()
         .call()
         .map_err(|why| format!("could not fetch the model: {}", plainly(&why)))?;
     // What the far end SAYS it is, kept for the message below: a mismatch between the
@@ -676,6 +687,13 @@ pub fn commission(
         .and_then(|said| said.to_str().ok())
         .unwrap_or("nothing at all")
         .to_string();
+    // How big it is, when the far end says - which turns the download into the one part of a
+    // firing whose progress is really known, rather than guessed at or asserted.
+    let expected: Option<u64> = answer
+        .headers()
+        .get("content-length")
+        .and_then(|said| said.to_str().ok())
+        .and_then(|said| said.parse().ok());
     let mut reader = answer
         .into_body()
         // Unlimited by default, so a stop is set on purpose: half a gigabyte is far
@@ -710,8 +728,38 @@ pub fn commission(
         std::fs::File::create(&road).map_err(|why| format!("{}: {why}", road.display()))?;
     file.write_all(&magic)
         .map_err(|why| format!("{}: {why}", road.display()))?;
-    let carried = std::io::copy(&mut reader, &mut file)
+    // Copied in lumps rather than by `std::io::copy`, so the panel can say how far along it
+    // is. A percentage when the length is known, and nothing but the clock when it is not -
+    // never a number made up to fill the bar.
+    let mut carried = 4u64;
+    let mut lump = vec![0u8; 64 * 1024];
+    let mut said_at = 0u64;
+    loop {
+        let got = reader
+            .read(&mut lump)
+            .map_err(|why| format!("{}: {why}", road.display()))?;
+        if got == 0 {
+            break;
+        }
+        file.write_all(&lump[..got])
+            .map_err(|why| format!("{}: {why}", road.display()))?;
+        carried += got as u64;
+        if let Some(whole) = expected.filter(|whole| *whole > 0) {
+            let how_far = (carried * 100 / whole).min(100);
+            // Only when the number actually changes: a message a frame would be thousands
+            // of them down one wire to say the same thing.
+            if how_far != said_at {
+                said_at = how_far;
+                say(Firing::Working(
+                    "FETCHING".to_string(),
+                    Some(how_far as f32),
+                ));
+            }
+        }
+    }
+    file.flush()
         .map_err(|why| format!("{}: {why}", road.display()))?;
+    let carried = carried - 4;
     info!("the kiln kept {} ({} bytes)", road.display(), carried + 4);
     say(Firing::Done(road.clone()));
     Ok(road)
