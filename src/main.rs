@@ -17,6 +17,7 @@ mod bake;
 mod builder;
 mod camera;
 mod gizmo;
+mod kiln;
 mod look;
 mod menu;
 mod opening;
@@ -33,6 +34,16 @@ pub enum Bench {
     Builder,
     /// Animation: the canonical body on its pedestal, and the timeline.
     Rig,
+    /// The kiln: an image in, a model out, by way of somebody else's machine.
+    ///
+    /// The odd one out, and it earns the place by being one. Every other bench
+    /// MAKES a thing out of parts the bench already holds - boxes on a lattice, a
+    /// pose on a body - and this one commissions a mesh from an image and keeps the
+    /// file. What comes back cannot be painted from a ramp, cut on the lattice or
+    /// written as boxes, so it is not a part and never becomes one: it is an asset
+    /// the game loads whole. Better a bench of its own than a drawer in the
+    /// builder pretending otherwise.
+    Kiln,
 }
 
 fn main() {
@@ -43,6 +54,11 @@ fn main() {
     // open, could rebuild a house from its blueprint.
     if let Some(ask) = bake::asked_for() {
         std::process::exit(bake::run(&ask));
+    }
+    // And the kiln, for the same reason: a button cannot be driven by a script or by
+    // anybody checking that the machine at the other end still answers.
+    if let Some(code) = kiln::from_the_command_line() {
+        std::process::exit(code);
     }
 
     // WHICH GAME, before anything else. A path on argv or in the environment is
@@ -77,10 +93,12 @@ fn main() {
         .add_plugins(menu::MenuPlugin)
         .add_plugins((rail::RailPlugin, builder::BuilderPlugin, gizmo::GizmoPlugin))
         .add_plugins(rig::RigPlugin)
+        .add_plugins(kiln::KilnPlugin)
         // Which bench the maker opens at. A maker working on the rig for an
         // hour should not walk across the builder to reach it every time.
         .insert_resource(match std::env::var("OPIFICIUM_BENCH").as_deref() {
             Ok("rig") => Bench::Rig,
+            Ok("kiln") => Bench::Kiln,
             _ => Bench::Builder,
         })
         .run();

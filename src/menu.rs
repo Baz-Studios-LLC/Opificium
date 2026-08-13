@@ -246,6 +246,7 @@ const MENUS: &[(&str, &[Line])] = &[
         &[
             Line::Deed("THE BUILDER", "", MenuDeed::Bench(crate::Bench::Builder)),
             Line::Deed("THE RIG", "", MenuDeed::Bench(crate::Bench::Rig)),
+            Line::Deed("THE KILN", "", MenuDeed::Bench(crate::Bench::Kiln)),
         ],
     ),
     ("HELP", &[Line::Same("THE KEYS", "", Glyph::Keys)]),

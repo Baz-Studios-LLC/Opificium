@@ -1,3 +1,14 @@
 /target
 **/*.rs.bk
 .DS_Store
+
+# A credential must never be committable from here. The API key belongs in the
+# bench's own folder - see `kiln::key_file` - and this is the net in case one is
+# ever dropped in the repo instead: a key pushed to a public remote is a key that
+# has to be rotated, not deleted.
+*.key
+*apikey*
+*api-key*
+*.secret
+.env
+TestImages/
