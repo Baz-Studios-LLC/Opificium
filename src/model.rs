@@ -204,10 +204,14 @@ fn the_binary_of(bytes: &[u8]) -> Option<Vec<u8>> {
 /// Where a GLB's own geometry sits and how tall it is, in its own units: the lowest
 /// point, and the height above it.
 ///
-/// Read out of the file rather than guessed: a generated mesh has no idea what size
-/// the thing it depicts really is, and two from the same machine differ by a factor
-/// of ten. Every `POSITION` accessor carries a `min` and a `max` - the spec requires
-/// it - so both are known without decoding a single vertex.
+/// Read out of the file rather than guessed. Every `POSITION` accessor carries a `min`
+/// and a `max` - the spec requires it - so both are known without decoding a vertex.
+///
+/// What comes back is NORMALISED: the provider fits every model into a unit box, so the
+/// longest axis is exactly 1.0 whatever the subject. Measured across three real firings, a
+/// housefly and a two-seater sofa both arrived the same size. So a model's own numbers say
+/// what SHAPE it is and nothing whatever about how big the thing is - which is why the
+/// height is a maker's to state and cannot be read off the file or left to the game.
 ///
 /// The LOWEST POINT matters as much as the height, because a generated model's origin
 /// is wherever the machine left it, which is usually the middle of the thing. Standing

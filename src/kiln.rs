@@ -1872,9 +1872,10 @@ fn work_the_height(
 
 /// Stands the model on the stage, and fits it to the height it was told.
 ///
-/// The height a maker states is the one fact that settles the size, because a generated
-/// mesh has no idea what size the thing it depicts is - two from the same machine differ
-/// by a factor of ten. `model::stand` does the measuring.
+/// The height a maker states is the one fact that settles the size. Every model arrives
+/// normalised into a unit box - a fly and a sofa come back identical in size - so nothing
+/// in the file, and nothing a game could work out from it, says how big the thing is.
+/// `model::stand` does the measuring.
 fn stand_the_model(
     mut commands: Commands,
     bench: Res<crate::Bench>,
