@@ -171,6 +171,28 @@ impl Recipe {
         key
     }
 
+    /// The profile in a few words, for the button that opens the sheet.
+    ///
+    /// Only what is ON. A line that spelled out every switch either way would be the five
+    /// rows again, in one line and harder to read.
+    pub fn in_short(&self) -> String {
+        let mut said = match self.maker {
+            Maker::GameReady => String::from("GAME-READY"),
+            Maker::Quick => String::from("QUICK LOOK"),
+        };
+        for (on, word) in [
+            (self.quad, "QUADS"),
+            (self.low_poly, "LOW POLY"),
+            (self.detailed, "FINE"),
+        ] {
+            if on {
+                said.push_str(" + ");
+                said.push_str(word);
+            }
+        }
+        said
+    }
+
     pub fn credits(&self) -> u32 {
         match self.maker {
             Maker::Quick => 10,
@@ -945,6 +967,18 @@ struct KilnBar;
 #[derive(Component)]
 struct KilnPrice;
 
+/// The button that opens the profile sheet, and says what the profile is.
+#[derive(Component)]
+struct ChangeProfile;
+
+/// Its word: the profile in short.
+#[derive(Component)]
+struct ProfileWord;
+
+/// The sheet of switches itself.
+#[derive(Component)]
+struct ProfilePanel;
+
 /// The button that actually spends the credits.
 #[derive(Component)]
 struct FireIt;
@@ -1124,6 +1158,8 @@ impl Plugin for KilnPlugin {
                     hang_the_picture,
                     take_a_picture,
                     dress_the_fire_button,
+                    work_the_profile,
+                    say_the_profile,
                     dress_the_choices,
                     stand_the_model,
                     work_the_height,
@@ -1182,9 +1218,87 @@ fn hang_the_kiln(mut commands: Commands, fonts: Res<Fonts>, palette: Res<Palette
         ChildOf(panel),
     ));
 
-    // WHAT to ask for. Two machines and three options, and every one of them moves
-    // the price - so the price is added up under them rather than found later on
-    // somebody's billing page.
+    // THE PROFILE, behind one button. Brett: "It will barely ever change form these
+    // settings so no need to show them all the time." Five rows of switches took a quarter
+    // of the panel to say what a maker sets once and then leaves alone, and the panel's real
+    // work - the picture, the wait, what it costs - was pushed down under them.
+    //
+    // The button SAYS the profile rather than saying "settings", so what is set stays
+    // visible at a glance and only the changing of it is folded away.
+    let profile = commands
+        .spawn((
+            ChangeProfile,
+            Interaction::default(),
+            Node {
+                margin: UiRect::top(Val::Px(6.0)),
+                padding: UiRect::axes(Val::Px(8.0), Val::Px(4.0)),
+                border: UiRect::all(Val::Px(1.0)),
+                ..default()
+            },
+            BackgroundColor(Color::BLACK.with_alpha(0.18)),
+            BorderColor::all(theme::panel_border(&palette)),
+            ChildOf(panel),
+        ))
+        .id();
+    commands.spawn((
+        ProfileWord,
+        Text::new(""),
+        TextFont {
+            font: fonts.display.clone().into(),
+            font_size: crate::look::text_at(11.0),
+            ..default()
+        },
+        TextColor(theme::accent(&palette).with_alpha(0.85)),
+        ChildOf(profile),
+    ));
+    commands.spawn((
+        crate::rail::Word("Change which machine makes the model, and how"),
+        ChildOf(profile),
+    ));
+
+    // And the switches themselves, in a sheet that stands beside the shelf when asked for.
+    // Beside rather than within: a sheet that pushed the panel's own rows down would move
+    // the button that opened it out from under the cursor.
+    //
+    // NOT a child of the panel, and it has to not be. The panel scrolls, and a scrolling
+    // node CLIPS what falls outside it - so a sheet parented there and placed alongside
+    // would have been cut away entirely and never drawn. It stands at the root and is put
+    // away by hand when the maker leaves the bench.
+    let sheet = commands
+        .spawn((
+            ProfilePanel,
+            Node {
+                position_type: PositionType::Absolute,
+                right: Val::Px(crate::look::PANEL_WIDE + 8.0),
+                top: Val::Px(crate::menu::BAR_HIGH + 8.0),
+                width: Val::Px(268.0),
+                flex_direction: FlexDirection::Column,
+                row_gap: Val::Px(3.0),
+                padding: UiRect::all(Val::Px(14.0)),
+                border: UiRect::all(Val::Px(1.0)),
+                ..default()
+            },
+            BackgroundColor(theme::panel_bg()),
+            BorderColor::all(theme::accent(&palette).with_alpha(0.5)),
+            Visibility::Hidden,
+            GlobalZIndex(40),
+        ))
+        .id();
+    commands.spawn((
+        Text::new("THE PROFILE"),
+        TextFont {
+            font: fonts.display.clone().into(),
+            font_size: crate::look::text_at(12.0),
+            ..default()
+        },
+        TextColor(theme::accent(&palette)),
+        Node {
+            margin: UiRect::bottom(Val::Px(4.0)),
+            ..default()
+        },
+        ChildOf(sheet),
+    ));
+
     for (choice, label, tale) in [
         (
             Choice::Maker(Maker::GameReady),
@@ -1224,7 +1338,7 @@ fn hang_the_kiln(mut commands: Commands, fonts: Res<Fonts>, palette: Res<Palette
                 },
                 BackgroundColor(Color::BLACK.with_alpha(0.18)),
                 BorderColor::all(theme::panel_border(&palette)),
-                ChildOf(panel),
+                ChildOf(sheet),
             ))
             .id();
         commands.spawn((
@@ -1591,7 +1705,8 @@ fn say_what_is_left(
 fn show_the_kiln(
     bench: Res<crate::Bench>,
     showing: Res<crate::look::Showing>,
-    mut panels: Query<&mut Visibility, With<KilnPanel>>,
+    mut panels: Query<&mut Visibility, (With<KilnPanel>, Without<ProfilePanel>)>,
+    mut sheets: Query<&mut Visibility, (With<ProfilePanel>, Without<KilnPanel>)>,
 ) {
     if !bench.is_changed() && !showing.is_changed() {
         return;
@@ -1603,6 +1718,13 @@ fn show_the_kiln(
         } else {
             Visibility::Hidden
         };
+    }
+    // The sheet is only ever CLOSED here, never opened: walking away from the bench puts it
+    // away, and walking back does not reopen a sheet nobody asked for twice.
+    if !out {
+        for mut it in &mut sheets {
+            *it = Visibility::Hidden;
+        }
     }
 }
 
@@ -2096,6 +2218,40 @@ fn hear_the_purse(mut purse: ResMut<Purse>) {
     }
 }
 
+/// Opens the profile sheet, or puts it away.
+fn work_the_profile(
+    bench: Res<crate::Bench>,
+    asks: Query<&Interaction, (Changed<Interaction>, With<ChangeProfile>)>,
+    mut sheets: Query<&mut Visibility, With<ProfilePanel>>,
+) {
+    if *bench != crate::Bench::Kiln {
+        return;
+    }
+    if !asks.iter().any(|touch| *touch == Interaction::Pressed) {
+        return;
+    }
+    for mut showing in &mut sheets {
+        *showing = if *showing == Visibility::Hidden {
+            Visibility::Inherited
+        } else {
+            Visibility::Hidden
+        };
+    }
+}
+
+/// Keeps the button saying what the profile actually is.
+fn say_the_profile(recipe: Res<Recipe>, mut words: Query<&mut Text, With<ProfileWord>>) {
+    if !recipe.is_changed() {
+        return;
+    }
+    let said = recipe.in_short();
+    for mut text in &mut words {
+        if text.0 != said {
+            *text = Text::new(said.clone());
+        }
+    }
+}
+
 /// A press on GET MORE opens the till in the maker's own browser.
 fn work_the_till(
     bench: Res<crate::Bench>,
@@ -2310,6 +2466,45 @@ mod the_purse {
 #[cfg(test)]
 mod remembering {
     use super::*;
+
+    /// The button says the profile, and says only what is switched ON.
+    ///
+    /// It stands in for five rows that were always on screen, so it has to carry the same
+    /// facts - which machine, and which extras. A line that named every switch either way
+    /// would be those five rows again, in one line and harder to read.
+    #[test]
+    fn a_profile_says_itself_in_short() {
+        let plain = Recipe {
+            maker: Maker::GameReady,
+            quad: false,
+            low_poly: false,
+            detailed: false,
+        };
+        assert_eq!(plain.in_short(), "GAME-READY");
+        assert_eq!(
+            Recipe {
+                low_poly: true,
+                ..plain
+            }
+            .in_short(),
+            "GAME-READY + LOW POLY"
+        );
+        assert_eq!(
+            Recipe {
+                maker: Maker::Quick,
+                quad: true,
+                low_poly: true,
+                detailed: true
+            }
+            .in_short(),
+            "QUICK LOOK + QUADS + LOW POLY + FINE"
+        );
+        // The machine is always named, whatever is off - a profile line that could come out
+        // empty would leave a button with nothing written on it.
+        for maker in [Maker::GameReady, Maker::Quick] {
+            assert!(!Recipe { maker, ..plain }.in_short().is_empty());
+        }
+    }
 
     /// Firings are filed under the WHOLE recipe, so unlike settings never share an average.
     #[test]
