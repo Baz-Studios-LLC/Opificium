@@ -59,12 +59,13 @@ pub enum Maker {
 
 impl Maker {
     /// The path it answers on.
-    /// Roughly how long this machine takes, in seconds.
+    /// Roughly how long this machine takes, in seconds - the figure used until this
+    /// bench has watched a firing of its own.
     ///
-    /// A ROUGH figure and treated as one. It exists because the game-ready machine
-    /// reports `progress: 0` for the whole firing and then finishes, so there is no real
-    /// number to draw - see `how_full`. Being wrong about it costs nothing: the bar
-    /// creeps slower or faster than the truth and still never claims to be finished.
+    /// A guess, and only ever the FALLBACK: once a recipe has been fired once, `Firings`
+    /// has a real measurement and this number is not consulted again for it. It matters
+    /// only on the very first firing of a setting, where being wrong costs nothing - the
+    /// bar creeps slower or faster than the truth and still never claims to be finished.
     fn takes(self) -> f32 {
         match self {
             Maker::GameReady => 100.0,
@@ -131,6 +132,33 @@ impl Recipe {
     /// Tripo is forty to begin with, plus twenty for a standard texture or forty for
     /// a detailed one, plus ten to remesh to quads and twenty to cut it down.
     /// TRELLIS.2 is ten, whole.
+    /// What this exact set of choices is called, for filing how long it took.
+    ///
+    /// The WHOLE recipe, because Brett is right that the settings are what decide the
+    /// wait: "maybe over time we could avergae all builds that shared a same settings
+    /// build?" A quad remesh cut down to a game's budget is not the same firing as a
+    /// plain one, and averaging the two would describe neither.
+    ///
+    /// Words rather than a hash, since a maker may open the file and should find it
+    /// legible.
+    pub fn as_a_key(&self) -> String {
+        let mut key = match self.maker {
+            Maker::GameReady => String::from("game-ready"),
+            Maker::Quick => String::from("quick"),
+        };
+        for (on, word) in [
+            (self.quad, "quad"),
+            (self.low_poly, "lowpoly"),
+            (self.detailed, "detailed"),
+        ] {
+            if on {
+                key.push('+');
+                key.push_str(word);
+            }
+        }
+        key
+    }
+
     pub fn credits(&self) -> u32 {
         match self.maker {
             Maker::Quick => 10,
@@ -796,6 +824,85 @@ struct KilnBar;
 #[derive(Component)]
 struct KilnPrice;
 
+/// How long past firings took, filed under the settings that made them.
+///
+/// Brett: "What about recording the last build time and using that as an estimate?" It is
+/// a better number than any I could pick - it comes from this maker's own account, their
+/// own images and whatever the provider's queue is like these days, none of which I can
+/// know from here.
+///
+/// It lives in the BENCH's support folder rather than in a project, because it is
+/// knowledge about somebody else's machine and not about any game. Every project a maker
+/// opens benefits from what the others learned, and no game's repository gains a file
+/// describing a third party's response times.
+#[derive(Resource, Default, serde::Serialize, serde::Deserialize)]
+struct Firings(std::collections::BTreeMap<String, Vec<f32>>);
+
+/// How many firings of one setting are remembered.
+///
+/// The last few rather than all of them: a provider gets faster and slower over months,
+/// and a firing from last spring should not still be voting on what the bar does today.
+const REMEMBERED: usize = 10;
+
+impl Firings {
+    /// Files a firing that WORKED. A failure's duration says nothing about how long a
+    /// success takes - most failures come back fast - so recording them would drag every
+    /// estimate toward the time it takes to be refused.
+    fn note(&mut self, key: &str, seconds: f32) {
+        // A firing that finished impossibly fast or hung for an hour is not a sample of
+        // anything; it is the network or a queue, and it would sit in the average for ten
+        // firings.
+        if !(1.0..=15.0 * 60.0).contains(&seconds) {
+            return;
+        }
+        let times = self.0.entry(key.to_string()).or_default();
+        times.push(seconds);
+        if times.len() > REMEMBERED {
+            let over = times.len() - REMEMBERED;
+            times.drain(..over);
+        }
+    }
+
+    /// The mean of what these settings have taken before, or the given fallback when they
+    /// have never been fired.
+    fn the_usual(&self, key: &str, failing_that: f32) -> f32 {
+        match self.0.get(key) {
+            Some(times) if !times.is_empty() => times.iter().sum::<f32>() / times.len() as f32,
+            _ => failing_that,
+        }
+    }
+}
+
+/// Where the firing times are kept.
+fn firings_file() -> PathBuf {
+    crate::project::support().join("firings.json")
+}
+
+/// Reads what past firings took. A missing or unreadable file is simply no history.
+fn read_the_firings() -> Firings {
+    std::fs::read_to_string(firings_file())
+        .ok()
+        .and_then(|said| serde_json::from_str(&said).ok())
+        .unwrap_or_default()
+}
+
+/// Writes them back. A firing that cannot be filed is not worth interrupting a maker
+/// over - the estimate is a convenience, and the model is already kept.
+fn write_the_firings(firings: &Firings) {
+    let road = firings_file();
+    if let Some(under) = road.parent() {
+        let _ = std::fs::create_dir_all(under);
+    }
+    if let Ok(said) = serde_json::to_string_pretty(firings) {
+        if let Err(why) = std::fs::write(&road, said) {
+            warn!(
+                "could not keep the firing times in {}: {why}",
+                road.display()
+            );
+        }
+    }
+}
+
 /// The kiln's state, and the thread's end of the wire.
 ///
 /// A `Receiver` is `Send` but not `Sync`, and a resource must be both - hence the
@@ -843,6 +950,7 @@ impl Plugin for KilnPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<Kiln>()
             .init_resource::<Recipe>()
+            .insert_resource(read_the_firings())
             .add_systems(Startup, hang_the_kiln)
             .add_systems(
                 Update,
@@ -1384,6 +1492,7 @@ fn work_the_kiln(
     bench: Res<crate::Bench>,
     mut kiln: ResMut<Kiln>,
     recipe: Res<Recipe>,
+    mut firings: ResMut<Firings>,
     clock: Res<Time>,
     picks: Query<&Interaction, (Changed<Interaction>, With<PickAnImage>)>,
 ) {
@@ -1400,6 +1509,12 @@ fn work_the_kiln(
         // What lands, stands. The stage is where a maker judges whether it was
         // worth the credits, which is the whole reason to show it at all.
         if let Firing::Done(road) = &word {
+            // What it took, filed under the settings that took it. Timed from the moment
+            // the image was chosen, not from the press - the seconds a maker spends in the
+            // file dialog are theirs, not the machine's, and counting them would inflate
+            // every estimate by however long they browsed.
+            firings.note(&recipe.as_a_key(), clock.elapsed_secs() - kiln.began);
+            write_the_firings(&firings);
             kiln.standing = Some(road.clone());
         }
         let ended = matches!(word, Firing::Done(_) | Firing::Failed(_));
@@ -1494,6 +1609,7 @@ fn as_a_clock(seconds: f32) -> String {
 fn say_how_it_goes(
     kiln: Res<Kiln>,
     recipe: Res<Recipe>,
+    firings: Res<Firings>,
     clock: Res<Time>,
     palette: Res<Palette>,
     mut words: Query<(&mut Text, &mut TextColor), With<KilnWord>>,
@@ -1508,8 +1624,10 @@ fn say_how_it_goes(
     }
 
     let waited = clock.elapsed_secs() - kiln.began;
+    // What THIS recipe has taken before, or my rough figure if it has never been fired.
+    let expects = firings.the_usual(&recipe.as_a_key(), recipe.maker.takes());
     let (how_far, machines_own) = match &kiln.firing {
-        Firing::Working(_, how_far) => how_full(*how_far, waited, recipe.maker.takes()),
+        Firing::Working(_, how_far) => how_full(*how_far, waited, expects),
         Firing::Done(_) => (100.0, true),
         _ => (0.0, true),
     };
@@ -1525,8 +1643,15 @@ fn say_how_it_goes(
     }
 
     let (said, dye) = match &kiln.firing {
+        // What it will cost and how long it has taken BEFORE, which is the pair of facts
+        // worth having before spending credits. "About a minute" was a guess printed at
+        // every maker regardless of what their own firings did.
         Firing::Cold => (
-            format!("{} credits, and about a minute", recipe.credits()),
+            format!(
+                "{} credits, and about {}",
+                recipe.credits(),
+                as_a_clock(expects)
+            ),
             theme::text_dim(&palette),
         ),
         // The elapsed time rather than a percentage, when the percentage would be ours
@@ -1633,6 +1758,106 @@ mod waiting {
         assert_eq!(as_a_clock(154.0), "2:34");
         // A clock that ran backwards would be a negative-second string.
         assert_eq!(as_a_clock(-5.0), "0:00");
+    }
+}
+
+#[cfg(test)]
+mod remembering {
+    use super::*;
+
+    /// Firings are filed under the WHOLE recipe, so unlike settings never share an average.
+    #[test]
+    fn settings_are_filed_apart() {
+        let plain = Recipe {
+            maker: Maker::GameReady,
+            quad: false,
+            low_poly: false,
+            detailed: false,
+        };
+        let heavy = Recipe {
+            maker: Maker::GameReady,
+            quad: true,
+            low_poly: true,
+            detailed: true,
+        };
+        assert_eq!(plain.as_a_key(), "game-ready");
+        assert_eq!(heavy.as_a_key(), "game-ready+quad+lowpoly+detailed");
+        assert_ne!(
+            plain.as_a_key(),
+            Recipe {
+                maker: Maker::Quick,
+                ..plain
+            }
+            .as_a_key(),
+            "two machines must not share one average"
+        );
+        // The same settings always name themselves the same way, or yesterday's firings
+        // are filed where nothing will look for them.
+        assert_eq!(plain.as_a_key(), plain.as_a_key());
+    }
+
+    /// The estimate is the mean of what those settings took before.
+    #[test]
+    fn it_averages_what_went_before() {
+        let mut firings = Firings::default();
+        assert!(
+            (firings.the_usual("game-ready", 100.0) - 100.0).abs() < 1e-3,
+            "with no history it must fall back to the rough figure"
+        );
+        firings.note("game-ready", 60.0);
+        firings.note("game-ready", 90.0);
+        assert!((firings.the_usual("game-ready", 100.0) - 75.0).abs() < 1e-3);
+        // And another setting's firings do not leak into it.
+        firings.note("quick", 20.0);
+        assert!((firings.the_usual("game-ready", 100.0) - 75.0).abs() < 1e-3);
+        assert!((firings.the_usual("quick", 100.0) - 20.0).abs() < 1e-3);
+    }
+
+    /// Only the last few are kept, and the OLDEST are the ones that go.
+    #[test]
+    fn it_forgets_the_oldest_first() {
+        let mut firings = Firings::default();
+        for i in 0..REMEMBERED + 5 {
+            firings.note("game-ready", 10.0 + i as f32);
+        }
+        let times = firings.0.get("game-ready").expect("some history");
+        assert_eq!(times.len(), REMEMBERED, "it kept more than it promised");
+        assert_eq!(
+            times.first(),
+            Some(&15.0),
+            "it dropped the newest instead of the oldest"
+        );
+        assert_eq!(times.last(), Some(&(10.0 + (REMEMBERED + 4) as f32)));
+    }
+
+    /// A firing that took no time or hung for an hour is not a sample of anything.
+    #[test]
+    fn nonsense_is_not_remembered() {
+        let mut firings = Firings::default();
+        firings.note("game-ready", 0.0);
+        firings.note("game-ready", -12.0);
+        firings.note("game-ready", 60.0 * 60.0);
+        assert!(
+            firings
+                .0
+                .get("game-ready")
+                .is_none_or(|times| times.is_empty()),
+            "it believed a nonsense duration, which would skew ten firings"
+        );
+        firings.note("game-ready", 95.0);
+        assert!((firings.the_usual("game-ready", 1.0) - 95.0).abs() < 1e-3);
+    }
+
+    /// What is written can be read back, which is the whole point of writing it.
+    #[test]
+    fn a_history_survives_the_round_trip() {
+        let mut firings = Firings::default();
+        firings.note("game-ready+lowpoly", 104.0);
+        let said = serde_json::to_string(&firings).expect("written");
+        let back: Firings = serde_json::from_str(&said).expect("read back");
+        assert!((back.the_usual("game-ready+lowpoly", 1.0) - 104.0).abs() < 1e-3);
+        // And a file of rubbish is no history rather than a panic.
+        assert!(serde_json::from_str::<Firings>("{{not json").is_err());
     }
 }
 
