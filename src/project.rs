@@ -22,6 +22,7 @@
 //! that keeps its assets somewhere unusual says so; a game that does what
 //! every other game does says nothing at all.
 
+use bevy::log::warn;
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 use std::sync::RwLock;
@@ -414,14 +415,49 @@ pub fn called(root: &Path) -> String {
 /// source tree: `cargo run` puts `CARGO_MANIFEST_DIR` in it, and that is how Bevy
 /// finds `assets/`. The same binary run without it comes up with no fonts at all.
 /// A bundle keeps its assets beside the binary and needs none of this.
+/// Where the bench writes what it is doing.
+pub fn log_file() -> PathBuf {
+    support().join("opificium.log")
+}
+
+/// Opens it for appending, or `None` if it cannot be - in which case the bench keeps
+/// whatever it was given and says nothing, since failing to launch over a log file would
+/// be the tail wagging the dog.
+fn the_log_file() -> Option<std::fs::File> {
+    let road = log_file();
+    let _ = std::fs::create_dir_all(road.parent()?);
+    std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&road)
+        .ok()
+}
+
 pub fn relaunch(root: &Path) -> Result<std::process::Child, String> {
     // Remembered FIRST, so a relaunch that fails to spawn still leaves the bench
     // pointed at the project the maker asked for: they open it again by hand and
     // arrive where they meant to go.
     remember(root);
     let program = std::env::current_exe().map_err(|why| format!("no path to this bench: {why}"))?;
-    std::process::Command::new(&program)
-        .arg(root)
+    let mut opening = std::process::Command::new(&program);
+    opening.arg(root);
+    // EVERYTHING IT SAYS, INTO A FILE. The bench that a maker actually uses is this child,
+    // and its stdout and stderr were the Terminal's pipe - a Terminal that closes as soon
+    // as the launching process exits, which is immediately. So every word it said after
+    // that went nowhere, a panic included, and a write to that dead pipe took a firing
+    // down with it.
+    //
+    // Appended rather than replaced, and one file rather than one per run: a maker asking
+    // what went wrong has one place to look, and the file is theirs to delete whenever it
+    // stops being interesting.
+    if let Some(log) = the_log_file() {
+        opening
+            .stdout(std::process::Stdio::from(
+                log.try_clone().map_err(|why| format!("{why}"))?,
+            ))
+            .stderr(std::process::Stdio::from(log));
+    }
+    opening
         .spawn()
         .map_err(|why| format!("{}: {why}", program.display()))
 }
@@ -495,7 +531,7 @@ pub fn kinds() -> Vec<Kind> {
         Err(why) => {
             // Said out loud rather than swallowed: an empty card and a card whose
             // file has a comma out of place look identical from the outside.
-            eprintln!("{}: {why}", road.display());
+            warn!("{}: {why}", road.display());
             Vec::new()
         }
     }
@@ -595,7 +631,7 @@ pub fn widgets() -> &'static [Widget] {
                 })
                 .collect(),
             Err(why) => {
-                eprintln!("{}: {why}", road.display());
+                warn!("{}: {why}", road.display());
                 Vec::new()
             }
         }

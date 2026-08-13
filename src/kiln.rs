@@ -667,7 +667,13 @@ pub fn commission(
     // request limit: 10485760" - AFTER the model had been made and paid for, which is
     // the worst place to fail. Raising the cap would only move the number; a mesh has
     // no size a bench should be guessing at.
-    eprintln!("  fetching {url}");
+    // `info!`, NOT `eprintln!`. This line killed a firing: `eprintln!` PANICS when the
+    // write fails, and the windowed bench's stderr is a pipe to a Terminal that has
+    // usually closed - the opening screen relaunches the bench as a child and the
+    // launching window exits. So the thread died here, silently, between saying FETCHING
+    // and opening the file, leaving a panel that said FETCHING for sixteen minutes with no
+    // connection open and nothing on disk. `info!` drops what it cannot write.
+    info!("fetching {url}");
     let answer = ureq::get(&url)
         // A stop on the whole fetch. Without one a stalled connection leaves the bench
         // saying FETCHING for ever, with a model that is paid for and half on the disk -
@@ -1984,13 +1990,25 @@ fn work_the_kiln(
     clock: Res<Time>,
     picks: Query<&Interaction, (Changed<Interaction>, With<FireIt>)>,
 ) {
-    // Whatever the thread has said since last frame, in order.
+    // Whatever the thread has said since last frame, in order - and whether it is still
+    // there to say anything more.
     let mut heard = Vec::new();
+    let mut gone = false;
     if let Some(wire) = kiln.coming.as_ref()
         && let Ok(wire) = wire.lock()
     {
-        while let Ok(word) = wire.try_recv() {
-            heard.push(word);
+        loop {
+            match wire.try_recv() {
+                Ok(word) => heard.push(word),
+                Err(std::sync::mpsc::TryRecvError::Empty) => break,
+                // The far end of the wire is dropped. Either the thread finished - in
+                // which case its last word is in `heard` - or it died mid-firing, which is
+                // the case worth catching.
+                Err(std::sync::mpsc::TryRecvError::Disconnected) => {
+                    gone = true;
+                    break;
+                }
+            }
         }
     }
     for word in heard {
@@ -2010,6 +2028,24 @@ fn work_the_kiln(
             // The wire is done with; dropping it lets the thread's end close.
             kiln.coming = None;
         }
+    }
+
+    // A THREAD THAT DIED WITHOUT SAYING SO. Brett watched FETCHING for fourteen minutes
+    // with no connection open and no file on disk: the thread was already gone, and the
+    // panel was showing the last thing it had ever said. A stuck word is the worst way to
+    // fail, because it is indistinguishable from working.
+    //
+    // Its own end of the wire drops when it finishes normally too - but then its last word
+    // was Done or Failed and is in `heard` above, so the only way to still be WORKING with
+    // a dropped wire is that it stopped mid-firing. A panic does exactly that.
+    if gone && matches!(kiln.firing, Firing::Working(..)) {
+        error!("the firing thread stopped without a word; look above for a panic");
+        kiln.coming = None;
+        kiln.firing = Firing::Failed(
+            "the firing stopped without saying why. The job may still be on your \
+             account - check the log"
+                .to_string(),
+        );
     }
 
     if *bench != crate::Bench::Kiln {

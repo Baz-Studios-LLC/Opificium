@@ -68,7 +68,8 @@ fi
 print -r -- ""
 print -r -- "  another    ./Opificium.command /path/to/game/opificium"
 print -r -- "  the rig    OPIFICIUM_BENCH=rig ./Opificium.command"
-print -r -- "  the keys   the gear at the foot of the rail"
+print -r -- "  the keys   the gear at the foot of the rail
+  the log    ~/Library/Application Support/Opificium/opificium.log"
 print -r -- "  ─────────────────────────────────────────────────────────────"
 print -r -- ""
 
