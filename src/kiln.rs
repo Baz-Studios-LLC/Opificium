@@ -59,6 +59,19 @@ pub enum Maker {
 
 impl Maker {
     /// The path it answers on.
+    /// Roughly how long this machine takes, in seconds.
+    ///
+    /// A ROUGH figure and treated as one. It exists because the game-ready machine
+    /// reports `progress: 0` for the whole firing and then finishes, so there is no real
+    /// number to draw - see `how_full`. Being wrong about it costs nothing: the bar
+    /// creeps slower or faster than the truth and still never claims to be finished.
+    fn takes(self) -> f32 {
+        match self {
+            Maker::GameReady => 100.0,
+            Maker::Quick => 35.0,
+        }
+    }
+
     fn road(self) -> &'static str {
         match self {
             // The version is named outright. Unversioned defaults to 3.0, and a
@@ -326,10 +339,16 @@ fn how_it_goes(said: &str) -> Result<Step, String> {
         // No reason given: hand back what it actually SAID instead of a summary of
         // it. A sentence of mine that leaves out the payload is a sentence that
         // costs a firing to get past.
-        None => format!(
-            "the kiln sent no model back, and said: {}",
-            first_words(said)
-        ),
+        None => {
+            // The whole answer to the log as well. The panel gets the first 300
+            // characters, which is enough to name the trouble, and a payload big enough
+            // to be cut off is exactly the one worth having in full.
+            error!("the kiln's whole answer: {said}");
+            format!(
+                "the kiln sent no model back, and said: {}",
+                first_words(said)
+            )
+        }
     };
     match report.status.as_str() {
         "FINISHED" => {
@@ -787,6 +806,8 @@ struct Kiln {
     coming: Option<Mutex<std::sync::mpsc::Receiver<Firing>>>,
     /// The model on the stage: the file it came out of, and how tall it should be.
     standing: Option<PathBuf>,
+    /// When the firing began, on the app's own clock, so a wait can be counted.
+    began: f32,
     /// How tall the thing IS, in metres.
     ///
     /// A generated mesh arrives at whatever size the machine felt like, and this
@@ -801,6 +822,7 @@ impl Default for Kiln {
         Kiln {
             firing: Firing::Cold,
             coming: None,
+            began: 0.0,
             standing: None,
             // Waist high: a thing you can see the shape of on a bench, and a round
             // number of atoms.
@@ -1128,6 +1150,13 @@ fn hang_the_kiln(mut commands: Commands, fonts: Res<Fonts>, palette: Res<Palette
             font_size: FontSize::Px(12.0),
             ..default()
         },
+        // BREAK ANYWHERE. What lands here when a firing fails is the machine's own answer,
+        // and a JSON payload contains no spaces at all - so word wrapping, which is the
+        // default, has nowhere it is willing to break and the line runs off the panel.
+        // Brett hit this on a mute failure: the part of the message that says what went
+        // wrong was the part past the edge. The same clipping would have swallowed any
+        // long reason the machine gave in plain words.
+        TextLayout::new(Justify::Left, LineBreak::AnyCharacter),
         TextColor(theme::text_dim(&palette)),
         Node {
             margin: UiRect::top(Val::Px(6.0)),
@@ -1355,6 +1384,7 @@ fn work_the_kiln(
     bench: Res<crate::Bench>,
     mut kiln: ResMut<Kiln>,
     recipe: Res<Recipe>,
+    clock: Res<Time>,
     picks: Query<&Interaction, (Changed<Interaction>, With<PickAnImage>)>,
 ) {
     // Whatever the thread has said since last frame, in order.
@@ -1413,6 +1443,7 @@ fn work_the_kiln(
     let recipe = *recipe;
     let (say, hear) = std::sync::mpsc::channel();
     kiln.coming = Some(Mutex::new(hear));
+    kiln.began = clock.elapsed_secs();
     kiln.firing = Firing::Working("SENDING".to_string(), None);
     std::thread::spawn(move || {
         let told = say.clone();
@@ -1425,39 +1456,102 @@ fn work_the_kiln(
     });
 }
 
+/// How full the bar should be, and whether the number is the MACHINE'S or the bench's.
+///
+/// The game-ready machine reports `progress: 0` for the whole firing and then hands over
+/// a model, so a bar wired only to its number sits empty for two minutes and then
+/// vanishes - Brett: "Right now I am generating a model and it just says In Progress..."
+///
+/// So when there is a real number it is used and said to be real. When there is not, the
+/// bar creeps against how long this machine usually takes: fast at first and slower ever
+/// after, approaching but never reaching the end. That curve is chosen for what it CANNOT
+/// do - it cannot arrive, so a bar that sits at nine tenths is telling the truth about
+/// not knowing, and a slow firing never leaves the bar pinned at a full bar that lies.
+///
+/// The caller draws the bench's own guess dimmer than the machine's own number, so the
+/// two are never mistaken for each other.
+fn how_full(how_far: Option<f32>, waited: f32, takes: f32) -> (f32, bool) {
+    // A nought from the machine is NOT news that nothing has happened - it is the
+    // game-ready machine's way of saying it does not count. Treated as no number at all.
+    if let Some(said) = how_far {
+        if said > 0.0 {
+            return (said.clamp(0.0, 100.0), true);
+        }
+    }
+    let waited = waited.max(0.0);
+    let takes = if takes > 1.0 { takes } else { 1.0 };
+    // 1 - e^-x: 63% of the way at the expected time, 86% at twice it, never 100%.
+    (92.0 * (1.0 - (-waited / takes).exp()), false)
+}
+
+/// A wait in minutes and seconds, which is the one thing about it that is certainly true.
+fn as_a_clock(seconds: f32) -> String {
+    let seconds = seconds.max(0.0) as u32;
+    format!("{}:{:02}", seconds / 60, seconds % 60)
+}
+
 /// Says where the firing has got to, in the panel.
 fn say_how_it_goes(
     kiln: Res<Kiln>,
     recipe: Res<Recipe>,
+    clock: Res<Time>,
     palette: Res<Palette>,
     mut words: Query<(&mut Text, &mut TextColor), With<KilnWord>>,
-    mut bars: Query<&mut Node, With<KilnBar>>,
+    mut bars: Query<(&mut Node, &mut BackgroundColor), With<KilnBar>>,
 ) {
-    if !kiln.is_changed() && !recipe.is_changed() {
+    // Every frame WHILE WORKING, not only when something changes: the wait itself is what
+    // moves, and a bar that only redrew on news would sit still through the whole firing -
+    // which is the complaint this is answering.
+    let working = matches!(kiln.firing, Firing::Working(..));
+    if !working && !kiln.is_changed() && !recipe.is_changed() {
         return;
     }
-    let how_far = match &kiln.firing {
-        Firing::Working(_, how_far) => how_far.unwrap_or(0.0),
-        _ => 0.0,
+
+    let waited = clock.elapsed_secs() - kiln.began;
+    let (how_far, machines_own) = match &kiln.firing {
+        Firing::Working(_, how_far) => how_full(*how_far, waited, recipe.maker.takes()),
+        Firing::Done(_) => (100.0, true),
+        _ => (0.0, true),
     };
-    for mut bar in &mut bars {
-        bar.width = Val::Percent(how_far.clamp(0.0, 100.0));
+    for (mut bar, mut dye) in &mut bars {
+        bar.width = Val::Percent(how_far);
+        // The bench's own guess is drawn dimmer than a number the machine stands behind,
+        // so a full-strength bar always means somebody out there counted.
+        *dye = BackgroundColor(if machines_own {
+            theme::accent(&palette)
+        } else {
+            theme::accent(&palette).with_alpha(0.45)
+        });
     }
+
     let (said, dye) = match &kiln.firing {
         Firing::Cold => (
             format!("{} credits, and about a minute", recipe.credits()),
             theme::text_dim(&palette),
         ),
-        Firing::Working(word, _) => (
-            format!("{}...", word.to_lowercase().replace('_', " ")),
+        // The elapsed time rather than a percentage, when the percentage would be ours
+        // rather than theirs. A clock is a fact; a made-up percentage is a small lie that
+        // a maker would reasonably plan around.
+        Firing::Working(word, how_far) => (
+            match how_far {
+                Some(said) if *said > 0.0 => {
+                    format!("{}... {said:.0}%", word.to_lowercase().replace('_', " "))
+                }
+                _ => format!(
+                    "{}... {}",
+                    word.to_lowercase().replace('_', " "),
+                    as_a_clock(waited)
+                ),
+            },
             theme::accent(&palette),
         ),
         Firing::Done(road) => (
             format!(
-                "kept {}",
+                "kept {} in {}",
                 road.file_name()
                     .map(|name| name.to_string_lossy().to_string())
-                    .unwrap_or_default()
+                    .unwrap_or_default(),
+                as_a_clock(waited)
             ),
             theme::text(&palette),
         ),
@@ -1468,6 +1562,77 @@ fn say_how_it_goes(
             *text = Text::new(said.clone());
             *colour = TextColor(dye);
         }
+    }
+}
+
+#[cfg(test)]
+mod waiting {
+    use super::*;
+
+    /// A number the machine stands behind is used as given, and said to be its own.
+    #[test]
+    fn the_machines_own_number_wins() {
+        let (how_far, machines_own) = how_full(Some(42.0), 5.0, 100.0);
+        assert!((how_far - 42.0).abs() < 1e-3, "{how_far}");
+        assert!(
+            machines_own,
+            "a real percentage should be drawn as a real one"
+        );
+        // Even a silly one, clamped rather than believed.
+        assert_eq!(how_full(Some(180.0), 5.0, 100.0).0, 100.0);
+    }
+
+    /// A nought is the game-ready machine declining to count, NOT a report of no
+    /// progress - which is the whole bug: it reports 0 for the entire firing.
+    #[test]
+    fn a_nought_is_not_a_report() {
+        let (how_far, machines_own) = how_full(Some(0.0), 50.0, 100.0);
+        assert!(
+            how_far > 1.0,
+            "a nought froze the bar at nothing: {how_far}"
+        );
+        assert!(
+            !machines_own,
+            "the bench's own guess must not pose as the machine's"
+        );
+        // And absent says the same thing as nought.
+        assert_eq!(
+            how_full(None, 50.0, 100.0),
+            how_full(Some(0.0), 50.0, 100.0)
+        );
+    }
+
+    /// The guess NEVER arrives, however long the wait.
+    ///
+    /// The point of the curve. A bar that reached the end would be claiming the model was
+    /// done, and the one thing the bench does not know is when that will be - so it must
+    /// be unable to say so, not merely unlikely to.
+    #[test]
+    fn the_guess_never_claims_to_be_finished() {
+        for waited in [0.0, 30.0, 100.0, 600.0, 86_400.0] {
+            let (how_far, _) = how_full(None, waited, 100.0);
+            assert!(how_far < 100.0, "at {waited}s the bar claimed {how_far}%");
+        }
+        // And it only ever moves forwards.
+        let mut last = -1.0;
+        for waited in [0.0, 10.0, 25.0, 60.0, 150.0, 400.0] {
+            let (how_far, _) = how_full(None, waited, 100.0);
+            assert!(how_far >= last, "it went backwards at {waited}s");
+            last = how_far;
+        }
+        // Empty at the start, rather than a courtesy nudge that means nothing.
+        assert!(how_full(None, 0.0, 100.0).0 < 0.01);
+    }
+
+    /// A wait reads as a clock, because the seconds are the part that is certainly true.
+    #[test]
+    fn a_wait_reads_as_a_clock() {
+        assert_eq!(as_a_clock(0.0), "0:00");
+        assert_eq!(as_a_clock(9.6), "0:09");
+        assert_eq!(as_a_clock(60.0), "1:00");
+        assert_eq!(as_a_clock(154.0), "2:34");
+        // A clock that ran backwards would be a negative-second string.
+        assert_eq!(as_a_clock(-5.0), "0:00");
     }
 }
 
