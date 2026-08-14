@@ -1,45 +1,57 @@
-## The bench asks which game, and doors behave
+## A kiln for models, and the rig looks at them
 
-**It asks now.** Opening the bench used to open whichever project you had open
-last, without a word — right while it served one game, wrong the moment it served
-two, since two games look identical once you are inside. It asks by name, listing
-the games you have worked in; the last one is pre-lit and return takes it, so a
-week spent in one game costs a keystroke. NOT NOW closes without opening anything.
+**A new bench: THE KILN.** Give it a picture and it commissions a 3D model, stands
+the model on the bench, and keeps it as a `.glb` in the game. About seven minutes
+and eighty credits for a game-ready one; a quick look is ten.
 
-A path still names one outright and skips the question, which is what scripts, the
-launcher and the project switcher on the rail all do.
+It needs a key of your own from 3D AI Studio. Put it in
 
-**An eyedropper.** Alt-click in PAINT and the brush takes the colour of the piece
-under the cursor — the colour you can SEE, not the part's own field, so it works on
-the timbers and panels of a framed wall that were never repainted. Click a timber
-and you get its wood; click a panel and you get its bone.
+    ~/Library/Application Support/Opificium/3daistudio.key
 
-**Double doors work on framed walls.** They framed a single door's opening, so the
-leaves stood over solid timber. An opening carries its own width now, and a double
-door frames a hole its leaves fit through.
+or in `OPIFICIUM_3DAI_KEY` — **never in a project folder**, which is a game's own
+repository and usually a public one.
 
-**Doors kept losing their leaves.** A door in a framed wall drew its leaf once and
-then lost it — at the next phase change, on reopening, and in the bake, so the
-village raised leafless doorways. If you have baked a framed-wall door before this,
-bake it again.
+**What the panel tells you.** What the firing will cost and roughly how long it
+will take, learned from your own past firings of those same settings rather than
+guessed. What your account has left, and a warning in red BEFORE you press the
+button if the firing would not fit in it. The picture you chose, so a wrong file is
+caught while it is still free to change. And a bar that fills on the machine's own
+number when there is one and creeps dimly when there is not — the game-ready
+machine says nothing at all for the whole firing, so a dim bar is honest and a full
+one would be a lie.
 
-**Placing a door follows the grid.** It was the one thing a hand placed that
-ignored G entirely, so laying a wall out in quarter metres meant nudging its door
-in sixteenths. Dragging one along a wall follows it too.
+**The size is yours to state, and it goes into the file.** Every generated model
+arrives normalised into a unit box — a housefly and a two-seater sofa come back the
+same size — so nothing in the file, and nothing a game could work out from it, says
+how big the thing is. You say how tall it is, the panel shows what that makes the
+other two dimensions, and KEEP IT AS… writes a model standing on its own origin at
+that size. A game loads it and forgets; there is no second number to keep beside it.
 
-**Sweeping the bench sweeps all of it.** It emptied the step you were looking at
-and left every other step and level standing as records, so switching back brought
-them out again. It clears the whole work now — and keeps what was there in the
-project's `workbench` file on the way out, since undo cannot reach a step that was
-never on the bench.
+**THE RIG is a model viewer now.** It was a body-and-clips bench built for one
+game's animation, and that has gone: no game ever read the clips it saved. Pick any
+model the project holds, stand it on the bench, walk around it. Rigging generated
+models is where it is heading, which is why it keeps the name.
 
-**Ungrouping a stretched roof frees its pieces.** It broke the roof into two slopes
-and two gables and then quietly grouped them again, so the pieces could not be
-painted or moved one at a time — which is the only reason to break a roof apart. It
-took two presses to get there and the first one looked like nothing had happened.
+**A ruler.** TOOLS → THE RULER stands a measuring post on the bench, banded every
+decimetre with a wider gold collar at each metre. Off until you reach for it, and it
+answers at every bench — a building wants measuring as much as a model does.
 
-**Smaller things.** The snap and grid line has left the shelf for the top left of
-the view, at a size you can read. The step buttons are `+` and `-`, and one press
-of `+` adds one step rather than two.
+**Put the furniture away.** A TOOLS menu switches the top bar, the step bar, the
+shelf and the rail on and off. None of them are needed everywhere, and every row of
+buttons covers a strip of the work.
+
+**Bigger words.** Every size of text on the bench went up together, which lifts the
+small labels by a fifth and leaves the headings much as they were. The side panels
+widened to match rather than crowding.
+
+**The bench keeps a log**, at `~/Library/Application Support/Opificium/opificium.log`.
+The bench you actually use is a child process whose launching window has usually
+closed, so everything it said used to go nowhere — and a firing was lost to exactly
+that, silently, after the model was made and paid for.
+
+**Smaller things.** The benches are ordered the way work flows: builder, kiln, rig.
+A model on the rig's shelf shows all three of its dimensions, not just its height.
+The kiln's profile — which machine, quads, low poly, fine texture — folds into one
+button that says what is set, since it is set once and then left alone.
 
 See `FORMATS.md` for every file that passes between a game and the bench.
