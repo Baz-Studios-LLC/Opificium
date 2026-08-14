@@ -621,18 +621,48 @@ fn keep(keys: Res<ButtonInput<KeyCode>>, ground: Res<Ground>, mut said: ResMut<S
         return;
     }
     let folder = ground.folder().to_path_buf();
-    let Ok(mut sculpt) = ground.sculpt().write() else {
-        return;
+
+    // Ground and woods are two files, and one keystroke keeps both. A maker who
+    // spent an afternoon planting and pressed the key they have always pressed
+    // must not find the woods gone tomorrow because saving was per-layer.
+    let ground_kept = {
+        let Ok(mut sculpt) = ground.sculpt().write() else {
+            return;
+        };
+        match sculpt.save(&folder) {
+            Ok(road) => {
+                info!("sculpted ground kept: {}", road.display());
+                Ok(sculpt.sculpted_cells())
+            }
+            Err(why) => {
+                error!("could not keep the sculpted ground: {why}");
+                Err(why)
+            }
+        }
     };
-    match sculpt.save(&folder) {
-        Ok(road) => {
-            info!("sculpted ground kept: {}", road.display());
-            said.that(format!("Kept {} cells", sculpt.sculpted_cells()));
+
+    let woods_kept = {
+        let Ok(mut woods) = ground.forest().write() else {
+            return;
+        };
+        match woods.save(&folder) {
+            Ok(road) => {
+                info!("planted woods kept: {}", road.display());
+                Ok(woods.painted_cells())
+            }
+            Err(why) => {
+                error!("could not keep the planted woods: {why}");
+                Err(why)
+            }
         }
-        Err(why) => {
-            error!("could not keep the sculpted ground: {why}");
-            said.that(format!("Could not keep it: {why}"));
-        }
+    };
+
+    match (ground_kept, woods_kept) {
+        (Ok(cells), Ok(woods)) => said.that(format!("Kept {cells} cells, {woods} planted")),
+        // Said separately, because which one failed decides what a maker has
+        // lost and what they should do about it.
+        (Err(why), _) => said.that(format!("Could not keep the ground: {why}")),
+        (_, Err(why)) => said.that(format!("Could not keep the woods: {why}")),
     }
 }
 
