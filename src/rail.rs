@@ -382,6 +382,7 @@ pub fn raise_rail(mut commands: Commands, fonts: Res<Fonts>, palette: Res<Palett
         (Bench::Builder, "THE BUILDER", "boxes, ramps and widgets"),
         (Bench::Kiln, "THE KILN", "an image in, a model out"),
         (Bench::Rig, "THE RIG", "a model, looked at closely"),
+        (Bench::Terrain, "THE TERRAIN", "a world's ground, shaped"),
     ] {
         let button = commands
             .spawn((
