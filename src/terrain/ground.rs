@@ -92,6 +92,19 @@ pub struct Recipe {
     pub base_elevation: f32,
     /// The mountains.
     pub range_elevation: f32,
+
+    /// The one great mountain: how high it stands above the ground it sits on,
+    /// and how far out its foot reaches.
+    ///
+    /// The world is otherwise deliberately gentle — plains and hills you walk
+    /// over rather than around. That makes ONE massif worth more than a map full
+    /// of them: it is visible from most of the continent, it is the thing you
+    /// navigate by, and it is somewhere you decide to go. `range_elevation`
+    /// stays low so this reads as the exception it is.
+    ///
+    /// Set `massif_height` to 0 for a world with no such landmark.
+    pub massif_height: f32,
+    pub massif_radius: f32,
     pub range_freq: f64,
     pub range_presence_freq: f64,
     pub range_presence_cutoff: f32,
@@ -154,13 +167,15 @@ impl Default for Recipe {
             min_island_pixels: 900,
             coast_fade_start: 0.95,
             coast_height: 16.0,
-            inland_rise: 65.0,
+            inland_rise: 28.0,
             beach_width: 90.0,
             shelf_width: 600.0,
             inland_full: 620.0,
             ocean_depth: 60.0,
             base_elevation: 110.0,
-            range_elevation: 250.0,
+            range_elevation: 52.0,
+            massif_height: 340.0,
+            massif_radius: 950.0,
             range_freq: 0.000_42,
             range_presence_freq: 0.000_35,
             range_presence_cutoff: 0.45,
@@ -247,6 +262,8 @@ pub struct World {
     sculpt: RwLock<Sculpt>,
     /// Ground levelled for towns, and the roads graded between them.
     settlements: Settlements,
+    /// Where the one great mountain stands, if this world has one.
+    massif: Option<Vec2>,
 }
 
 impl World {
@@ -295,8 +312,26 @@ impl World {
             warp_z: Perlin::new(seed.wrapping_add(4)),
             sculpt: RwLock::new(Sculpt::load(folder, half, seed.wrapping_add(11))),
             settlements: Settlements::nowhere(),
+            massif: None,
             recipe,
         };
+
+        // The great mountain goes in the heartland — the point furthest from any
+        // sea. Found rather than chosen, so redrawing the map moves it to the
+        // new map's interior instead of stranding it in a bay. Placed before the
+        // towns, so their ground is judged against a world that already has it
+        // and none of them ends up levelled onto its flank.
+        world.massif = world.map.as_ref().and_then(|map| {
+            (world.recipe.massif_height > 0.0).then(|| {
+                let (u, v) = map.deepest_inland();
+                let at = Vec2::new(
+                    (u - 0.5) * half.x * 2.0,
+                    (v - 0.5) * half.y * 2.0,
+                );
+                info!("the great mountain stands at {:.0}, {:.0}", at.x, at.y);
+                at
+            })
+        });
 
         // Planned after the rest of the world exists, because choosing where a
         // town goes means asking how high and how steep the ground is there —
@@ -417,6 +452,8 @@ impl World {
             h += self.map_elevation(wx, wz) * r.base_elevation * coast;
         }
 
+        h += self.massif_height(wx, wz) * coast;
+
         // How rugged this country is, 0 plain to 1 mountainous. Mountains and
         // fine detail are both scaled by it, so most of the world is level
         // enough to walk, farm and put a forest on, and the rough ground is
@@ -440,6 +477,36 @@ impl World {
             * 0.5
             + 0.5;
         smoothstep(r.rugged_low, r.rugged_high, n)
+    }
+
+    /// What the one great mountain adds.
+    ///
+    /// A broad shoulder easing up to a peak, not a cone: the falloff is raised
+    /// to a power so the foot spreads and the summit is the small part, which is
+    /// how a massif reads from a distance. The ridge field warps it so the
+    /// flanks have spurs and gullies rather than being a smooth dome, and the
+    /// warp is scaled by height so the foot stays walkable while the top is
+    /// broken up.
+    fn massif_height(&self, x: f32, z: f32) -> f32 {
+        let r = &self.recipe;
+        let Some(peak) = self.massif else {
+            return 0.0;
+        };
+        if r.massif_height <= 0.0 {
+            return 0.0;
+        }
+
+        let away = peak.distance(Vec2::new(x, z));
+        if away >= r.massif_radius {
+            return 0.0;
+        }
+
+        let rise = smoothstep(r.massif_radius, 0.0, away).powf(1.9);
+        let ridge = self
+            .ranges
+            .get([x as f64 * r.range_freq * 3.0, z as f64 * r.range_freq * 3.0])
+            as f32;
+        rise * r.massif_height * (1.0 + ridge * 0.22 * rise)
     }
 
     /// What the mountains add.
@@ -662,6 +729,28 @@ impl MapImage {
 
     fn offshore_pixels(&self, u: f32, v: f32) -> f32 {
         self.read(&self.offshore, u, v)
+    }
+
+    /// Where the map is furthest from any sea, in image space.
+    ///
+    /// The heart of the largest landmass, and so where a massif belongs: a
+    /// mountain wants the most land around it, and the deepest interior is by
+    /// definition the point with the most. Found rather than chosen, so
+    /// redrawing the map moves the mountain to the new map's heartland instead
+    /// of stranding it in a bay.
+    fn deepest_inland(&self) -> (f32, f32) {
+        let mut best = 0.0;
+        let mut at = (0.5, 0.5);
+        for (i, &away) in self.inland.iter().enumerate() {
+            if away > best {
+                best = away;
+                at = (
+                    (i % self.wide) as f32 / (self.wide - 1) as f32,
+                    (i / self.wide) as f32 / (self.deep - 1) as f32,
+                );
+            }
+        }
+        at
     }
 
     fn inland_pixels(&self, u: f32, v: f32) -> f32 {
