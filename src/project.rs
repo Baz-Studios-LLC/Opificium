@@ -702,6 +702,19 @@ pub fn palette() -> PathBuf {
         .unwrap_or_else(|| root().join("data/palette.json"))
 }
 
+/// Where the colour sets a maker saved from this game's buildings live.
+///
+/// In the project because the colours name the GAME's own ramps: a set saved for one game
+/// paints nothing in another. Beside the kinds, which is where everything game-shaped that
+/// the bench itself authors belongs.
+///
+/// Not in the manifest. A game has no reason to name this file - it never reads it - and
+/// every path a manifest carries is one more thing for a game to get wrong about a bench
+/// it does not share code with.
+pub fn saved_palettes() -> PathBuf {
+    root().join("data/saved-palettes.json")
+}
+
 /// Where this game's list of building kinds lives.
 pub fn kinds_file() -> PathBuf {
     current()

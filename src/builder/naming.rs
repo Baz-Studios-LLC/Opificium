@@ -40,6 +40,7 @@ pub(crate) fn raise_naming_card(
             NamingFor::Carrying => "CARRY IT INTO THE GAME",
             NamingFor::AsAPiece => "KEEP IT AS A PIECE",
             NamingFor::Keeping => "NAME THE WORK",
+            NamingFor::APalette => "NAME THESE COLOURS",
             NamingFor::AKind => "NAME A KIND OF BUILDING",
         }),
         TextFont {
@@ -76,6 +77,12 @@ pub(crate) fn raise_naming_card(
             }
             NamingFor::AsAPiece => "kept for any work, not just this one - esc thinks better of it",
             NamingFor::Keeping => "enter saves - esc thinks better of it",
+            // Worth saying that it is the whole building rather than the step in view:
+            // a maker looking at bare footings is about to save the roof's colours too,
+            // which is the point and would otherwise look like a mistake.
+            NamingFor::APalette => {
+                "every colour this building is painted with, all its steps - esc goes back"
+            }
             // The one warning worth printing on a card. Nothing here can check a
             // word against the game's own vocabulary - that lives in the other
             // program's source - and a word the game does not know costs the
@@ -204,6 +211,7 @@ pub(crate) fn raise_naming_card(
                 // It does not carry anything in or keep anything: it hands the
                 // word back to the card that asked for it.
                 NamingFor::AKind => "ADD IT",
+                NamingFor::APalette => "KEEP THEM",
             },
             true,
         ),
@@ -268,6 +276,7 @@ pub(crate) fn take_the_name(
     mut naming: ResMut<Naming>,
     time: Res<Time>,
     mut work_name: ResMut<WorkName>,
+    mut palettes_stale: ResMut<PalettesStale>,
     placed: Query<&Placed, Without<Ghost>>,
     cards: Query<Entity, With<NamingCard>>,
     saves_click: Query<&Interaction, (Changed<Interaction>, With<NamingSave>)>,
@@ -357,6 +366,50 @@ pub(crate) fn take_the_name(
             commands.entity(card).despawn();
         }
         raise_naming_card(&mut commands, &fonts, &palette, NamingFor::Carrying, kind.0);
+        return;
+    }
+    // KEEPING THE COLOURS, which ends the card like the others but writes nothing of the
+    // building itself. `gather_the_work` first, because the step on the bench is standing
+    // as entities and every other step is already records - so harvesting the records
+    // alone would miss whatever the maker painted in the last few minutes.
+    if what_for == NamingFor::APalette {
+        if saving {
+            let work = gather_the_work(
+                work_name.0.as_deref().unwrap_or_default(),
+                &stages,
+                placed.iter(),
+            );
+            let colours = colours_in(&work);
+            let called = if name.is_empty() {
+                // Named after the building by default, which is what a maker means by "the
+                // longhouse colours" - and the reason the field arrives filled in.
+                work_name.0.clone().unwrap_or_default()
+            } else {
+                name.clone()
+            };
+            let said = match keep_a_palette(&called, colours.clone()) {
+                Ok(()) => {
+                    info!("kept {} colours as {called}", colours.len());
+                    palettes_stale.0 = true;
+                    format!("KEPT {} - {} COLOURS", called.to_uppercase(), colours.len())
+                }
+                Err(why) => {
+                    warn!("could not keep the palette {called}: {why}");
+                    why.to_uppercase()
+                }
+            };
+            for (entity, mut text) in &mut save_labels {
+                *text = Text::new(said.clone());
+                commands.entity(entity).insert(PassingWord {
+                    back: "",
+                    until: time.elapsed_secs() + 4.0,
+                });
+            }
+        }
+        naming.0 = None;
+        for card in &cards {
+            commands.entity(card).despawn();
+        }
         return;
     }
     // The same card, three errands now.

@@ -34,6 +34,7 @@ mod naming;
 mod open;
 mod oven;
 mod paint;
+mod palettes;
 mod part;
 mod partmenu;
 mod pieces;
@@ -55,6 +56,7 @@ pub(crate) use naming::*;
 pub(crate) use open::*;
 pub(crate) use oven::*;
 pub(crate) use paint::*;
+pub(crate) use palettes::*;
 pub(crate) use part::*;
 pub(crate) use partmenu::*;
 pub(crate) use pieces::*;
@@ -361,6 +363,9 @@ pub enum NamingFor {
     Carrying,
     /// Keeping what is chosen as a piece, to bring into other works.
     AsAPiece,
+    /// Naming the colours the work on the bench is painted with, to paint another
+    /// building the same way later.
+    APalette,
     /// Naming a kind of building this project does not know yet.
     ///
     /// Raised FROM the carrying card and returning to it, so the bake a maker was
@@ -461,6 +466,7 @@ impl Plugin for BuilderPlugin {
             .init_resource::<PieceWantsAName>()
             .init_resource::<PieceInHand>()
             .init_resource::<PiecesStale>()
+            .init_resource::<PalettesStale>()
             .init_resource::<Brush>()
             .init_resource::<Naming>()
             .init_resource::<NameHeld>()
@@ -492,6 +498,9 @@ impl Plugin for BuilderPlugin {
                     (
                         paint_the_work,
                         work_palette,
+                        fill_the_palettes,
+                        work_keep_colours,
+                        work_drop_a_palette,
                         raise_part_menu,
                         turn_to_stage,
                         bury_the_chosen,

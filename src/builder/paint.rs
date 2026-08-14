@@ -18,6 +18,17 @@ pub(crate) struct Swatch {
     shade: f32,
 }
 
+impl Swatch {
+    /// A swatch for a named ramp at a shade, for colours that come from somewhere other
+    /// than the ramp rows - a saved palette's, in particular.
+    pub(crate) fn of(ramp: &str, shade: f32) -> Swatch {
+        Swatch {
+            ramp: Some(ramp.to_string()),
+            shade,
+        }
+    }
+}
+
 /// The shades a swatch row offers, which are the shades the keys step through —
 /// so a colour picked with the mouse can be nudged with `-` and `=` and land on
 /// another swatch rather than between two of them.
@@ -175,6 +186,59 @@ pub(crate) fn raise_palette(mut commands: Commands, fonts: Res<Fonts>, palette: 
             ));
         }
     }
+
+    // WHAT THIS BUILDING IS PAINTED WITH, kept for the next one. Under the ramps rather
+    // than above them: the ramps are what a maker reaches for constantly and this is
+    // reached for once, at the end of a building.
+    let keep = commands
+        .spawn((
+            KeepColoursButton,
+            Interaction::default(),
+            Node {
+                margin: UiRect::top(Val::Px(10.0)),
+                padding: UiRect::axes(Val::Px(8.0), Val::Px(5.0)),
+                border: UiRect::all(Val::Px(1.0)),
+                justify_content: JustifyContent::Center,
+                ..default()
+            },
+            BackgroundColor(Color::BLACK.with_alpha(0.18)),
+            BorderColor::all(theme::accent(&palette).with_alpha(0.6)),
+            ChildOf(panel),
+        ))
+        .id();
+    commands.spawn((
+        Text::new("KEEP THESE COLOURS"),
+        TextFont {
+            font: fonts.display.clone().into(),
+            font_size: crate::look::text_at(10.0),
+            ..default()
+        },
+        TextColor(theme::accent(&palette)),
+        ChildOf(keep),
+    ));
+    commands.spawn((
+        crate::rail::Word(
+            "Save every colour this building is painted with, \
+             to paint another one the same way",
+        ),
+        ChildOf(keep),
+    ));
+
+    // And the sets already saved. Empty here and filled by `fill_the_palettes`, because
+    // what is in the project changes while the bench is open - a maker saves one and it
+    // has to appear without reopening anything.
+    let drawer = commands
+        .spawn((
+            Node {
+                flex_direction: FlexDirection::Column,
+                row_gap: Val::Px(2.0),
+                margin: UiRect::top(Val::Px(6.0)),
+                ..default()
+            },
+            ChildOf(panel),
+        ))
+        .id();
+    commands.entity(panel).insert(PaletteDrawer(drawer));
 }
 
 /// Shows the palette while painting, arms whatever is clicked, and rings the
