@@ -27,6 +27,7 @@ mod project;
 mod rail;
 mod rig;
 mod stage;
+mod terrain;
 
 /// Which bench the maker stands at.
 #[derive(Resource, Clone, Copy, PartialEq, Eq, Default)]
@@ -36,6 +37,16 @@ pub enum Bench {
     Builder,
     /// A model, looked at closely - and in time, rigged.
     Rig,
+    /// The ground itself: a game's world, shaped by hand.
+    ///
+    /// Like the kiln, it earns its own bench by not being a part. What the other
+    /// benches make is a THING that stands on the ground - boxes on a lattice, a
+    /// model on the grid - and this one makes the ground they stand on. It has no
+    /// lattice, because a hill does not snap; no ramp, because it wears the game's
+    /// own biome colours by height and slope; and no shelf of parts, because there
+    /// is only ever one world open. It is measured in kilometres where every other
+    /// bench is measured in metres, which is reason enough on its own.
+    Terrain,
     /// The kiln: an image in, a model out, by way of somebody else's machine.
     ///
     /// The odd one out, and it earns the place by being one. Every other bench
@@ -113,11 +124,13 @@ fn main() {
         .add_plugins((rail::RailPlugin, builder::BuilderPlugin, gizmo::GizmoPlugin))
         .add_plugins(rig::RigPlugin)
         .add_plugins(kiln::KilnPlugin)
+        .add_plugins(terrain::TerrainPlugin)
         // Which bench the maker opens at. A maker working on the rig for an
         // hour should not walk across the builder to reach it every time.
         .insert_resource(match std::env::var("OPIFICIUM_BENCH").as_deref() {
             Ok("rig") => Bench::Rig,
             Ok("kiln") => Bench::Kiln,
+            Ok("terrain") => Bench::Terrain,
             _ => Bench::Builder,
         })
         .run();

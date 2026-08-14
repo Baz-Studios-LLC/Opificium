@@ -57,7 +57,98 @@ Colour in every other file is spoken as `{ "ramp": "wood", "shade": 0.7 }` —
 a name and a 0..1 step, never raw RGB — so authored work inherits palette
 changes for free.
 
+### A world: any folder holding `heightmap.png`
+
+**A world is not a project.** The other benches are pointed at one game's
+folder when the app opens. The terrain bench is a TOOL — you bring it
+ground and shape it, the way you bring an image to the kiln — so it opens
+a world of its own accord, from **OPEN A WORLD…** on its shelf, and any
+folder with a map in it will do, whoever's it is. The last one is
+remembered in the bench's own settings, never in the world's folder.
+
+The three files below live together in that folder. A game usually keeps
+them at `assets/world`, but nothing requires it.
+
+A project may **name** its world in `opificium.json`:
+
+```json
+{ "format": 1, "name": "Ranger", "world": "../assets/world" }
+```
+
+That is a **hint and not a requirement**. It saves a walk across the disk —
+open that game and the terrain bench is already standing on its world, and
+the picker starts there. There is deliberately no default: every other path
+in the manifest has one because every game has buildings, and not every
+game has a world.
+
+### `heightmap.png`
+
+Written by nobody — it is the map the game was drawn from, kept in the
+game's repository. The terrain bench reads it to know where that game's
+continents are. Any size; its proportions set the world's, so a 2:1 image
+is a world twice as wide as it is deep.
+
+Two kinds are understood, and which one it has is worked out on sight:
+
+* A **grayscale heightmap** carries real elevation. Brightness is height,
+  and the waterline is `sea_threshold`.
+* A **coloured map** — a political map from a generator, say — carries no
+  elevation at all. Its brightness is region fill colours and means
+  nothing as terrain, so it is read for its COASTLINE only, and every
+  hill on it is generated or sculpted.
+
+A coloured map is read by **hue, not brightness**. Brightness cannot tell
+open water from a black place name, a road, or a dashed border — every one
+of them is dark — so a brightness threshold cuts each label on the map
+into the ground as a lake. Water is the one thing on such a map that is
+distinctly blue, so that is what is asked: blue greater than red by
+`sea_blue_margin`. Thin line work is then outvoted by a majority filter,
+and land blobs under `min_island_pixels` are dropped, which is what stops
+a screenshot's toolbar and scale bar becoming islands.
+
+### `world.json`
+
+Written by the game, optional. Sits beside the map. How that game turns the map into ground.
+Every field has a default, so a game that has not written one still opens.
+
+```json
+{ "width": 8192.0, "seed": 20260813, "coast_height": 16.0, "inland_full": 620.0 }
+```
+
+**It exists so the two programs agree.** A maker sculpts OFFSETS — how far
+the ground moved — and the game adds those to ground it generates itself.
+If the bench and the game disagree about what was underneath by so much as
+a metre, every hill a maker placed sits at the wrong height in the game,
+and nothing on screen says why. So the numbers travel as data, exactly as
+the palette does, rather than being written down twice.
+
 ## Opificium → game
+
+### Sculpted ground: `edits.bin`
+
+Written by the terrain bench into the world's own folder, beside the map
+it belongs to, and read by the game at load. Little-endian throughout:
+
+```
+"RNGREDT1"        8 bytes, names the file
+wide, deep        u32 each, the grid in cells
+half_x, half_y    f32 each, the world's half-extents in metres
+offsets           f32 * wide * deep, row-major, north row first
+```
+
+Each cell is a signed height **offset in metres**, on a 4 m grid, read
+between cells. The game's ground is whatever it generates PLUS this.
+
+Offsets rather than heights, on purpose. Re-roll the noise, redraw the map,
+change the world's size, and a hand-placed hill stays a hill riding on the
+new ground. A grid of absolute heights would mean a maker's whole afternoon
+is invalidated by the game's next tuning pass, and nobody would sculpt
+anything.
+
+A file whose grid or half-extents do not match the world being opened is
+**refused, not stretched** — offsets landing in the wrong places would be
+worse than none, because a maker would see their work smeared across the
+map with nothing to undo it with.
 
 ### Blueprints: `out/buildings/<name>.json`
 

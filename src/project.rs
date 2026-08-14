@@ -56,6 +56,9 @@ struct Manifest {
     /// means "carry it nowhere", and the bake stops in `baked`.
     #[serde(skip_serializing_if = "Option::is_none")]
     install: Option<String>,
+    /// Where this game keeps its world, if it has one - see [`world`].
+    #[serde(skip_serializing_if = "Option::is_none")]
+    world: Option<String>,
 }
 
 /// One game's folder of work, with every path already resolved.
@@ -72,6 +75,8 @@ pub struct Project {
     pub work: PathBuf,
     pub baked: PathBuf,
     pub install: Option<PathBuf>,
+    /// Where this game keeps its world, if it says - see [`world`].
+    pub world: Option<PathBuf>,
 }
 
 /// The project the bench is working in.
@@ -174,6 +179,14 @@ impl Project {
             widgets: under(manifest.widgets, "data/widgets.json"),
             work: under(manifest.work, "out/buildings"),
             baked: under(manifest.baked, "out/baked"),
+            world: manifest.world.as_deref().map(|said| {
+                let path = PathBuf::from(said);
+                if path.is_absolute() {
+                    tidied(path)
+                } else {
+                    tidied(root.join(path))
+                }
+            }),
             install: match manifest.install.as_deref() {
                 // Said empty on purpose: keep the bakes in this project and let a
                 // hand carry them. Worth being able to say, and impossible to say
@@ -755,6 +768,22 @@ pub fn baked() -> PathBuf {
 /// by hand.
 pub fn install() -> Option<PathBuf> {
     current().and_then(|project| project.install)
+}
+
+/// Where this game keeps its world, if it says so.
+///
+/// **A HINT, and never a requirement.** A world is not a project: the terrain
+/// bench is a tool you bring ground to, and it opens one from its own shelf,
+/// from any folder holding a heightmap, whoever's it is. This only spares a
+/// maker the walk across the disk when the game they already have open happens
+/// to know where its own world lives.
+///
+/// There is deliberately NO default. Every other path here has one, because
+/// every game has buildings; not every game has a world, and guessing a folder
+/// that is not there would have the bench announce a missing world to games that
+/// never wanted one.
+pub fn world() -> Option<PathBuf> {
+    current().and_then(|project| project.world)
 }
 
 /// Opificium's own corner of the machine - the bench's settings and the
