@@ -27,6 +27,7 @@ mod ground;
 mod opened;
 mod settle;
 mod shelf;
+mod tree;
 
 use bevy::prelude::*;
 
