@@ -540,7 +540,12 @@ mod fitting {
             let road = home.join(name);
             std::fs::write(&road, b"glTF").expect("write");
             let when = std::time::SystemTime::now() - std::time::Duration::from_secs(ago);
-            std::fs::File::open(&road)
+            // Opened FOR WRITING to set a timestamp, which Windows requires and Unix does
+            // not care about: `File::open` hands back a read-only handle, and this test
+            // passed on macOS and failed the release build with "Access is denied".
+            std::fs::OpenOptions::new()
+                .write(true)
+                .open(&road)
                 .and_then(|file| file.set_modified(when))
                 .expect("stamp it");
         }
