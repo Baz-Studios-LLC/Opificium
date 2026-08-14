@@ -13,8 +13,8 @@ use crate::terrain::edit::Brushing;
 use crate::terrain::ground::Ground;
 use crate::terrain::{Brush, MAX_RADIUS, MAX_STRENGTH, MIN_RADIUS, MIN_STRENGTH, Said};
 
-/// The keys the six tools sit on, in order.
-const KEYS: [&str; 8] = ["1", "2", "3", "4", "5", "6", "7", "8"];
+/// The keys the tools sit on, in order.
+const KEYS: [&str; 9] = ["1", "2", "3", "4", "5", "6", "7", "8", "9"];
 
 /// Each tool wears a colour, and the ring on the ground wears the same one, so
 /// what is under the pointer always matches what is lit on the shelf. Taken from
@@ -28,6 +28,7 @@ pub fn tool_colour(how: Brushing, palette: &Palette) -> Color {
         Brushing::Path => palette.shade("cloth-purple", 0.95),
         Brushing::Roughen => palette.shade("cloth-teal", 0.95),
         Brushing::Erode => palette.shade("earth", 0.95),
+        Brushing::Plant => palette.shade("foliage", 0.95),
         Brushing::Ramp => palette.shade("cloth-pink", 0.95),
     }
 }

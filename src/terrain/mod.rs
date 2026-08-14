@@ -233,6 +233,7 @@ fn stand_on(
     let world = World::open(folder);
     let half = world.half();
     chunk::lay_the_sea(commands, meshes, materials, palette, half);
+    chunk::plant_the_grove(commands, meshes, materials, palette);
 
     // Far enough back to hold the WHOLE world, since the whole of it stands.
     // At Bevy's 45-degree view a widescreen window shows about 1.4 times the
@@ -422,7 +423,7 @@ fn adjust(keys: Res<ButtonInput<KeyCode>>, mut brush: ResMut<Brush>) {
     ]) {
         return;
     }
-    const KEYS: [KeyCode; 8] = [
+    const KEYS: [KeyCode; 9] = [
         KeyCode::Digit1,
         KeyCode::Digit2,
         KeyCode::Digit3,
@@ -431,6 +432,7 @@ fn adjust(keys: Res<ButtonInput<KeyCode>>, mut brush: ResMut<Brush>) {
         KeyCode::Digit6,
         KeyCode::Digit7,
         KeyCode::Digit8,
+        KeyCode::Digit9,
     ];
     for (key, how) in KEYS.iter().zip(Brushing::ALL) {
         if keys.just_pressed(*key) && brush.how != how {
@@ -539,6 +541,22 @@ fn paint(
         (how, _) => how,
     };
     let amount = how.rate(brush.strength, time.delta_secs());
+
+    // Planting touches the WOODS and never the ground. It has its own layer, its
+    // own file, and its own reason to re-mesh — a brush that moved earth as well
+    // would make planting a wood dig a hole under it.
+    if how == Brushing::Plant {
+        let patch = {
+            let Ok(mut woods) = ground.forest().write() else {
+                return;
+            };
+            // Right button clears, the same inversion every other brush takes.
+            let bias = if backwards { -amount } else { amount };
+            woods.paint(Vec2::new(on.x, on.z), brush.radius, bias)
+        };
+        chunk::recut(&mut commands, &ground, &colours.0, &standing, &building, patch);
+        return;
+    }
 
     let patch = {
         let Ok(mut sculpt) = ground.sculpt().write() else {

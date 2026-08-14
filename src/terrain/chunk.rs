@@ -253,7 +253,18 @@ pub fn set_building(
     let world = ground.0.clone();
     let colours = colours.clone();
     let task = AsyncComputeTaskPool::get().spawn(async move { build(&world, &colours, square) });
-    commands.entity(who).insert(Building(task));
+
+    // Recorded here rather than worked out later: the chunk's own transform puts
+    // it in the world, so by the time its mesh lands nothing else knows which
+    // patch of ground it was.
+    let low = square.as_vec2() * CHUNK;
+    commands.entity(who).insert((
+        Building(task),
+        Covers {
+            low,
+            high: low + CHUNK,
+        },
+    ));
 }
 
 /// Brings up the whole world, a few chunks a frame.
@@ -325,14 +336,75 @@ pub fn stream(
 #[derive(Resource)]
 pub struct GroundColours(pub Colours);
 
-/// Hangs finished meshes on the chunks waiting for them.
+/// The grown trees, and what they are painted with.
+///
+/// One set for the whole world: a forest plants these many times over rather
+/// than growing a mesh apiece. Built when a world opens, dropped when it closes.
+#[derive(Resource)]
+pub struct Grove {
+    /// Trunk-and-limbs and leaves, one pair per grown variety.
+    pub trees: Vec<(Handle<Mesh>, Handle<Mesh>)>,
+    pub bark: Handle<StandardMaterial>,
+    pub leaf: Handle<StandardMaterial>,
+}
+
+/// Grows the world's trees and mixes what they are painted with.
+///
+/// Once per world, not once per tree. Bark and leaf come from the open game's
+/// own ramps, the same way the ground does, so a game with its own idea of what
+/// a wood looks like gets it.
+pub fn plant_the_grove(
+    commands: &mut Commands,
+    meshes: &mut Assets<Mesh>,
+    materials: &mut Assets<StandardMaterial>,
+    palette: &Palette,
+) {
+    let trees = (0..crate::terrain::tree::VARIETIES as u32)
+        .map(|seed| {
+            let tree = crate::terrain::tree::grow(seed);
+            (meshes.add(tree.wood), meshes.add(tree.leaves))
+        })
+        .collect();
+
+    commands.insert_resource(Grove {
+        trees,
+        bark: materials.add(StandardMaterial {
+            base_color: palette.shade("wood", 0.35),
+            perceptual_roughness: 0.95,
+            reflectance: 0.03,
+            ..default()
+        }),
+        leaf: materials.add(StandardMaterial {
+            base_color: palette.shade("foliage", 0.5),
+            perceptual_roughness: 0.9,
+            reflectance: 0.04,
+            // Lit from both sides: leaves are a canopy, and a clump left dark
+            // underneath reads as a rock rather than as foliage.
+            double_sided: true,
+            cull_mode: None,
+            ..default()
+        }),
+    });
+}
+
+/// Which patch of ground a chunk covers, so its trees can be worked out when
+/// its mesh arrives.
+#[derive(Component, Clone, Copy)]
+pub struct Covers {
+    pub low: Vec2,
+    pub high: Vec2,
+}
+
+/// Hangs finished meshes on the chunks waiting for them, and plants their trees.
 pub fn collect(
     mut commands: Commands,
     material: Res<GroundMaterial>,
+    grove: Option<Res<Grove>>,
+    ground: Option<Res<crate::terrain::Ground>>,
     mut meshes: ResMut<Assets<Mesh>>,
-    mut waiting: Query<(Entity, &mut Building)>,
+    mut waiting: Query<(Entity, &mut Building, Option<&Covers>)>,
 ) {
-    for (who, mut building) in &mut waiting {
+    for (who, mut building, covers) in &mut waiting {
         let Some(mesh) = block_on(future::poll_once(&mut building.0)) else {
             continue;
         };
@@ -340,6 +412,44 @@ pub fn collect(
             .entity(who)
             .remove::<Building>()
             .insert((Mesh3d(meshes.add(mesh)), MeshMaterial3d(material.0.clone())));
+
+        // Trees are children of their chunk, so they stream in with the ground
+        // they stand on and go away with it — no separate bookkeeping, and no
+        // wood left hanging over a hole where a chunk used to be.
+        let (Some(grove), Some(ground), Some(covers)) = (&grove, &ground, covers) else {
+            continue;
+        };
+        commands.entity(who).despawn_related::<Children>();
+        for tree in ground.trees_in(covers.low, covers.high) {
+            let Some((wood, leaves)) = grove.trees.get(tree.variety) else {
+                continue;
+            };
+            // Placed relative to the chunk, because the chunk's own transform
+            // already carries it out to where it stands in the world.
+            let at = Vec3::new(
+                tree.at.x - covers.low.x,
+                tree.at.y,
+                tree.at.z - covers.low.y,
+            );
+            let stance = Transform::from_translation(at)
+                .with_rotation(Quat::from_rotation_y(tree.turn))
+                .with_scale(Vec3::splat(tree.scale));
+
+            let trunk = commands
+                .spawn((
+                    Mesh3d(wood.clone()),
+                    MeshMaterial3d(grove.bark.clone()),
+                    stance,
+                    ChildOf(who),
+                ))
+                .id();
+            commands.spawn((
+                Mesh3d(leaves.clone()),
+                MeshMaterial3d(grove.leaf.clone()),
+                Transform::IDENTITY,
+                ChildOf(trunk),
+            ));
+        }
     }
 }
 

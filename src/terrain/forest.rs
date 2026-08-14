@@ -45,9 +45,6 @@ pub const CELL: f32 = 16.0;
 /// Below this, a cell is untouched and the automatic answer stands.
 const PAINTED_EPSILON: f32 = 0.01;
 
-/// Metres between the slots a tree may stand in. Every slot gets one chance;
-/// density decides whether it takes it.
-pub const SPACING: f32 = 7.0;
 
 /// One tree, ready to plant.
 pub struct Planted {

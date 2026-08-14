@@ -88,10 +88,12 @@ pub enum Brushing {
     Erode,
     /// A graded run between two points, laid in one go rather than painted.
     Ramp,
+    /// Plant trees, or take them away. Touches the woods, never the ground.
+    Plant,
 }
 
 impl Brushing {
-    pub const ALL: [Brushing; 8] = [
+    pub const ALL: [Brushing; 9] = [
         Brushing::Raise,
         Brushing::Lower,
         Brushing::Smooth,
@@ -100,6 +102,7 @@ impl Brushing {
         Brushing::Roughen,
         Brushing::Erode,
         Brushing::Ramp,
+        Brushing::Plant,
     ];
 
     pub fn name(self) -> &'static str {
@@ -112,6 +115,7 @@ impl Brushing {
             Brushing::Roughen => "ROUGHEN",
             Brushing::Erode => "ERODE",
             Brushing::Ramp => "RAMP",
+            Brushing::Plant => "PLANT",
         }
     }
 
@@ -125,6 +129,7 @@ impl Brushing {
             Brushing::Roughen => "Break up ground sculpted too smooth",
             Brushing::Erode => "Let steep ground slump and settle",
             Brushing::Ramp => "Click two points for a graded run",
+            Brushing::Plant => "Plant trees, right button clears them",
         }
     }
 
@@ -150,6 +155,9 @@ impl Brushing {
             // against the middle of the strength range, so the middle of the
             // slider is the pace the tool was tuned at.
             Brushing::Erode => strength / MIDDLING_STRENGTH * delta,
+            // Bias per second. Strength is how quickly a wood thickens under
+            // the brush, so a light touch thins a stand rather than clearing it.
+            Brushing::Plant => strength / MIDDLING_STRENGTH * delta,
             // The rest converge on a target, so this is a blend fraction — how
             // much of the remaining distance to close this tick. Scaled by
             // strength like everything else: a control that moves nothing for
@@ -502,6 +510,11 @@ impl Sculpt {
                     Brushing::Erode => {}
                     // Laid between two points, not painted. See `ramp`.
                     Brushing::Ramp => {}
+                    // Touches the woods, never the ground. Handled by the
+                    // forest's own painted layer, which this grid knows nothing
+                    // about — a brush that moved earth as well would make
+                    // planting a wood dig a hole.
+                    Brushing::Plant => {}
                 }
             }
         }

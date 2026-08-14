@@ -150,6 +150,22 @@ pub struct Recipe {
     pub road_width: f32,
     pub road_skirt: f32,
 
+    // --------------------------------------------------------------- trees
+    /// Metres between the slots a tree may stand in.
+    ///
+    /// The single knob for how thick a forest is, and the one to reach for
+    /// first: trees go up as the SQUARE of this, so 14 m is a quarter the trees
+    /// of 7 m. Wide enough that a wood reads as a wood and you can walk through
+    /// it; narrow enough that it is not an orchard.
+    pub tree_spacing: f32,
+    /// Height at which trees give out. Below `massif_height`, so the great
+    /// mountain stands bare above its own treeline.
+    pub treeline: f32,
+    /// How much bigger or smaller than grown a planted tree may be, so a stand
+    /// has young trees and old ones in it.
+    pub tree_scale_low: f32,
+    pub tree_scale_high: f32,
+
     /// Damp all generated relief to nothing, leaving only sculpted ground. The
     /// shape-checking mode: the only thing to see is the outline of the coasts.
     pub flat: bool,
@@ -176,6 +192,10 @@ impl Default for Recipe {
             range_elevation: 52.0,
             massif_height: 340.0,
             massif_radius: 950.0,
+            tree_spacing: 14.0,
+            treeline: 150.0,
+            tree_scale_low: 0.75,
+            tree_scale_high: 1.35,
             range_freq: 0.000_42,
             range_presence_freq: 0.000_35,
             range_presence_cutoff: 0.45,
@@ -264,6 +284,11 @@ pub struct World {
     settlements: Settlements,
     /// Where the one great mountain stands, if this world has one.
     massif: Option<Vec2>,
+    /// Woods a maker painted in or cleared away.
+    ///
+    /// Behind a lock for the same reason the sculpting is: chunks are planted on
+    /// background threads while the brush writes on the main one.
+    forest: RwLock<crate::terrain::forest::Painted>,
 }
 
 impl World {
@@ -313,6 +338,7 @@ impl World {
             sculpt: RwLock::new(Sculpt::load(folder, half, seed.wrapping_add(11))),
             settlements: Settlements::nowhere(),
             massif: None,
+            forest: RwLock::new(crate::terrain::forest::Painted::load(folder, half)),
             recipe,
         };
 
@@ -349,6 +375,84 @@ impl World {
             world.settlements.roads_len()
         );
         world
+    }
+
+    /// The woods a maker painted, for the brush to read and write.
+    pub fn forest(&self) -> &RwLock<crate::terrain::forest::Painted> {
+        &self.forest
+    }
+
+    /// Every tree standing in a patch of ground.
+    ///
+    /// Worked out from the ground and the painted layer rather than looked up in
+    /// a list, so a chunk can be planted on its own, on any thread, in any
+    /// order, and the game planting the same patch gets the same trees. Nothing
+    /// about a tree is stored anywhere.
+    pub fn trees_in(&self, low: Vec2, high: Vec2) -> Vec<crate::terrain::forest::Planted> {
+        use crate::terrain::forest;
+
+        let r = &self.recipe;
+        let step = r.tree_spacing.max(1.0);
+        let painted = self.forest.read().ok();
+
+        // Slots are a world-wide lattice, not a per-chunk one, so a tree does
+        // not move when the chunk boundaries around it change.
+        let first = (low / step).floor().as_ivec2();
+        let last = (high / step).ceil().as_ivec2();
+
+        let mut standing = Vec::new();
+        for slot_z in first.y..=last.y {
+            for slot_x in first.x..=last.x {
+                // Jittered off the lattice, or the wood comes out in rows.
+                let jitter = Vec2::new(
+                    forest::chance(slot_x, slot_z, 1) - 0.5,
+                    forest::chance(slot_x, slot_z, 2) - 0.5,
+                ) * step
+                    * 0.85;
+                let at = Vec2::new(slot_x as f32 * step, slot_z as f32 * step) + jitter;
+                if at.x < low.x || at.x >= high.x || at.y < low.y || at.y >= high.y {
+                    continue;
+                }
+
+                let shore = self.shore_metres(at.x, at.y);
+                if shore < 25.0 {
+                    continue;
+                }
+                let height = self.height(at.x, at.y);
+                let slope = 1.0 - self.normal(at.x, at.y, step * 0.5).y;
+                let levelled = self
+                    .settlements
+                    .level(at, r)
+                    .map(|(_, weight)| weight)
+                    .unwrap_or(0.0);
+
+                let natural = forest::natural_density(
+                    self.moisture(at.x, at.y),
+                    height,
+                    slope,
+                    shore,
+                    levelled,
+                    r.treeline,
+                );
+                let painted_here = painted.as_ref().map_or(0.0, |p| p.at(at.x, at.y));
+                let density = forest::density(natural, painted_here);
+                if density <= 0.0 || forest::chance(slot_x, slot_z, 3) > density {
+                    continue;
+                }
+
+                standing.push(forest::Planted {
+                    at: Vec3::new(at.x, height, at.y),
+                    variety: (forest::chance(slot_x, slot_z, 4) * crate::terrain::tree::VARIETIES
+                        as f32) as usize
+                        % crate::terrain::tree::VARIETIES,
+                    turn: forest::chance(slot_x, slot_z, 5) * std::f32::consts::TAU,
+                    scale: r.tree_scale_low
+                        + (r.tree_scale_high - r.tree_scale_low)
+                            * forest::chance(slot_x, slot_z, 6),
+                });
+            }
+        }
+        standing
     }
 
     /// Where the towns are, for anything that wants to draw or find them.
