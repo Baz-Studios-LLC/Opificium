@@ -23,6 +23,7 @@
 
 mod chunk;
 pub mod edit;
+mod forest;
 mod ground;
 mod opened;
 mod settle;
