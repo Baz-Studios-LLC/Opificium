@@ -1,6 +1,6 @@
 [package]
 name = "opificium"
-version = "0.5.2"
+version = "0.6.0"
 edition = "2024"
 description = "A maker's bench for buildings and animations: authored by hand, exported as files, and read by whatever game asked for them."
 
