@@ -52,9 +52,6 @@ pub const MIN_STRENGTH: f32 = 2.0;
 pub const MAX_STRENGTH: f32 = 150.0;
 const STRENGTH_STEP: f32 = 1.25;
 
-/// How fast the tools that converge on a target get there, per second.
-const BLEND: f32 = 4.0;
-
 /// What the brush is doing, and where.
 #[derive(Resource)]
 pub struct Brush {
@@ -170,6 +167,7 @@ fn arrive_or_leave(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     palette: Res<crate::look::Palette>,
+    mut brush: ResMut<Brush>,
 ) {
     if !bench.is_changed() {
         return;
@@ -193,6 +191,10 @@ fn arrive_or_leave(
         // great deal to leave standing behind a bench nobody is at, and putting
         // them back is a second's streaming.
         chunk::clear(&mut commands, &mut standing, &sea);
+        // And so does a half-placed ramp. Coming back to a first point set
+        // before you left is a click away from cutting a ramp to somewhere you
+        // have forgotten choosing.
+        brush.pending = None;
         return;
     }
 
@@ -253,6 +255,7 @@ fn stand_on(
 
 /// A press on the shelf's OPEN A WORLD asks for one.
 #[allow(clippy::too_many_arguments)] // opening a world genuinely needs all of it
+#[allow(clippy::too_many_arguments)] // opening a world touches all of this
 fn take_a_world(
     mut commands: Commands,
     pressed: Query<&Interaction, (Changed<Interaction>, With<shelf::OpenWorld>)>,
@@ -264,6 +267,7 @@ fn take_a_world(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     palette: Res<crate::look::Palette>,
+    mut brush: ResMut<Brush>,
 ) {
     if !pressed.iter().any(|touch| *touch == Interaction::Pressed) {
         return;
@@ -279,8 +283,10 @@ fn take_a_world(
     }
 
     // The old world's ground goes with it. Chunks meshed from one world standing
-    // in another would be scenery from somewhere else.
+    // in another would be scenery from somewhere else — and a ramp begun on one
+    // coastline must not finish on another's.
     chunk::clear(&mut commands, &mut standing, &sea);
+    brush.pending = None;
     stand_on(
         &mut commands,
         &folder,
@@ -425,7 +431,11 @@ fn adjust(keys: Res<ButtonInput<KeyCode>>, mut brush: ResMut<Brush>) {
         KeyCode::Digit8,
     ];
     for (key, how) in KEYS.iter().zip(Brushing::ALL) {
-        if keys.just_pressed(*key) {
+        if keys.just_pressed(*key) && brush.how != how {
+            // A half-placed ramp belongs to the tool that started it. Carrying
+            // it across to another tool and back would arm a stale first point
+            // from minutes ago, and the next click would cut to it.
+            brush.pending = None;
             brush.how = how;
         }
     }
@@ -526,11 +536,7 @@ fn paint(
         (Brushing::Lower, true) => Brushing::Raise,
         (how, _) => how,
     };
-    let amount = if how.is_directional() {
-        brush.strength * time.delta_secs()
-    } else {
-        BLEND * time.delta_secs()
-    };
+    let amount = how.rate(brush.strength, time.delta_secs());
 
     let patch = {
         let Ok(mut sculpt) = ground.sculpt().write() else {
@@ -656,16 +662,33 @@ fn draw_the_brush(
     if let Some(from) = brush.pending {
         const STEPS: usize = 48;
         gizmos.line(from, from + Vec3::Y * 14.0, colour);
-        let mut behind = from;
+
+        // The bed is as wide as the brush, so the edges are drawn too: a centre
+        // line says where the ramp goes and nothing about what it eats, and the
+        // width is the whole question when threading one between two hills.
+        let run = Vec3::new(on.x - from.x, 0.0, on.z - from.z);
+        let side = if run.length_squared() > 1.0 {
+            Vec3::new(-run.z, 0.0, run.x).normalize() * brush.radius
+        } else {
+            Vec3::ZERO
+        };
+
+        let mut behind = (from, from - side, from + side);
         for i in 1..=STEPS {
             let at = from.lerp(on, i as f32 / STEPS as f32);
-            gizmos.line(behind, at, colour);
+            let (left, right) = (at - side, at + side);
+            gizmos.line(behind.0, at, colour);
+            gizmos.line(behind.1, left, colour.with_alpha(0.5));
+            gizmos.line(behind.2, right, colour.with_alpha(0.5));
+            // A dropper to the ground under the grade. The gap between the two
+            // is how much earth this moves, and which way — cut where the line
+            // is under the ground, fill where it is above.
             gizmos.line(
                 Vec3::new(at.x, ground.height(at.x, at.z), at.z),
                 at,
                 colour.with_alpha(0.22),
             );
-            behind = at;
+            behind = (at, left, right);
         }
     }
 }

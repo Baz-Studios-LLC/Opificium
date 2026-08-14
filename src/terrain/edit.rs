@@ -62,6 +62,14 @@ const REPOSE: f32 = 0.67;
 /// switch that ruins a hill in one frame.
 const SLUMP_RATE: f32 = 0.35;
 
+/// Blend fraction per second for the tools that converge on a target rather
+/// than pushing at a fixed speed.
+const BLEND_RATE: f32 = 4.0;
+
+/// The middle of the strength range, which the tools measured as a speed are
+/// tuned against.
+const MIDDLING_STRENGTH: f32 = 25.0;
+
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Brushing {
     Raise,
@@ -120,16 +128,36 @@ impl Brushing {
         }
     }
 
-    /// Whether the tool pushes at a speed, or converges on a target. The two
-    /// want their `amount` scaled differently and the bench reads this to know.
-    pub fn is_directional(self) -> bool {
-        matches!(self, Brushing::Raise | Brushing::Lower | Brushing::Roughen)
-    }
-
     /// Whether this is laid between two clicked points rather than painted by
     /// dragging. The bench takes a different gesture for these.
     pub fn is_two_point(self) -> bool {
         matches!(self, Brushing::Ramp)
+    }
+
+    /// How much of itself a tool applies in one tick.
+    ///
+    /// The strength control means a different thing to each kind of tool, and
+    /// this is the one place that decides what. Kept here rather than at the
+    /// call site so that adding a tool cannot forget to answer the question —
+    /// erosion did exactly that, and its strength control moved nothing.
+    pub fn rate(self, strength: f32, delta: f32) -> f32 {
+        match self {
+            // Metres of vertical push per second.
+            Brushing::Raise | Brushing::Lower | Brushing::Roughen => strength * delta,
+            // Erosion is a SPEED, not a distance: strength decides how fast the
+            // ground settles, never how far it slides — where it comes to rest
+            // is the angle of repose's business and not the maker's. Scaled
+            // against the middle of the strength range, so the middle of the
+            // slider is the pace the tool was tuned at.
+            Brushing::Erode => strength / MIDDLING_STRENGTH * delta,
+            // The rest converge on a target, so this is a blend fraction — how
+            // much of the remaining distance to close this tick. Scaled by
+            // strength like everything else: a control that moves nothing for
+            // half the tools on the shelf is worse than no control, and
+            // levelling wants a gentle setting for easing ground over and a
+            // firm one for cutting a terrace.
+            _ => BLEND_RATE * (strength / MIDDLING_STRENGTH) * delta,
+        }
     }
 
     /// From the middle of the brush out to its rim.
@@ -882,6 +910,68 @@ mod tests {
                 "ground already at rest should not move: cell {i}, {was:.2} -> {now:.2}"
             );
         }
+    }
+
+    #[test]
+    fn every_tool_answers_to_the_strength_control() {
+        // Erosion shipped ignoring it: it was lumped in with the tools that
+        // converge on a target, which take a fixed blend rate, so the slider
+        // moved nothing. Each tool must give a different answer for a weak and a
+        // strong setting, whatever "strength" happens to mean to it.
+        for how in Brushing::ALL {
+            if how.is_two_point() {
+                // Laid in one go from two points; it has no per-tick rate.
+                continue;
+            }
+            let weak = how.rate(MIN_STRENGTH_FOR_TEST, 1.0 / 60.0);
+            let strong = how.rate(MIDDLING_STRENGTH * 4.0, 1.0 / 60.0);
+            assert!(
+                strong > weak * 1.5,
+                "{} ignores the strength control ({weak} vs {strong})",
+                how.name()
+            );
+        }
+    }
+
+    /// The bottom of the bench's strength range.
+    const MIN_STRENGTH_FOR_TEST: f32 = 2.0;
+
+    #[test]
+    fn erosion_settles_faster_when_told_to_but_no_further() {
+        // Strength is a SPEED for this tool, never a distance. A firm setting
+        // gets there sooner; neither setting gets anywhere the angle of repose
+        // does not allow, because where material comes to rest is the slope's
+        // business and not the maker's.
+        let mut patient = Sculpt::new(HALF, SEED);
+        let mut hasty = Sculpt::new(HALF, SEED);
+        for ground in [&mut patient, &mut hasty] {
+            ground.apply(&stamp(Vec2::ZERO, CELL * 0.6, Brushing::Raise, 140.0, 0.0));
+        }
+
+        let slow = Brushing::Erode.rate(MIN_STRENGTH_FOR_TEST, 1.0 / 60.0);
+        let fast = Brushing::Erode.rate(MIDDLING_STRENGTH * 4.0, 1.0 / 60.0);
+        for _ in 0..4_000 {
+            patient.apply(&stamp(Vec2::ZERO, 60.0, Brushing::Erode, slow, 0.0));
+            hasty.apply(&stamp(Vec2::ZERO, 60.0, Brushing::Erode, fast, 0.0));
+        }
+
+        let held = |ground: &Sculpt| {
+            (ground.at(0.0, 0.0) - ground.at(CELL * 3.0, 0.0)) / (CELL * 3.0)
+        };
+        let (slow_slope, fast_slope) = (held(&patient), held(&hasty));
+
+        assert!(
+            fast_slope < slow_slope,
+            "a firmer setting should settle sooner: {slow_slope:.2} vs {fast_slope:.2}"
+        );
+        assert!(
+            fast_slope <= REPOSE * 1.35,
+            "settled steeper than the ground can hold: {fast_slope:.2} vs {REPOSE}"
+        );
+        assert!(
+            fast_slope > 0.0,
+            "a hill should settle, not vanish: {fast_slope:.2}"
+        );
     }
 
     #[test]
