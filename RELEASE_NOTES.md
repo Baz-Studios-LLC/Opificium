@@ -4,12 +4,15 @@
 the model on the bench, and keeps it as a `.glb` in the game. About seven minutes
 and eighty credits for a game-ready one; a quick look is ten.
 
-It needs a key of your own from 3D AI Studio. Put it in
+It needs a key of your own from 3D AI Studio. Copy the key, then press **PASTE
+KEY** at the top of the kiln's panel — that is the whole of it. The line beside it
+says NO KEY YET in red until there is one, so you are never left pressing GENERATE
+to find out.
 
-    ~/Library/Application Support/Opificium/3daistudio.key
-
-or in `OPIFICIUM_3DAI_KEY` — **never in a project folder**, which is a game's own
-repository and usually a public one.
+The key is kept in the bench's own folder, shut to everybody but you, and **never
+in a project folder** — a project is a game's repository and usually a public one.
+Only the last four characters of it are ever shown. A key in
+`OPIFICIUM_3DAI_KEY` still works and wins, for scripts.
 
 **What the panel tells you.** What the firing will cost and roughly how long it
 will take, learned from your own past firings of those same settings rather than
@@ -53,5 +56,10 @@ that, silently, after the model was made and paid for.
 A model on the rig's shelf shows all three of its dimensions, not just its height.
 The kiln's profile — which machine, quads, low poly, fine texture — folds into one
 button that says what is set, since it is set once and then left alone.
+
+**Windows.** v0.5.0 built for macOS only: a test of the bench's own stamped the
+files it wrote using a read-only handle, which Unix allows and Windows does not, so
+the Windows job refused to ship what it could not test. Nothing a user would have
+met, and fixed here.
 
 See `FORMATS.md` for every file that passes between a game and the bench.
