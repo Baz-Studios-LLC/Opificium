@@ -41,6 +41,15 @@ impl Default for PalettesStale {
     }
 }
 
+/// What the forget button wears: its mark, and the question it asks before doing anything.
+///
+/// A `-` because that is what the step bar's own take-one-away button wears, so it reads
+/// without a tooltip. A `?` rather than a card, because a dialog in front of the palette to
+/// confirm one line is more ceremony than this deserves - and a button showing a question
+/// can be ignored by clicking anywhere else.
+const FORGET: &str = "-";
+const ASKING: &str = "?";
+
 /// The button that keeps the work's colours.
 #[derive(Component)]
 pub(crate) struct KeepColoursButton;
@@ -235,19 +244,10 @@ pub(crate) fn fill_the_palettes(
                 ChildOf(drawer.0),
             ))
             .id();
-        // The name, clickable to forget the set. A saved palette is cheap to make again
-        // off any building that wears it, so forgetting one wants no ceremony.
-        let label = commands
-            .spawn((
-                DropPaletteButton(set.name.clone()),
-                Interaction::default(),
-                Node {
-                    width: Val::Px(74.0),
-                    ..default()
-                },
-                ChildOf(row),
-            ))
-            .id();
+        // Just a label. It was a button that forgot the set - which put a destructive
+        // click a few pixels from the swatches a maker clicks constantly, undiscoverable
+        // except by tooltip, and unasked. Brett asking "is there a way to delete a set?"
+        // was the answer about how discoverable it was.
         commands.spawn((
             Text::new(set.name.to_uppercase()),
             TextFont {
@@ -256,12 +256,48 @@ pub(crate) fn fill_the_palettes(
                 ..default()
             },
             TextColor(theme::text_dim(&palette)),
-            ChildOf(label),
+            Node {
+                width: Val::Px(66.0),
+                ..default()
+            },
+            ChildOf(row),
+        ));
+        // FORGETTING IT, on its own control at the head of the row where the swatches are
+        // not. A `-`, the same mark the step bar uses for taking one away, so it reads
+        // without a tooltip - and it asks first, because a set is quick to remake only if
+        // the building it came from still exists.
+        let drop = commands
+            .spawn((
+                DropPaletteButton(set.name.clone()),
+                Interaction::default(),
+                Node {
+                    width: Val::Px(15.0),
+                    height: Val::Px(18.0),
+                    border: UiRect::all(Val::Px(1.0)),
+                    justify_content: JustifyContent::Center,
+                    margin: UiRect::right(Val::Px(3.0)),
+                    ..default()
+                },
+                BackgroundColor(Color::BLACK.with_alpha(0.18)),
+                BorderColor::all(theme::panel_border(&palette)),
+                ChildOf(row),
+            ))
+            .id();
+        commands.spawn((
+            Text::new(FORGET),
+            TextFont {
+                font: fonts.display.clone().into(),
+                font_size: crate::look::text_at(10.0),
+                ..default()
+            },
+            TextColor(theme::text_dim(&palette)),
+            ChildOf(drop),
         ));
         commands.spawn((
-            crate::rail::Word("Click the name to forget this set"),
-            ChildOf(label),
+            crate::rail::Word("Forget this set of colours - press again to be sure"),
+            ChildOf(drop),
         ));
+
         for colour in &set.colours {
             commands.spawn((
                 Swatch::of(&colour.ramp, colour.shade),
@@ -302,19 +338,53 @@ pub(crate) fn work_keep_colours(
     raise_naming_card(&mut commands, &fonts, &palette, NamingFor::APalette, kind.0);
 }
 
-/// A click on a saved set's name forgets it.
+/// Forgets a set, on the SECOND press of its own button.
+///
+/// Asked twice because it cannot be undone: the bench's undo reaches the drawing, not the
+/// project's files, so a set forgotten by a slip is only recoverable by finding the building
+/// it came from and saving it again - and that building may have been painted over since.
+///
+/// The button says so while it waits, rather than a dialog. A card in front of the palette
+/// to confirm a one-line deletion is more ceremony than the thing deserves; a button that
+/// has changed to SURE? is a question a maker can ignore by clicking anywhere else.
 pub(crate) fn work_drop_a_palette(
     mut stale: ResMut<PalettesStale>,
-    asked: Query<(&Interaction, &DropPaletteButton), Changed<Interaction>>,
+    asked: Query<(&Interaction, &DropPaletteButton, &Children), Changed<Interaction>>,
+    every: Query<(&DropPaletteButton, &Children)>,
+    mut words: Query<&mut Text>,
 ) {
-    for (touch, which) in &asked {
-        if *touch == Interaction::Pressed {
+    for (touch, which, children) in &asked {
+        if *touch != Interaction::Pressed {
+            continue;
+        }
+        // THE BUTTON ITSELF holds the question, rather than a variable beside it. A
+        // remembered name would outlive the button - the drawer is rebuilt whenever a set
+        // is kept or forgotten - and a maker returning to a fresh `-` would delete a set on
+        // one press because something invisible still counted it as the second.
+        let already_asking = children
+            .iter()
+            .any(|kid| words.get(kid).is_ok_and(|said| said.0 == ASKING));
+        if already_asking {
             match drop_a_palette(&which.0) {
+                // The drawer rebuilds, which takes the asking button with it.
                 Ok(()) => {
                     info!("forgot the palette {}", which.0);
                     stale.0 = true;
                 }
                 Err(why) => warn!("could not forget {}: {why}", which.0),
+            }
+            return;
+        }
+        // Only one question stands at a time: this one asks, and any other that was asking
+        // goes back to its mark.
+        for (other, kids) in &every {
+            let mark = if other.0 == which.0 { ASKING } else { FORGET };
+            for kid in kids.iter() {
+                if let Ok(mut said) = words.get_mut(kid)
+                    && said.0 != mark
+                {
+                    *said = Text::new(mark);
+                }
             }
         }
     }
