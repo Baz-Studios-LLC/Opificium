@@ -11,6 +11,7 @@ description = "A maker's bench for buildings and animations: authored by hand, e
 [workspace]
 
 [dependencies]
+arboard = "3.6.1"
 # `jpeg` is not one of Bevy's default image formats, and a generated model's
 # textures usually are JPEG - without it the whole glTF fails to load with
 # "invalid image mime type: image/jpeg" and the model is simply absent. Fly on

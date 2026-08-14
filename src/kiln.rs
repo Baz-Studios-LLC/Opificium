@@ -253,6 +253,77 @@ pub fn key() -> Option<String> {
     (!said.is_empty()).then_some(said)
 }
 
+/// Reads a key out of whatever was on the clipboard, or says why it will not.
+///
+/// CHECKED BEFORE IT IS KEPT, because the clipboard usually holds something else. Writing
+/// whatever happened to be copied would turn "no key" - which says plainly what to do -
+/// into a rejected firing that blames the far end, and a maker would have no reason to
+/// suspect the file.
+///
+/// Deliberately loose about the SHAPE of a key: a provider is free to change it, and a
+/// bench that knew the format too precisely would reject a valid key one day. It only
+/// insists on what any key must be - one line, no spaces, plain characters, long enough
+/// not to be a word somebody copied by accident.
+fn a_key_in(said: &str) -> Result<String, String> {
+    let said = said.trim();
+    if said.is_empty() {
+        return Err("nothing on the clipboard".to_string());
+    }
+    if said.lines().count() > 1 {
+        return Err("that is several lines, not a key".to_string());
+    }
+    if said.chars().any(|letter| letter.is_whitespace()) {
+        return Err("that has spaces in it, so it is not a key".to_string());
+    }
+    if said.len() < 16 {
+        return Err(format!("that is only {} characters long", said.len()));
+    }
+    if said.len() > 512 {
+        return Err("that is far too long to be a key".to_string());
+    }
+    if !said.chars().all(|letter| letter.is_ascii_graphic()) {
+        return Err("that has characters no key has".to_string());
+    }
+    Ok(said.to_string())
+}
+
+/// Keeps a key in the bench's own folder, readable by nobody else.
+///
+/// The support folder and never a project: a project is a game's repository, usually a
+/// public one, and `git add -A` would carry a key straight into it.
+fn keep_a_key(key: &str) -> Result<(), String> {
+    let road = key_file();
+    if let Some(under) = road.parent() {
+        std::fs::create_dir_all(under).map_err(|why| format!("{}: {why}", under.display()))?;
+    }
+    std::fs::write(&road, key).map_err(|why| format!("{}: {why}", road.display()))?;
+    // Shut to everybody but its owner. A credential written with whatever the umask
+    // happened to say is a credential every account on the machine can read.
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let _ = std::fs::set_permissions(&road, std::fs::Permissions::from_mode(0o600));
+    }
+    Ok(())
+}
+
+/// A key as it is safe to SHOW: its last four characters and nothing else.
+///
+/// Enough for a maker to tell which key is in the bench and that a paste landed; not
+/// enough to be worth anything to somebody reading over their shoulder or watching a
+/// recording of the screen.
+fn a_key_masked(key: &str) -> String {
+    let tail: String = key
+        .chars()
+        .rev()
+        .take(4)
+        .collect::<Vec<_>>()
+        .into_iter()
+        .rev()
+        .collect();
+    format!("KEY ...{tail}")
+}
+
 /// Where to tell a maker to put the key, when there is none.
 pub fn where_the_key_goes() -> String {
     key_file().display().to_string()
@@ -1045,6 +1116,14 @@ struct FireWord;
 #[derive(Component)]
 struct Thumbnail;
 
+/// The button that takes a key off the clipboard.
+#[derive(Component)]
+struct PasteAKey;
+
+/// The line saying which key the bench holds, or that it holds none.
+#[derive(Component)]
+struct KeyWord;
+
 /// The line saying what the account has left.
 #[derive(Component)]
 struct PurseWord;
@@ -1143,6 +1222,9 @@ struct Purse {
     /// Credits, when last asked. `None` means nobody has managed to ask yet.
     left: Option<f32>,
     coming: Option<Mutex<std::sync::mpsc::Receiver<Result<f32, String>>>>,
+    /// Set when something has happened that makes the number worth asking for again -
+    /// a key arriving, most of all, since before one there was nothing to ask with.
+    worth_asking: bool,
 }
 
 /// The kiln's state, and the thread's end of the wire.
@@ -1209,6 +1291,8 @@ impl Plugin for KilnPlugin {
                     hear_the_purse,
                     work_the_till,
                     say_what_is_left,
+                    work_the_key,
+                    say_the_key,
                     hang_the_picture,
                     take_a_picture,
                     dress_the_fire_button,
@@ -1270,6 +1354,67 @@ fn hang_the_kiln(mut commands: Commands, fonts: Res<Fonts>, palette: Res<Palette
         },
         TextColor(theme::text_dim(&palette)),
         ChildOf(panel),
+    ));
+
+    // THE KEY, first, because nothing below it works without one. A tester opening this
+    // bench for the first time has no key and no reason to know one is wanted - and the old
+    // answer was a refusal at the moment they pressed GENERATE, naming a file path they
+    // then had to go and make by hand.
+    let key_row = commands
+        .spawn((
+            Node {
+                width: Val::Percent(100.0),
+                flex_direction: FlexDirection::Row,
+                justify_content: JustifyContent::SpaceBetween,
+                align_items: AlignItems::Center,
+                column_gap: Val::Px(6.0),
+                margin: UiRect::top(Val::Px(4.0)),
+                ..default()
+            },
+            ChildOf(panel),
+        ))
+        .id();
+    commands.spawn((
+        KeyWord,
+        Text::new(""),
+        TextFont {
+            font: fonts.text.clone().into(),
+            font_size: crate::look::text_at(11.0),
+            ..default()
+        },
+        TextColor(theme::text_dim(&palette)),
+        ChildOf(key_row),
+    ));
+    let paste = commands
+        .spawn((
+            PasteAKey,
+            Interaction::default(),
+            Node {
+                padding: UiRect::axes(Val::Px(7.0), Val::Px(3.0)),
+                border: UiRect::all(Val::Px(1.0)),
+                ..default()
+            },
+            BackgroundColor(Color::BLACK.with_alpha(0.18)),
+            BorderColor::all(theme::panel_border(&palette)),
+            ChildOf(key_row),
+        ))
+        .id();
+    commands.spawn((
+        Text::new("PASTE KEY"),
+        TextFont {
+            font: fonts.display.clone().into(),
+            font_size: crate::look::text_at(10.0),
+            ..default()
+        },
+        TextColor(theme::text_dim(&palette)),
+        ChildOf(paste),
+    ));
+    commands.spawn((
+        crate::rail::Word(
+            "Copy your 3D AI Studio key, then press this. \
+             It is kept in the bench's own folder, never in a game's",
+        ),
+        ChildOf(paste),
     ));
 
     // THE PROFILE, behind one button. Brett: "It will barely ever change form these
@@ -1724,6 +1869,69 @@ fn hang_the_kiln(mut commands: Commands, fonts: Res<Fonts>, palette: Res<Palette
         },
         ChildOf(panel),
     ));
+}
+
+/// Takes a key off the clipboard when asked.
+///
+/// The CLIPBOARD rather than a typed field, because a key is forty-odd characters of
+/// deliberate noise: typing one is a transcription error waiting to happen, and every
+/// provider hands it over by way of a copy button.
+fn work_the_key(
+    _main_thread: bevy::ecs::system::NonSendMarker,
+    bench: Res<crate::Bench>,
+    mut kiln: ResMut<Kiln>,
+    mut purse: ResMut<Purse>,
+    asks: Query<&Interaction, (Changed<Interaction>, With<PasteAKey>)>,
+) {
+    if *bench != crate::Bench::Kiln || !asks.iter().any(|touch| *touch == Interaction::Pressed) {
+        return;
+    }
+    let said = match arboard::Clipboard::new().and_then(|mut board| board.get_text()) {
+        Ok(said) => said,
+        Err(why) => {
+            kiln.firing = Firing::Failed(format!("could not read the clipboard: {why}"));
+            return;
+        }
+    };
+    // The key itself is never logged, never shown in full and never put in a message - only
+    // whether it looked like one, and its last four characters.
+    match a_key_in(&said) {
+        Ok(key) => match keep_a_key(&key) {
+            Ok(()) => {
+                info!("a key was kept in {}", where_the_key_goes());
+                kiln.firing = Firing::Cold;
+                // Ask the account what it holds, now that there is something to ask with.
+                // Forget what the last key's account held, and ask this one's.
+                purse.left = None;
+                purse.worth_asking = true;
+            }
+            Err(why) => kiln.firing = Firing::Failed(why),
+        },
+        Err(why) => kiln.firing = Firing::Failed(format!("no key taken: {why}")),
+    }
+}
+
+/// Says which key the bench holds, or that it holds none.
+fn say_the_key(
+    kiln: Res<Kiln>,
+    palette: Res<Palette>,
+    mut words: Query<(&mut Text, &mut TextColor), With<KeyWord>>,
+) {
+    // Read off the disk rather than held in a resource, so a key put there by hand or by
+    // the environment reads the same as one pasted here.
+    if !kiln.is_changed() && !words.is_empty() && !words.iter().any(|(text, _)| text.0.is_empty()) {
+        return;
+    }
+    let (said, dye) = match key() {
+        Some(key) => (a_key_masked(&key), theme::text_dim(&palette)),
+        None => ("NO KEY YET".to_string(), palette.shade("cloth-red", 0.8)),
+    };
+    for (mut text, mut colour) in &mut words {
+        if text.0 != said {
+            *text = Text::new(said.clone());
+            *colour = TextColor(dye);
+        }
+    }
 }
 
 /// Says what the account has left, and warns when a firing would not fit in it.
@@ -2290,7 +2498,8 @@ fn ask_the_purse(
     if was.as_ref() != Some(&kiln.firing) {
         *was = Some(kiln.firing.clone());
     }
-    let arrived = bench.is_changed() && *bench == crate::Bench::Kiln;
+    let arrived = (bench.is_changed() || purse.worth_asking) && *bench == crate::Bench::Kiln;
+    purse.worth_asking = false;
     // One question at a time, and never before there is a key to ask with.
     if (!arrived && !spent) || purse.coming.is_some() {
         return;
@@ -2527,6 +2736,57 @@ mod waiting {
         assert_eq!(as_a_clock(154.0), "2:34");
         // A clock that ran backwards would be a negative-second string.
         assert_eq!(as_a_clock(-5.0), "0:00");
+    }
+}
+
+#[cfg(test)]
+mod keys {
+    use super::*;
+
+    /// A key is taken off the clipboard only if it could be one.
+    ///
+    /// The clipboard usually holds something else entirely. Writing whatever was copied
+    /// would turn "no key" - which says plainly what to do - into a firing refused by the
+    /// far end, and nothing would point at the file as the cause.
+    #[test]
+    fn only_something_that_could_be_a_key() {
+        // A plausible key, and the surrounding whitespace a copy usually brings with it.
+        let real = "sk-a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6";
+        assert_eq!(a_key_in(real).as_deref(), Ok(real));
+        assert_eq!(a_key_in(&format!("  {real}\n")).as_deref(), Ok(real));
+
+        for (rubbish, why) in [
+            ("", "empty"),
+            ("   \n  ", "whitespace only"),
+            ("short", "too short to be a key"),
+            ("a key with spaces in it aaaaaaaaaa", "spaces"),
+            ("line one\nline two aaaaaaaaaaaaaaaa", "two lines"),
+            ("héllo-thérè-aaaaaaaaaaaaaaaaaaaaaa", "letters no key has"),
+        ] {
+            assert!(
+                a_key_in(rubbish).is_err(),
+                "it accepted {why}, and would have written it to the key file"
+            );
+        }
+        // Absurdly long is refused too: a whole document was copied, not a key.
+        assert!(a_key_in(&"x".repeat(600)).is_err());
+    }
+
+    /// What is SHOWN of a key is four characters and no more.
+    ///
+    /// Enough to tell which key the bench holds and that a paste landed. Not enough to be
+    /// worth anything to somebody reading over a shoulder or watching a recording.
+    #[test]
+    fn a_key_is_never_shown_whole() {
+        let real = "sk-a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6";
+        let shown = a_key_masked(real);
+        assert_eq!(shown, "KEY ...o5p6");
+        assert!(
+            !shown.contains("a1b2c3d4"),
+            "the middle of the key reached the screen: {shown}"
+        );
+        // Its own length is not on show either, since that is a hint about the key.
+        assert!(shown.len() < real.len());
     }
 }
 
