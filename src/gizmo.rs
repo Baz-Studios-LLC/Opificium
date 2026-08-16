@@ -79,7 +79,7 @@ pub struct DragState {
 }
 
 #[derive(Clone, Copy)]
-enum Grip {
+pub(crate) enum Grip {
     /// Slide the whole part along the handle's direction.
     Slide,
     /// Pull one end of a sized primitive: which local axis, and the
@@ -331,6 +331,35 @@ pub(crate) fn stands_at(kind: &PartKind) -> Option<f32> {
     }
 }
 
+/// What a CHOICE wears, which is not always what one part wears.
+///
+/// ONE part wears its own handles for the standing mode. SEVERAL wear the MOVE
+/// handles and nothing else, in every mode but the brush - `Selected::one` has
+/// said so all along ("several together can only be moved, since stretching six
+/// things at once has no meaning to invent"), and the slide already DOES it,
+/// carrying every other chosen part the same distance.
+///
+/// Only the handles were never hung. They asked for the one part, so a group of
+/// four had nothing to take hold of - in any mode, the standing one included.
+/// Brett: "When I group a lot of items into a group, I should be able to move
+/// the group as one piece right?", and "currently Normal mode ignores the group
+/// as well."
+pub(crate) fn handles_for_choice(
+    mode: ToolMode,
+    count: usize,
+    record: &Placed,
+) -> Vec<(Vec3, Vec3, &'static str, Grip)> {
+    if count > 1 {
+        return match mode {
+            // Painting wears no handles whatever is chosen: the part IS the
+            // handle, and a shaft in the way is something to click by mistake.
+            ToolMode::Paint => Vec::new(),
+            _ => handles_for(ToolMode::Move, record),
+        };
+    }
+    handles_for(mode, record)
+}
+
 fn handles_for(mode: ToolMode, record: &Placed) -> Vec<(Vec3, Vec3, &'static str, Grip)> {
     // The part's TRUE pose, tilt and mirror included: a pitched panel's
     // handles must run up its own slope, or dragging one swings the far
@@ -532,22 +561,43 @@ fn dress_gizmo(
     mut materials: ResMut<Assets<StandardMaterial>>,
     parts: Query<(&Transform, &Placed), Without<GizmoRoot>>,
     roots: Query<Entity, With<GizmoRoot>>,
-    mut stamp: Local<(Option<Entity>, ToolMode, String)>,
+    mut stamp: Local<(Option<Entity>, ToolMode, String, usize)>,
 ) {
-    let standing = selected.one().and_then(|part| parts.get(part).ok());
+    // ONE part wears its own handles for the standing mode. SEVERAL wear the MOVE
+    // handles and nothing else, at the middle of the lot.
+    //
+    // Which is what `Selected::one` has said all along - "several together can
+    // only be moved, since stretching six things at once has no meaning to
+    // invent" - and what the slide already DOES, carrying every other chosen part
+    // the same distance. Only the handles were never hung: they asked for the one
+    // part, so a group of four had nothing to take hold of and could not be moved
+    // at all. Brett: "When I group a lot of items into a group, I should be able
+    // to move the group as one piece right?"
+    let lead = selected.lead().and_then(|part| parts.get(part).ok());
+    let count = selected.iter().filter(|part| parts.contains(*part)).count();
     let fresh = (
         selected.lead(),
         *mode,
-        standing
-            .map(|(_, record)| record.part.clone())
+        lead.map(|(_, record)| record.part.clone())
             .unwrap_or_default(),
+        count,
     );
+    // The middle of everything chosen, so a group's arrows stand among the parts
+    // rather than on whichever of them happened to be clicked first.
+    let seat = || {
+        let held: Vec<Vec3> = selected
+            .iter()
+            .filter_map(|part| parts.get(part).ok())
+            .map(|(at, _)| at.translation)
+            .collect();
+        (!held.is_empty()).then(|| held.iter().sum::<Vec3>() / held.len() as f32)
+    };
     if *stamp == fresh {
-        if let Some((at, _)) = standing {
+        if let Some(at) = seat() {
             for root in &roots {
                 commands
                     .entity(root)
-                    .insert(Transform::from_translation(at.translation));
+                    .insert(Transform::from_translation(at));
             }
         }
         return;
@@ -556,17 +606,17 @@ fn dress_gizmo(
     for root in &roots {
         commands.entity(root).despawn();
     }
-    let Some((at, record)) = standing else {
+    let (Some((_, record)), Some(at)) = (lead, seat()) else {
         return;
     };
-    let wanted = handles_for(*mode, record);
+    let wanted = handles_for_choice(*mode, count, record);
     if wanted.is_empty() {
         return;
     }
     let root = commands
         .spawn((
             GizmoRoot,
-            Transform::from_translation(at.translation),
+            Transform::from_translation(at),
             Visibility::default(),
         ))
         .id();

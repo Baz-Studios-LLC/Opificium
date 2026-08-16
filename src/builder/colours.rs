@@ -389,6 +389,67 @@ fn a_swept_bench_keeps_no_level_at_all() {
 }
 
 #[cfg(test)]
+/// A group is carried as one thing, in every mode but the brush.
+///
+/// Brett: "When I group a lot of items into a group, I should be able to move the group as
+/// one piece right?", and "currently Normal mode ignores the group as well."
+///
+/// The slide has always carried the rest of a choice along with the part its handle hangs
+/// on. What was missing is the handle: it was hung on the ONE part chosen, so the moment
+/// there were two there was nothing to take hold of - the offer written for a single part
+/// and the answer written for a set, which is this bench's oldest fault.
+#[test]
+fn a_group_is_carried_as_one_thing() {
+    let record = Placed {
+        part: part_name(&PartKind::wall(2.0)),
+        at: [0.0, 0.0, 0.0],
+        yaw: 0.0,
+        tilt: 0.0,
+        ramp: None,
+        shade: 0.7,
+        stage: "walls".to_string(),
+        flip: false,
+        loose: false,
+        material: String::new(),
+        group: Some(1),
+    };
+    use crate::gizmo::{Grip, ToolMode, handles_for_choice};
+    for count in [2usize, 4, 12] {
+        for mode in [ToolMode::Normal, ToolMode::Move, ToolMode::Resize] {
+            let worn = handles_for_choice(mode, count, &record);
+            assert_eq!(
+                worn.len(),
+                3,
+                "a group of {count} wears {} handles - it has nothing to take hold of",
+                worn.len()
+            );
+            assert!(
+                worn.iter().all(|(.., grip)| matches!(grip, Grip::Slide)),
+                "a group of {count} is offered a handle that would size or pitch one of \
+                 them - several things cannot be stretched at once"
+            );
+        }
+        // The brush is the exception, and stays one: the part IS the handle there.
+        assert!(
+            handles_for_choice(ToolMode::Paint, count, &record).is_empty(),
+            "the brush grew handles"
+        );
+    }
+    // And ONE part still wears exactly what it wore: nothing standing, its own when
+    // sized. A group's rule may not quietly become everything's.
+    assert!(handles_for_choice(ToolMode::Normal, 1, &record).is_empty());
+    let alone = handles_for_choice(ToolMode::Resize, 1, &record);
+    assert!(
+        alone
+            .iter()
+            .any(|(.., grip)| matches!(grip, Grip::Size { .. }))
+            && alone
+                .iter()
+                .any(|(.., grip)| matches!(grip, Grip::Rise { .. })),
+        "a wall on its own has lost its length or its height"
+    );
+}
+
 /// A post is a beam stood up: placed at a height, and pulled to another.
 ///
 /// Brett: "pole should be exactly like the beam only verticle", and then "pole, corner is
