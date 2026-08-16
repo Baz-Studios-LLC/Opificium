@@ -177,6 +177,28 @@ impl WindowPanes {
     }
 }
 
+/// The door the shelf hands out: how a maker last had one.
+///
+/// The same idea as [`WindowPanes`], and for the same reason - a maker who has
+/// just put a double doorway in one wall is about to put one in the other, and
+/// the shelf handing back a single door every time is a trip through the menu per
+/// opening.
+#[derive(Resource, Clone, Copy, Default)]
+pub struct DoorAs {
+    pub double: bool,
+    pub wayless: bool,
+}
+
+impl DoorAs {
+    /// The door this makes.
+    pub fn door(self) -> PartKind {
+        PartKind::Door {
+            double: self.double,
+            leaf: !self.wayless,
+        }
+    }
+}
+
 /// The kind a shelf button actually hands over.
 ///
 /// Every entry is itself, except a WINDOW: the shelf's own is the two-by-two a
@@ -185,9 +207,10 @@ impl WindowPanes {
 /// which button is armed have to agree about what the button means - and a
 /// border that disagreed would simply stop lighting up the moment a maker
 /// resized a window.
-pub fn from_the_shelf(kind: PartKind, panes: WindowPanes) -> PartKind {
+pub fn from_the_shelf(kind: PartKind, panes: WindowPanes, doors: DoorAs) -> PartKind {
     match kind {
         PartKind::Window { .. } => panes.window(),
+        PartKind::Door { .. } => doors.door(),
         other => other,
     }
 }
@@ -269,6 +292,25 @@ pub enum PartKind {
         /// same with gables." A framed gable is the same triangle with a
         /// different infill, not another kind of thing.
         framed: bool,
+    },
+    /// A DOORWAY, and what hangs in it: one leaf or two, or none at all.
+    ///
+    /// One part where there were three - DOOR, DOOR DOUBLE, DOORWAY - and the
+    /// fourth corner of the square was simply missing. Brett: "We have doors and
+    /// doorway -- We have a double door...but we dont have a double doorway. Maybe
+    /// doors and doorways could be a right click."
+    ///
+    /// Which is his own rule about the shelf, the one that took the framed wall
+    /// and the stone rail and the three-pane window: a part with properties, not a
+    /// line per combination. Two flags make four doors, and the shelf carries one.
+    Door {
+        /// Two leaves, and twice the clear opening - a hall, a barn, a granary
+        /// taking a cart.
+        double: bool,
+        /// Whether anything hangs in it. A doorway is the gap itself: the ways
+        /// between rooms that never wanted a door, and which carry no routing mark
+        /// because a gap in a wall run is a portal found by walking it.
+        leaf: bool,
     },
     /// A CLOCK'S FACE, as wide as it is drawn - and no hands.
     ///
@@ -507,9 +549,16 @@ pub const STRUCTURE: &[CatalogEntry] = &[
         },
         "roof",
     ),
-    structure("DOOR", PartKind::Prop("door"), "walls"),
-    structure("DOOR, DOUBLE", PartKind::Prop("door-double"), "walls"),
-    structure("DOORWAY", PartKind::Prop("doorway"), "walls"),
+    // ONE line for four doors: single or double, with a leaf or without. What it
+    // hands over is whichever was last chosen - see `DoorAs`.
+    structure(
+        "DOOR",
+        PartKind::Door {
+            double: false,
+            leaf: true,
+        },
+        "walls",
+    ),
     structure("FLOOR", PartKind::Floor(2.0, 2.0), "footing"),
     structure(
         "FOUNDATION",

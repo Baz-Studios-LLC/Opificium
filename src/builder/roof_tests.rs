@@ -659,7 +659,13 @@ fn the_grid_is_the_step_every_pull_takes() {
 
 #[test]
 fn a_doorway_is_the_size_of_its_door() {
-    let leaf = body_of(&PartKind::Prop("door"), None);
+    let leaf = body_of(
+        &PartKind::Door {
+            double: false,
+            leaf: true,
+        },
+        None,
+    );
     let top = leaf
         .iter()
         .filter(|piece| piece.ramp == "wood")
@@ -1451,6 +1457,7 @@ fn naming_a_nature_leaves_the_body_alone() {
     app.init_resource::<crate::look::Fonts>();
     app.init_resource::<MaterialFor>();
     app.init_resource::<WindowPanes>();
+    app.init_resource::<DoorAs>();
     app.init_resource::<Naming>();
     app.add_systems(Update, work_part_menu);
 
@@ -1909,7 +1916,10 @@ fn a_roof_comes_apart_into_parts_that_exist() {
         "a gable roof is two roof panels and two gables, so it comes apart"
     );
     assert!(
-        !comes_apart(&PartKind::Prop("door")),
+        !comes_apart(&PartKind::Door {
+            double: false,
+            leaf: true
+        }),
         "a door is jambs and a leaf and the bench has a part for neither: \
              breaking one up would leave a hole where a door used to be"
     );
@@ -2154,6 +2164,7 @@ fn choosing_a_hip_raises_one_and_wears_its_ridge() {
     app.init_resource::<crate::look::Fonts>();
     app.init_resource::<MaterialFor>();
     app.init_resource::<WindowPanes>();
+    app.init_resource::<DoorAs>();
     app.init_resource::<Naming>();
     app.add_systems(Update, work_part_menu);
 

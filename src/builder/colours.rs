@@ -1143,13 +1143,13 @@ mod windows {
         };
         let chosen = WindowPanes { across: 2, up: 3 };
         assert!(
-            crate::builder::from_the_shelf(shelf, chosen) == chosen.window(),
+            crate::builder::from_the_shelf(shelf, chosen, DoorAs::default()) == chosen.window(),
             "the shelf handed back a window of a size nobody asked for"
         );
         // And nothing else on the shelf is touched by it.
         let wall = PartKind::wall(4.0);
         assert!(
-            crate::builder::from_the_shelf(wall, chosen) == wall,
+            crate::builder::from_the_shelf(wall, chosen, DoorAs::default()) == wall,
             "the shelf resized something that was not a window"
         );
 
@@ -2515,4 +2515,121 @@ mod roofing {
              sink into the ceiling"
         );
     }
+}
+
+/// A door is one part with two properties, and all four of them exist.
+///
+/// Brett: "We have doors and doorway -- We have a double door...but we dont have a double
+/// doorway. Maybe doors and doorways could be a right click." Three shelf lines with the
+/// fourth corner of the square simply missing - which is the shape of fault his own rule
+/// about the shelf was written to stop: a part with properties, not a line per combination.
+#[test]
+fn a_door_is_four_doors() {
+    let mut seen: Vec<String> = Vec::new();
+    for double in [false, true] {
+        for leaf in [false, true] {
+            let kind = PartKind::Door { double, leaf };
+            let name = part_name(&kind);
+            // Each one is its own part, spelled its own way, and comes back as itself.
+            assert!(!seen.contains(&name), "two doors spell themselves {name}");
+            seen.push(name.clone());
+            assert!(
+                kind_from_name(&name) == Some(kind),
+                "{name} did not come back as the door it is"
+            );
+
+            // A DOUBLE is twice the clear opening; a DOORWAY carries no routing mark,
+            // because the gap itself is the portal.
+            let opens = opening_of(&kind).expect("a door opens a wall");
+            assert_eq!(
+                opens.clear,
+                if double { DOOR_WIDE * 2 } else { DOOR_WIDE },
+                "{name} reserves the wrong span"
+            );
+            assert_eq!(
+                opens.widget, leaf,
+                "{name} says the wrong thing about walking through"
+            );
+
+            // And it is BUILT: jambs and a lintel always, leaves only where one hangs.
+            let body = body_of(&kind, None);
+            let leaves = body
+                .iter()
+                .filter(|slab| slab.size.x > 0.5 && slab.size.z < WALL_THICK)
+                .count();
+            assert_eq!(
+                leaves,
+                if leaf { if double { 2 } else { 1 } } else { 0 },
+                "{name} hangs the wrong number of leaves"
+            );
+            assert!(
+                body.len() >= 3,
+                "{name} has no frame: {} pieces",
+                body.len()
+            );
+        }
+    }
+    // The three that were shelf lines still open under their old names, and a work full
+    // of them is not something to lose to a tidier shelf.
+    for (was, double, leaf) in [
+        ("prop:door", false, true),
+        ("prop:door-double", true, true),
+        ("prop:doorway", false, false),
+    ] {
+        assert!(
+            kind_from_name(was) == Some(PartKind::Door { double, leaf }),
+            "{was} no longer opens"
+        );
+    }
+    // One line on the shelf, and the drawer holds all four.
+    assert_eq!(
+        STRUCTURE
+            .iter()
+            .filter(|entry| matches!(entry.kind, PartKind::Door { .. }))
+            .count(),
+        1,
+        "the shelf carries more than one door"
+    );
+    let offered = deeds_in(A_DOOR);
+    assert_eq!(
+        offered.len(),
+        4,
+        "the door drawer offers {} lines",
+        offered.len()
+    );
+    // And the menu marks the one standing there - both halves, on the wall that holds it
+    // as well as on a door of its own.
+    let wall = PartKind::Wall {
+        long: 4.0,
+        high: WALL_HIGH,
+        framed: true,
+        openings: [
+            Some(Hole {
+                wide: DOOR_WIDE * 2,
+                ..Hole::plain(Opening::Door, 0.0)
+            }),
+            None,
+            None,
+            None,
+        ],
+    };
+    assert!(
+        deeds_for(&wall).contains(&Deed::More(A_DOOR)),
+        "a wall with a door in it does not offer the door drawer"
+    );
+    assert!(
+        Deed::DoorAs {
+            double: true,
+            leaf: true
+        }
+        .is_standing(
+            &PartKind::Door {
+                double: true,
+                leaf: true
+            },
+            "walls",
+            ""
+        ),
+        "the menu does not mark the door that is standing there"
+    );
 }

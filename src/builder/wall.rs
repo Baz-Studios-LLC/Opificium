@@ -156,16 +156,32 @@ pub fn opening_of(kind: &PartKind) -> Option<Opens> {
         })
     };
     match kind {
-        // One leaf a metre wide: sixteen atoms of clear.
-        PartKind::Prop("door") => door(1.25, DOOR_WIDE, true),
-        // Twice the leaf, so twice the hole - and twice the clear, which is the
-        // half that was missing. `door-double-leaf` hangs two metre-wide leaves at
-        // either side of the middle, spanning two metres, so a framed wall that
-        // reserved a single door's sixteen atoms put them over solid timber.
-        PartKind::Prop("door-double") => door(2.25, DOOR_WIDE * 2, true),
-        // A bare doorway needs no widget: the gap itself is the portal,
-        // and a widget would only say it twice.
-        PartKind::Prop("doorway") => door(1.25, DOOR_WIDE, false),
+        // One leaf a metre wide: sixteen atoms of clear. Twice the leaf, twice the
+        // hole and twice the clear - `door-double-leaf` hangs two metre-wide
+        // leaves either side of the middle, so a framed wall that reserved a
+        // single door's sixteen atoms put them over solid timber.
+        //
+        // A DOORWAY needs no widget: the gap itself is the portal, and a widget
+        // would only say it twice. A door means an entrance, and the first one
+        // defines the building's front.
+        PartKind::Door { double, leaf } => door(
+            if *double { 2.25 } else { 1.25 },
+            if *double { DOOR_WIDE * 2 } else { DOOR_WIDE },
+            *leaf,
+        ),
+        // The three doors drawn before one part held all four.
+        PartKind::Prop("door") => opening_of(&PartKind::Door {
+            double: false,
+            leaf: true,
+        }),
+        PartKind::Prop("door-double") => opening_of(&PartKind::Door {
+            double: true,
+            leaf: true,
+        }),
+        PartKind::Prop("doorway") => opening_of(&PartKind::Door {
+            double: false,
+            leaf: false,
+        }),
         // A WINDOW SAYS ITS OWN SIZE. Everything above is a fixed thing - a door
         // is as tall as a door - and this one is whatever a maker set, which is
         // the whole of what "uncouple the window size from the wall height"
@@ -223,7 +239,7 @@ pub struct Opens {
 pub fn door_lanes(kind: &PartKind) -> &'static [f32] {
     match kind {
         // One lane per leaf, each on its own leaf's centre.
-        PartKind::Prop("door-double") => &[-0.5, 0.5],
+        PartKind::Door { double: true, .. } | PartKind::Prop("door-double") => &[-0.5, 0.5],
         _ => &[0.0],
     }
 }
@@ -649,8 +665,11 @@ pub(crate) fn punch_wall(
     // nothing at all, because the wall has already drawn the whole of it.
     let hung = match (reframed, frame_kind) {
         (false, _) => Some(frame_kind),
-        (true, PartKind::Prop("door")) => Some(PartKind::Prop("door-leaf")),
-        (true, PartKind::Prop("door-double")) => Some(PartKind::Prop("door-double-leaf")),
+        (true, PartKind::Door { double, leaf: true }) => Some(PartKind::Prop(if double {
+            "door-double-leaf"
+        } else {
+            "door-leaf"
+        })),
         (true, _) => None,
     };
     if let Some(hung) = hung {

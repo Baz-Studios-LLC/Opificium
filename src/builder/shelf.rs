@@ -275,6 +275,7 @@ pub(crate) fn work_shelf(
     palette: Res<Palette>,
     mut hand: ResMut<Hand>,
     panes: Res<WindowPanes>,
+    doors: Res<DoorAs>,
     mut tool: ResMut<crate::gizmo::ToolMode>,
     mut parts: Query<(&Interaction, &ShelfButton, &mut BorderColor), Without<WidgetButton>>,
     mut widgets: Query<(&Interaction, &WidgetButton, &mut BorderColor), Without<ShelfButton>>,
@@ -282,7 +283,7 @@ pub(crate) fn work_shelf(
 ) {
     let mut rearmed = false;
     for (interaction, button, _) in &parts {
-        let want = from_the_shelf(button.0.kind, *panes);
+        let want = from_the_shelf(button.0.kind, *panes, *doors);
         if *interaction == Interaction::Pressed && hand.kind != Some(want) {
             *hand = Hand::filled(want, button.0.stage.to_string());
             rearmed = true;
@@ -309,7 +310,7 @@ pub(crate) fn work_shelf(
     for (_, button, mut border) in &mut parts {
         // Through the same door the press went through, so a resized WINDOW still
         // lights its own button up.
-        let want = from_the_shelf(button.0.kind, *panes);
+        let want = from_the_shelf(button.0.kind, *panes, *doors);
         dress_shelf_border(&palette, hand.kind == Some(want), &mut border);
     }
     for (_, button, mut border) in &mut widgets {

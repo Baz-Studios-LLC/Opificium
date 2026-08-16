@@ -1488,35 +1488,43 @@ fn shape_of(kind: &PartKind) -> Vec<Slab> {
         ],
         // A post drawn before one had a height of its own.
         PartKind::Prop("pole") => body_of(&PartKind::Pole(WALL_HIGH), None),
-        PartKind::Prop("door") => vec![
-            // Jambs, lintel board, and the leaf itself, all on the
-            // lattice, with a gold latch.
-            slab(-0.5625, 1.0, 0.0, 0.125, 2.0, 0.375, "wood", 0.45),
-            slab(0.5625, 1.0, 0.0, 0.125, 2.0, 0.375, "wood", 0.45),
-            slab(0.0, 2.0625, 0.0, 1.25, 0.125, 0.375, "wood", 0.45),
-            slab(0.0, 1.0, 0.0625, 1.0, 2.0, 0.125, "wood", 0.35),
-            slab(0.375, 1.0, 0.125, 0.125, 0.125, 0.125, "cloth-gold", 0.8),
-        ],
-        PartKind::Prop("door-double") => vec![
-            // The hall door: two leaves meeting in the middle, for the
-            // buildings a village walks into rather than through - a hall, a
-            // barn, a granary taking a cart. Two full metres of clear opening
-            // against the single door's one.
+        PartKind::Door { double, leaf } => {
+            // ONE CONSTRUCTION, four doors. They were three hand-written lists and
+            // the fourth was missing: jambs on the lattice, a lintel board across
+            // whatever they frame, and a leaf hung in it or not.
             //
-            // The single door's own construction, widened: jambs on the
-            // lattice, a lintel board across both leaves, and each leaf the
-            // same width as the single's, so a double reads as two of the
-            // doors already in the world rather than as a different thing.
-            slab(-1.0625, 1.0, 0.0, 0.125, 2.0, 0.375, "wood", 0.45),
-            slab(1.0625, 1.0, 0.0, 0.125, 2.0, 0.375, "wood", 0.45),
-            slab(0.0, 2.0625, 0.0, 2.25, 0.125, 0.375, "wood", 0.45),
-            slab(-0.5, 1.0, 0.0625, 1.0, 2.0, 0.125, "wood", 0.35),
-            slab(0.5, 1.0, 0.0625, 1.0, 2.0, 0.125, "wood", 0.35),
-            // Latches where the leaves meet, an eighth in from each free
-            // edge - the same hand's reach as the single door's.
-            slab(-0.125, 1.0, 0.125, 0.125, 0.125, 0.125, "cloth-gold", 0.8),
-            slab(0.125, 1.0, 0.125, 0.125, 0.125, 0.125, "cloth-gold", 0.8),
-        ],
+            // A double is the single WIDENED rather than a different thing - each
+            // leaf the same metre as the single's - so a hall door reads as two of
+            // the doors already in the village.
+            let clear = if *double { 2.0 } else { 1.0 };
+            let jamb = clear * 0.5 + 0.0625;
+            let mut body = vec![
+                slab(-jamb, 1.0, 0.0, 0.125, 2.0, 0.375, "wood", 0.45),
+                slab(jamb, 1.0, 0.0, 0.125, 2.0, 0.375, "wood", 0.45),
+                slab(0.0, 2.0625, 0.0, clear + 0.25, 0.125, 0.375, "wood", 0.45),
+            ];
+            // And what hangs in it, on the lanes the opening's own leaves take -
+            // one per leaf, from the one table that says where they are.
+            if *leaf {
+                for lane in door_lanes(kind) {
+                    // The latch on the leaf's FREE edge: the far side of a single,
+                    // and the middle where a pair meet.
+                    let toward = if *double { -lane.signum() } else { 1.0 };
+                    body.push(slab(*lane, 1.0, 0.0625, 1.0, 2.0, 0.125, "wood", 0.35));
+                    body.push(slab(
+                        lane + toward * 0.375,
+                        1.0,
+                        0.125,
+                        0.125,
+                        0.125,
+                        0.125,
+                        "cloth-gold",
+                        0.8,
+                    ));
+                }
+            }
+            body
+        }
         // The leaf on its own, with no jambs and no lintel around it.
         //
         // For a wall that has already framed its own opening. The door prop is
@@ -1537,13 +1545,6 @@ fn shape_of(kind: &PartKind) -> Vec<Slab> {
             slab(0.5, 1.0, 0.0625, 1.0, 2.0, 0.125, "wood", 0.35),
             slab(-0.125, 1.0, 0.125, 0.125, 0.125, 0.125, "cloth-gold", 0.8),
             slab(0.125, 1.0, 0.125, 0.125, 0.125, 0.125, "cloth-gold", 0.8),
-        ],
-        PartKind::Prop("doorway") => vec![
-            // An opening with no leaf: jambs and a lintel, for the ways
-            // between rooms that never wanted a door.
-            slab(-0.5625, 1.0, 0.0, 0.125, 2.0, 0.375, "wood", 0.45),
-            slab(0.5625, 1.0, 0.0, 0.125, 2.0, 0.375, "wood", 0.45),
-            slab(0.0, 2.0625, 0.0, 1.25, 0.125, 0.375, "wood", 0.45),
         ],
         // A window drawn before one had a size of its own. Read as the size it
         // was, rather than as nothing at all - a name that reads back as nothing

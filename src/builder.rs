@@ -507,6 +507,7 @@ impl Plugin for BuilderPlugin {
             .init_resource::<Clipboard>()
             .init_resource::<RoofsLifted>()
             .init_resource::<WindowPanes>()
+            .init_resource::<DoorAs>()
             .add_systems(
                 Startup,
                 (raise_shelf, raise_palette).after(crate::rail::raise_rail),
@@ -671,6 +672,14 @@ pub fn part_name(kind: &PartKind) -> String {
         }
         PartKind::Pole(high) => format!("pole-{high}"),
         PartKind::Clock(wide) => format!("clock-{wide}"),
+        // The four corners of one square, each spelled as what it IS. The three
+        // that existed as props keep reading under their old names as well.
+        PartKind::Door { double, leaf } => match (double, leaf) {
+            (false, true) => "door".to_string(),
+            (true, true) => "door-double".to_string(),
+            (false, false) => "doorway".to_string(),
+            (true, false) => "doorway-double".to_string(),
+        },
         PartKind::Beam(long, high, low) => format!("beam-{long}x{high}x{low}"),
         PartKind::Ridge(long) => format!("ridge-{long}"),
         PartKind::Chimney(drop) => format!("chimney-{drop}"),
@@ -840,6 +849,20 @@ pub fn kind_from_name(name: &str) -> Option<PartKind> {
     if name == "prop:chimney" {
         // The first chimneys, from before the shaft could reach.
         return Some(PartKind::Chimney(0.0));
+    }
+    // The doors, new spellings and old: `prop:door` and its two fellows were the
+    // three parts this one replaced, and a saved work full of them opens unchanged.
+    if let Some(door) = match name {
+        "door" | "prop:door" => Some((false, true)),
+        "door-double" | "prop:door-double" => Some((true, true)),
+        "doorway" | "prop:doorway" => Some((false, false)),
+        "doorway-double" => Some((true, false)),
+        _ => None,
+    } {
+        return Some(PartKind::Door {
+            double: door.0,
+            leaf: door.1,
+        });
     }
     if let Some(rest) = name.strip_prefix("clock-") {
         return rest.parse::<f32>().ok().map(PartKind::Clock);
@@ -1467,7 +1490,12 @@ fn place_grab_remove(
                             wide: hole.wide,
                             high: hole.high,
                         },
-                        Some(_) => PartKind::Prop("door"),
+                        // A DOOR comes back as the door it was - single or double,
+                        // with a leaf or without - read off the hole it left.
+                        Some(hole) => PartKind::Door {
+                            double: hole.wide > DOOR_WIDE,
+                            leaf: true,
+                        },
                         None => PartKind::Window {
                             wide: WINDOW_WIDE,
                             high: WINDOW_WIDE,

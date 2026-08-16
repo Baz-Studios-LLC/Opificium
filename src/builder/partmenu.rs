@@ -51,6 +51,13 @@ pub(crate) enum Deed {
     },
     /// Frame a wall, or take the framing off it again.
     Frame(bool),
+    /// Which of the four doors this is: one leaf or two, or none at all.
+    ///
+    /// Brett: "We have doors and doorway -- We have a double door...but we dont
+    /// have a double doorway. Maybe doors and doorways could be a right click."
+    /// Three shelf lines and a missing fourth become one line and a drawer, which
+    /// is the rule that took the framed wall and the stone rail before it.
+    DoorAs { double: bool, leaf: bool },
     /// Raise a roof over a ceiling, sized to it - and say WHICH in the same press.
     ///
     /// It was two lines: GENERATE ROOF, and a toggle beside it that read as a
@@ -110,6 +117,16 @@ impl Deed {
                 }
                 _ => false,
             },
+            // Which of the four doors is standing in this wall. Read off the hole
+            // and the leaf hanging in it rather than off any number kept beside
+            // them, so a door changed any other way still marks its own line.
+            Deed::DoorAs { double, leaf } => match kind {
+                PartKind::Door {
+                    double: wide,
+                    leaf: hung,
+                } => *wide == double && *hung == leaf,
+                _ => false,
+            },
             // Which ridge the ceiling is standing there wearing. Both lines are
             // actions, and the mark says which of the two the beam in front of the
             // maker is promising.
@@ -159,6 +176,23 @@ impl Deed {
             Deed::Panes { .. } => "4",
             Deed::BarsIn(true) => "BARS IN BLACK",
             Deed::BarsIn(false) => "BARS IN TIMBER",
+            // Short, because the drawer they hang in already says A DOOR.
+            Deed::DoorAs {
+                double: false,
+                leaf: true,
+            } => "ONE LEAF",
+            Deed::DoorAs {
+                double: true,
+                leaf: true,
+            } => "TWO LEAVES",
+            Deed::DoorAs {
+                double: false,
+                leaf: false,
+            } => "AN OPENING",
+            Deed::DoorAs {
+                double: true,
+                leaf: false,
+            } => "A WIDE OPENING",
             Deed::Frame(true) => "ADD FRAMING",
             Deed::Frame(false) => "REMOVE FRAMING",
             // Short, because the drawer they hang in already says GENERATE ROOF.
@@ -515,6 +549,15 @@ pub(crate) fn deeds_for(kind: &PartKind) -> Vec<Deed> {
     // A wall can be framed or plain, offered as the thing it would BECOME. Brett:
     // "Walls should just have a right click to add the framing." It goes first because it
     // changes what the wall IS, where everything under it only changes how it looks.
+    // A DOOR, wherever one is: the four corners of one square in a drawer of their
+    // own. Offered on the WALL that holds it, which is where a maker's cursor is -
+    // a door in a wall is a hole the wall was told about, not a part to click.
+    if matches!(kind, PartKind::Door { .. })
+        || matches!(kind, PartKind::Wall { openings, .. }
+            if openings.iter().flatten().any(|hole| hole.what == Opening::Door))
+    {
+        deeds.push(Deed::More(A_DOOR));
+    }
     // A GABLE the same way, which is what Brett asked for in the same breath: "Walls
     // should just have a right click to add the framing, same with gables."
     if let PartKind::Wall { framed, .. } | PartKind::Gable { framed, .. } = kind {
@@ -560,6 +603,9 @@ pub(crate) const BUILT_OF: &str = "MADE OF...";
 /// The drawer a flight's materials hang in.
 pub(crate) const MADE_OF: &str = "STONE OR TIMBER...";
 
+/// The drawer the four doors hang in.
+pub(crate) const A_DOOR: &str = "A DOOR...";
+
 /// The drawer the roofs hang in.
 pub(crate) const ROOF_OVER: &str = "GENERATE ROOF...";
 
@@ -573,6 +619,10 @@ pub(crate) const PART_OF: &str = "PART OF...";
 pub(crate) fn deeds_in(group: &str) -> Vec<Deed> {
     match group {
         PART_OF => NATURES.iter().map(|nature| Deed::Nature(nature)).collect(),
+        A_DOOR => [(false, true), (true, true), (false, false), (true, false)]
+            .into_iter()
+            .map(|(double, leaf)| Deed::DoorAs { double, leaf })
+            .collect(),
         ROOF_OVER => vec![
             Deed::RoofOf { hipped: false },
             Deed::RoofOf { hipped: true },
@@ -901,7 +951,11 @@ pub(crate) fn work_part_menu(
     mut naming: ResMut<Naming>,
     // Bundled: the ceiling is sixteen, and a window's size is the seventeenth
     // thing this menu can change.
-    errands: (ResMut<MaterialFor>, ResMut<WindowPanes>),
+    errands: (
+        ResMut<MaterialFor>,
+        ResMut<WindowPanes>,
+        ResMut<crate::builder::DoorAs>,
+    ),
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut lines: Query<(Entity, &MenuLine, &Interaction, &mut BackgroundColor)>,
@@ -912,7 +966,7 @@ pub(crate) fn work_part_menu(
     if menus.is_empty() {
         return;
     }
-    let (mut material_for, mut panes) = errands;
+    let (mut material_for, mut panes, mut doors) = errands;
     let mut chosen = None;
     let mut pressed_line = None;
     let mut over = false;
@@ -1123,6 +1177,163 @@ pub(crate) fn work_part_menu(
                 // The ceiling still stands where it was, which is what keeping it meant.
                 // Two parts that want to travel together can be gathered and grouped by
                 // hand, which is what that pair of commands is for.
+            }
+        }
+        Some((Deed::DoorAs { double, leaf }, part)) => {
+            // Remembered for the next one, the way a window's panes are: a maker
+            // who has just put a double doorway in one wall is about to put one in
+            // the other.
+            *doors = crate::builder::DoorAs {
+                double,
+                wayless: !leaf,
+            };
+            let made = PartKind::Door { double, leaf };
+            // A DOOR STANDING ON ITS OWN - one set in a wall the punch had to cut,
+            // rather than one a wall was told about. It is a part, so it is simply
+            // rebuilt.
+            if let Ok((_, _, mut record)) = placed.get_mut(part)
+                && matches!(kind_from_name(&record.part), Some(PartKind::Door { .. }))
+            {
+                record.part = part_name(&made);
+                let copy = record.clone();
+                commands.entity(part).despawn_related::<Children>();
+                dress_part(
+                    &mut commands,
+                    &mut meshes,
+                    &mut materials,
+                    &palette,
+                    &made,
+                    &copy,
+                    part,
+                    false,
+                );
+            } else if let Some((wall, spots)) = placed.get(part).ok().and_then(|(_, at, record)| {
+                match kind_from_name(&record.part) {
+                    Some(PartKind::Wall {
+                        long,
+                        high,
+                        framed,
+                        mut openings,
+                    }) => {
+                        // Every door in the wall, widened or narrowed together -
+                        // the same rule the bars and the panes follow, because the
+                        // menu acts on the PART.
+                        let mut spots = Vec::new();
+                        let along = Quat::from_rotation_y(record.yaw) * Vec3::X;
+                        for hole in openings.iter_mut().flatten() {
+                            if hole.what != Opening::Door {
+                                continue;
+                            }
+                            hole.wide = if double { DOOR_WIDE * 2 } else { DOOR_WIDE };
+                            spots.push(at.translation + along * hole.at);
+                        }
+                        (!spots.is_empty()).then(|| {
+                            (
+                                (
+                                    PartKind::Wall {
+                                        long,
+                                        high,
+                                        framed,
+                                        openings,
+                                    },
+                                    record.clone(),
+                                    record.yaw,
+                                ),
+                                spots,
+                            )
+                        })
+                    }
+                    _ => None,
+                }
+            }) {
+                let (rebuilt, mut record, yaw) = wall;
+                record.part = part_name(&rebuilt);
+                commands.entity(part).despawn_related::<Children>();
+                dress_part(
+                    &mut commands,
+                    &mut meshes,
+                    &mut materials,
+                    &palette,
+                    &rebuilt,
+                    &record,
+                    part,
+                    false,
+                );
+                if let Ok((_, _, mut standing)) = placed.get_mut(part) {
+                    standing.part = record.part.clone();
+                }
+                // WHAT HANGS IN IT, and what the village is told about it. The
+                // wall draws the opening; the leaf swings in it and the routing
+                // mark says a villager may walk through - and both are parts of
+                // their own, so changing the door means taking them away and
+                // setting down what the new one wants.
+                let hanging: Vec<Entity> = placed
+                    .iter()
+                    .filter(|(_, at, hung)| {
+                        matches!(
+                            kind_from_name(&hung.part),
+                            Some(PartKind::Prop("door-leaf" | "door-double-leaf"))
+                                | Some(PartKind::Widget("door"))
+                        ) && spots
+                            .iter()
+                            .any(|spot| at.translation.distance(*spot) < 1.0)
+                    })
+                    .map(|(entity, ..)| entity)
+                    .collect();
+                for gone in hanging {
+                    commands.entity(gone).despawn();
+                }
+                for spot in spots {
+                    if leaf {
+                        let hung = PartKind::Prop(if double {
+                            "door-double-leaf"
+                        } else {
+                            "door-leaf"
+                        });
+                        let mut swings = record.clone();
+                        swings.part = part_name(&hung);
+                        swings.at = [spot.x, record.at[1], spot.z];
+                        swings.stage = "walls".to_string();
+                        spawn_part(
+                            &mut commands,
+                            &mut meshes,
+                            &mut materials,
+                            &palette,
+                            &hung,
+                            &swings,
+                            false,
+                        );
+                        // One mark per leaf: two villagers meeting at a double door
+                        // take one each instead of queueing through the same point.
+                        let widget = PartKind::Widget("door");
+                        let along = Quat::from_rotation_y(yaw) * Vec3::X;
+                        for lane in door_lanes(&made) {
+                            let stands = spot + along * *lane;
+                            let mark = Placed {
+                                part: part_name(&widget),
+                                at: [stands.x, record.at[1], stands.z],
+                                yaw: yaw - std::f32::consts::FRAC_PI_2,
+                                tilt: 0.0,
+                                ramp: None,
+                                shade: 0.7,
+                                stage: "widget".to_string(),
+                                flip: false,
+                                loose: false,
+                                material: String::new(),
+                                group: None,
+                            };
+                            spawn_part(
+                                &mut commands,
+                                &mut meshes,
+                                &mut materials,
+                                &palette,
+                                &widget,
+                                &mark,
+                                false,
+                            );
+                        }
+                    }
+                }
             }
         }
         Some((Deed::Frame(framed), part)) => {
