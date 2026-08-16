@@ -1194,6 +1194,17 @@ fn place_grab_remove(
     {
         return;
     }
+    // ONE PART PER PICK, unless the maker says otherwise. Brett: "if you place one down
+    // there shouldnt be another ghost in your hand unless you hold shift while placing
+    // it". The hand used to keep whatever it held for ever, so setting down a foundation
+    // left another foundation stuck to the cursor and the next click somewhere harmless
+    // put down a second one.
+    //
+    // ALT rather than shift, and not by preference: shift already decides the SNAP STEP
+    // while a ghost is being placed - four places read it - so one key would have meant a
+    // maker could never place several parts on the coarse grid, nor one part on the fine
+    // one.
+    let keep_holding = keys.any_pressed([KeyCode::AltLeft, KeyCode::AltRight]);
     if buttons.just_pressed(MouseButton::Left) && !over_ui {
         if let Some(kind) = hand.kind {
             // A stretch tool: the first click sets the anchor where the
@@ -1217,12 +1228,18 @@ fn place_grab_remove(
                         drawn,
                         false,
                     );
-                    hand.anchor = if kind.run_axes() == Some(1) {
+                    // A run CHAINS while it is held: the far end becomes the next
+                    // anchor, which is how a line of wall is drawn in one go. Letting go
+                    // of it is putting the tool down.
+                    hand.anchor = if kind.run_axes() == Some(1) && keep_holding {
                         hand.anchor
                             .map(|anchor| ghost_at.translation * 2.0 - anchor)
                     } else {
                         None
                     };
+                    if !keep_holding {
+                        hand.kind = None;
+                    }
                 }
                 return;
             }
@@ -1274,6 +1291,12 @@ fn place_grab_remove(
                     &kind,
                     &record,
                 );
+            }
+            // Down it goes, and the hand is empty - a door punched into a wall counts,
+            // since that is what setting a door down means.
+            if !keep_holding {
+                hand.kind = None;
+                hand.anchor = None;
             }
         } else if let Some(grabbed) = hovered.grab
             && let Ok((_, transform, record, _)) = placed.get(grabbed)
