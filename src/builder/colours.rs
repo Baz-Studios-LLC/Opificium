@@ -389,6 +389,40 @@ fn a_swept_bench_keeps_no_level_at_all() {
 }
 
 #[cfg(test)]
+/// The parts a maker PULLS are handed over whole, not as a stub to stretch.
+///
+/// Brett, of the gable and then the beam: "I like how the wall works where you have say a
+/// 2m wall and you place it and then stretch it." Two halves as always - the shelf has to
+/// hand over a real part, AND the handles have to be willing to size one - and a part that
+/// went back to being a run would fail here rather than in a maker's hands.
+#[test]
+fn what_you_pull_is_placed_whole() {
+    for label in ["WALL", "GABLE", "BEAM"] {
+        let entry = STRUCTURE
+            .iter()
+            .find(|entry| entry.label == label)
+            .unwrap_or_else(|| panic!("the shelf has lost its {label}"));
+        assert!(
+            entry.kind.run_axes().is_none(),
+            "{label} is a run: it would want stretching out of a stub"
+        );
+        let Some((long, rebuild)) = length_of(&entry.kind) else {
+            panic!("{label} wears no length handle once it is down")
+        };
+        assert!(
+            long > 1.0,
+            "the shelf's {label} is {long}m - a stub, not something to place and pull"
+        );
+        let Some((now, _)) = length_of(&rebuild(6.0)) else {
+            panic!("pulling a {label} made something with no length at all")
+        };
+        assert!(
+            (now - 6.0).abs() < 1e-4,
+            "{label} did not take the new length: {now}"
+        );
+    }
+}
+
 mod bars {
     use super::*;
 
@@ -1630,43 +1664,6 @@ mod snapping {
 
 mod gables {
     use super::*;
-
-    /// A gable is placed whole and pulled, like a wall - not stretched out of a stub.
-    ///
-    /// Brett: "the gables use the old stretch idea where you have a tiny little ghost and
-    /// stretch it. I like how the wall works where you have say a 2m wall and you place it
-    /// and then stretch it." Two halves as always: the shelf has to hand over a real gable,
-    /// AND the handles have to be willing to size one.
-    #[test]
-    fn a_gable_is_placed_whole_and_pulled() {
-        let entry = STRUCTURE
-            .iter()
-            .find(|entry| entry.label == "GABLE")
-            .expect("the shelf has lost its gable");
-        assert!(
-            entry.kind.run_axes().is_none(),
-            "the gable is still a run: it would want stretching out of a stub"
-        );
-        let PartKind::Gable { long, .. } = entry.kind else {
-            panic!("the shelf's gable is not a gable")
-        };
-        assert!(
-            long > 1.0,
-            "the shelf's gable is {long}m - a stub, not something to place and pull"
-        );
-        // And it can be pulled to another length once it is down.
-        let Some((was, rebuild)) = length_of(&entry.kind) else {
-            panic!("a placed gable wears no length handle")
-        };
-        assert!((was - long).abs() < 1e-4);
-        let PartKind::Gable { long: now, .. } = rebuild(6.0) else {
-            panic!("pulling a gable made something else")
-        };
-        assert!(
-            (now - 6.0).abs() < 1e-4,
-            "the gable did not take the new length"
-        );
-    }
 
     /// A framed gable is the same triangle, with the wall's own timbers on it.
     ///

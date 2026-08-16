@@ -1038,9 +1038,6 @@ pub(crate) fn body_of(kind: &PartKind, repaint: Option<(&str, f32)>) -> Vec<Slab
                 cut: Vec2::new(low, high),
             }]
         }
-        PartKind::BeamRun => {
-            vec![slab(0.0, 0.1875, 0.0, 0.25, 0.375, 0.375, "wood", 0.45)]
-        }
         PartKind::Trim { long, stone } => {
             let (ramp, shade) = if *stone {
                 ("stone", 0.55)

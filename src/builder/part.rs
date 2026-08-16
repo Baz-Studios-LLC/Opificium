@@ -279,7 +279,6 @@ pub enum PartKind {
     /// the difference between where the top corner meets the slope and where the
     /// bottom does — and it needs no trigonometry at either end.
     Beam(f32, f32, f32),
-    BeamRun,
     /// The cap that hides the seam where two slopes meet.
     Ridge(f32),
     /// A chimney stack: the number is how far its shaft reaches DOWN
@@ -404,8 +403,7 @@ impl PartKind {
             PartKind::TrimRun { .. }
             | PartKind::RailRun { .. }
             | PartKind::SegRun { .. }
-            | PartKind::RidgeRun
-            | PartKind::BeamRun => Some(1),
+            | PartKind::RidgeRun => Some(1),
             _ => None,
         }
     }
@@ -428,7 +426,6 @@ impl PartKind {
                 stone: *stone,
             },
             PartKind::RidgeRun => PartKind::Ridge(w),
-            PartKind::BeamRun => PartKind::Beam(w, 0.0, 0.0),
             PartKind::SegRun { high, lift } => PartKind::Seg {
                 long: w,
                 high: *high,
@@ -465,7 +462,10 @@ pub(crate) const fn prop(label: &'static str, name: &'static str) -> CatalogEntr
 
 /// The shelf's drawers: each section opens and closes on its header.
 pub const STRUCTURE: &[CatalogEntry] = &[
-    structure("BEAM", PartKind::BeamRun, "frame"),
+    // PLACED WHOLE, then pulled - as the wall and the gable are. A beam was the
+    // last of the stretch stubs a maker meets first, and the two-click gesture it
+    // needed is not the one anything else on this shelf uses.
+    structure("BEAM", PartKind::Beam(2.0, 0.0, 0.0), "frame"),
     structure(
         "CEILING",
         PartKind::Ceiling {

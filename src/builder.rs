@@ -670,7 +670,6 @@ pub fn part_name(kind: &PartKind) -> String {
             name
         }
         PartKind::Beam(long, high, low) => format!("beam-{long}x{high}x{low}"),
-        PartKind::BeamRun => "beamrun".to_string(),
         PartKind::Ridge(long) => format!("ridge-{long}"),
         PartKind::Chimney(drop) => format!("chimney-{drop}"),
         PartKind::Rail { long, hand, stone } => {
