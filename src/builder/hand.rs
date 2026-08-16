@@ -436,7 +436,7 @@ pub(crate) fn move_ghost(
         let Some(point) = cursor_point(&windows, &cameras, anchor.y) else {
             return;
         };
-        let grid = snap_step(held_shift(&keys), snap_grid.0);
+        let grid = snap_step(held_fine(&keys), snap_grid.0);
         let mut to = Vec3::new(
             (point.x * grid).round() / grid,
             anchor.y,
@@ -579,7 +579,7 @@ pub(crate) fn move_ghost(
                 let (_, wall_at, record, _) = placed.get(hit.entity).ok()?;
                 let length = punchable_length(record)?;
                 let along = Quat::from_rotation_y(record.yaw) * Vec3::X;
-                let step = snap_step(held_shift(&keys), snap_grid.0);
+                let step = snap_step(held_fine(&keys), snap_grid.0);
                 let middle =
                     opening_seat(wall_at.translation, along, length, wide, hit.point, step);
                 Some((wall_at.translation + along * middle, record.yaw))
@@ -660,7 +660,7 @@ pub(crate) fn move_ghost(
     // Quarter-metre snap by default; holding shift tightens the grid to
     // five centimetres for the odd exact nestling.
     if seeded.is_none() {
-        let grid = snap_step(held_shift(&keys), snap_grid.0);
+        let grid = snap_step(held_fine(&keys), snap_grid.0);
         snapped = Vec3::new(
             (snapped.x * grid).round() / grid,
             0.0,

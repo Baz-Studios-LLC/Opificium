@@ -379,7 +379,7 @@ pub(crate) fn reflow_openings(
         &carried,
         // The same step a placement takes, so dragging a door along a wall moves it
         // in the strides the maker set rather than in sixteenths.
-        snap_step(held_shift(&keys), snap_grid.0),
+        snap_step(held_fine(&keys), snap_grid.0),
     );
     if punched {
         // The punch set a fresh frame of its own in the new opening.

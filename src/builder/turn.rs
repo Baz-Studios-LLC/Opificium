@@ -2,12 +2,28 @@
 
 use super::*;
 
-/// R turns whatever is selected, in whichever mode: the hand's own
-/// quarter-turn belongs to placing, but a part already standing should
-/// answer the same key.
-#[allow(clippy::too_many_arguments)]
+/// SHIFT: more of the same.
+///
+/// Gather another part into what is chosen, paint the whole of something rather than the
+/// piece under the cursor, keep the tool in hand after setting one down - and, on a key
+/// rather than a click, step the other way. Every one of those is "and again" or "and the
+/// rest", which is what shift means in a file manager, a drawing program and a builder
+/// alike.
 pub(crate) fn held_shift(keys: &ButtonInput<KeyCode>) -> bool {
     keys.pressed(KeyCode::ShiftLeft) || keys.pressed(KeyCode::ShiftRight)
+}
+
+/// ALT: the other way of doing it.
+///
+/// Take the colour under the cursor instead of laying one down; place on the bench's own
+/// sixteenths instead of the grid the G key set. Photoshop's eyedropper and Blender's
+/// precision drag are both this key, and both are "not the ordinary action, the other one".
+///
+/// It carries the fine snap because SHIFT could not: shift is read at the very moment a
+/// part is set down, so one key for both would have meant never placing several parts on
+/// the coarse grid, nor one part on the fine one.
+pub(crate) fn held_fine(keys: &ButtonInput<KeyCode>) -> bool {
+    keys.any_pressed([KeyCode::AltLeft, KeyCode::AltRight])
 }
 
 /// Shift-R turns the WHOLE work a quarter, about its own middle.

@@ -516,7 +516,8 @@ trim, bury",
         ),
         (
             "shift-click",
-            "choose several; right-
+            "with an empty hand:
+choose several; right-
 click to group them",
         ),
         ("esc / del", "empty the hand"),
@@ -529,7 +530,11 @@ an empty hand: bury it",
             "1 - 6",
             "front, right, back, left,\noverhead, and the perch",
         ),
-        ("shift", "fine snap, 1 unit"),
+        (
+            "alt",
+            "fine snap, 1 unit -\nthe bench's own sixteenths\nrather than the grid",
+        ),
+        ("shift-place", "keep the tool in hand and\nset down another"),
         (
             "G",
             "cycle the grid interval:

@@ -1186,12 +1186,10 @@ fn place_grab_remove(
         .iter()
         .any(|interaction| *interaction != Interaction::None);
 
-    // A SHIFT-click gathers rather than places: the hand keeps whatever it is
-    // holding, and nothing is picked up. It is the one click in this mode that
-    // is not about putting something down or taking it up.
-    if (keys.pressed(KeyCode::ShiftLeft) || keys.pressed(KeyCode::ShiftRight))
-        && buttons.just_pressed(MouseButton::Left)
-    {
+    // A SHIFT-click gathers rather than picks up - but only with an EMPTY hand. Somebody
+    // holding a wall is placing walls, not choosing them, and shift there means "and
+    // another one" like it does everywhere else in the bench.
+    if held_shift(&keys) && hand.kind.is_none() && buttons.just_pressed(MouseButton::Left) {
         return;
     }
     // ONE PART PER PICK, unless the maker says otherwise. Brett: "if you place one down
@@ -1200,11 +1198,9 @@ fn place_grab_remove(
     // left another foundation stuck to the cursor and the next click somewhere harmless
     // put down a second one.
     //
-    // ALT rather than shift, and not by preference: shift already decides the SNAP STEP
-    // while a ghost is being placed - four places read it - so one key would have meant a
-    // maker could never place several parts on the coarse grid, nor one part on the fine
-    // one.
-    let keep_holding = keys.any_pressed([KeyCode::AltLeft, KeyCode::AltRight]);
+    // SHIFT, which is where the rest of "and another" lives - and where Brett reached for
+    // it. The fine snap moved to ALT to make room; see `held_shift` and `held_fine`.
+    let keep_holding = held_shift(&keys);
     if buttons.just_pressed(MouseButton::Left) && !over_ui {
         if let Some(kind) = hand.kind {
             // A stretch tool: the first click sets the anchor where the
@@ -1264,7 +1260,7 @@ fn place_grab_remove(
                     is_door,
                     clear,
                     &hand,
-                    snap_step(held_shift(&keys), snap_grid.0),
+                    snap_step(held_fine(&keys), snap_grid.0),
                 )
             } else {
                 false
