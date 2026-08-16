@@ -1783,6 +1783,45 @@ mod materials {
 }
 
 #[cfg(test)]
+/// The bell is one continuous stack, mouth to headstock.
+///
+/// Brett drew one in the mockup and asked for it once the tower stood: "Can you make the
+/// bell?" It is three pieces and a yoke, and the whole of whether it reads as a bell is
+/// whether they MEET - a waist a hair narrower than the mouth it sits on is a step, and a
+/// step is what a maker sees from across the room.
+#[test]
+fn the_bell_is_one_continuous_stack() {
+    let mut cast = body_of(&PartKind::Prop("bell"), None);
+    assert!(cast.len() >= 3, "a bell of {} pieces", cast.len());
+    cast.sort_by(|a, b| a.at.y.partial_cmp(&b.at.y).unwrap());
+    for pair in cast.windows(2) {
+        let (under, over) = (&pair[0], &pair[1]);
+        let top = under.at.y + under.size.y * 0.5;
+        let foot = over.at.y - over.size.y * 0.5;
+        assert!(
+            (top - foot).abs() < 1e-4,
+            "the bell parts company at {top}: the next piece starts at {foot}"
+        );
+        // Where a piece tapers, what stands on it is exactly what it tapered TO. Wider is
+        // a lip, narrower is a step, and a bell is neither.
+        if let Shape::Hip(keep, _) = under.shape {
+            let shrunk = under.size.x * keep;
+            assert!(
+                (shrunk - over.size.x).abs() < 1e-3 || over.size.x > under.size.x,
+                "the bell tapers to {shrunk} and then carries {} on it",
+                over.size.x
+            );
+        }
+    }
+    // And it rests on its own nought like everything else, so it sets down on a beam
+    // rather than half through one.
+    let foot = cast
+        .iter()
+        .map(|Slab { at, size, .. }| at.y - size.y * 0.5)
+        .fold(f32::INFINITY, f32::min);
+    assert!(foot.abs() < 1e-4, "the bell's mouth hangs at {foot}");
+}
+
 mod snapping {
     use super::*;
 

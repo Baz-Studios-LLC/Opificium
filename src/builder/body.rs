@@ -1819,6 +1819,60 @@ pub(crate) fn body_of(kind: &PartKind, repaint: Option<(&str, f32)>) -> Vec<Slab
             slab(-0.21875, 0.25, 0.21875, 0.0625, 0.5, 0.0625, "wood", 0.5),
             slab(0.21875, 0.25, 0.21875, 0.0625, 0.5, 0.0625, "wood", 0.5),
         ],
+        PartKind::Prop("bell") => {
+            // A BELL, for the belfry the townhall's tower already has an opening
+            // for. Brett drew one in the mockup and asked for it once the tower
+            // stood: "Can you make the bell?"
+            //
+            // Built the way everything here is built - out of the shapes the bake
+            // can speak - and a bell is the one thing in a village that a
+            // truncated pyramid is exactly right for: wide at the mouth, drawn in
+            // at the shoulder. The hip roof's own shape, three times smaller and
+            // stacked, is a bell's silhouette.
+            //
+            // Every face on a whole atom: eight across the mouth, six at the
+            // waist, four at the shoulder, and ten tall to the top of its yoke.
+            let bronze = |y: f32, wide: f32, tall: f32, keep: f32| Slab {
+                at: Vec3::new(0.0, y, 0.0),
+                size: Vec3::new(wide, tall, wide),
+                ramp: "cloth-gold".to_string(),
+                shade: 0.45,
+                clarity: 1.0,
+                shape: Shape::Hip(keep, keep),
+                lean: 0.0,
+                cant: 0.0,
+                cut: Vec2::ZERO,
+            };
+            vec![
+                // The mouth, flaring out where it is struck.
+                bronze(ATOM * 1.5, ATOM * 8.0, ATOM * 3.0, 6.0 / 8.0),
+                // The waist, drawing in.
+                bronze(ATOM * 4.5, ATOM * 6.0, ATOM * 3.0, 4.0 / 6.0),
+                // The crown it is cast with, square and solid.
+                slab(
+                    0.0,
+                    ATOM * 7.0,
+                    0.0,
+                    ATOM * 4.0,
+                    ATOM * 2.0,
+                    ATOM * 4.0,
+                    "cloth-gold",
+                    0.5,
+                ),
+                // And the headstock it swings from, reaching past the bell on both
+                // sides so it can rest across two beams.
+                slab(
+                    0.0,
+                    ATOM * 9.0,
+                    0.0,
+                    ATOM * 10.0,
+                    ATOM * 2.0,
+                    ATOM * 2.0,
+                    "wood",
+                    0.4,
+                ),
+            ]
+        }
         PartKind::Prop("anvil") => vec![
             slab(-0.03125, 0.15625, 0.0, 0.4375, 0.3125, 0.375, "wood", 0.4),
             slab(0.0, 0.40625, 0.0, 0.25, 0.1875, 0.25, "stone", 0.3),

@@ -591,6 +591,7 @@ pub const DECOR: &[CatalogEntry] = &[
     prop("ANVIL", "anvil"),
     prop("BARREL", "barrel"),
     prop("BASKET", "basket"),
+    prop("BELL", "bell"),
     prop("CRATE", "crate"),
     prop("FENCE", "fence"),
     prop("LADDER", "ladder"),
