@@ -113,6 +113,13 @@ pub(crate) fn barn_leaves(double: bool) -> Vec<Slab> {
     body
 }
 
+/// HOW DEEP A CLOCK'S CASE STANDS off the wall it hangs on.
+///
+/// Named because the oven needs it too: a clock's mark says how big the dial is,
+/// and a size is three numbers. `a_clock_is_as_deep_as_it_says` holds the two
+/// together, so a case rebuilt thicker cannot quietly start lying about itself.
+pub(crate) const CLOCK_DEEP: f32 = 0.25;
+
 /// How thick the chalk line round a marked volume is drawn.
 ///
 /// One atom: thin enough to read as a boundary rather than a wall, thick enough to
