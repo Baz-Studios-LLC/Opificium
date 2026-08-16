@@ -1004,6 +1004,29 @@ mod windows {
         );
     }
 
+    /// Every piece of the ghost stands clear of the wall it is being aimed at.
+    ///
+    /// A window's frame is drawn at the wall's own thickness and its bars are set back in
+    /// the reveal - both right for a window standing in a hole, and both invisible in a wall
+    /// that has not got the hole yet. Brett sent a picture of it: three faint sticks, which
+    /// were the proud sill and the two jambs fighting the wall's own face for the same
+    /// atoms. Everything else was inside the timber.
+    #[test]
+    fn the_ghost_stands_clear_of_the_wall() {
+        // The wall's own face, from the middle of the wall the ghost is aimed at.
+        let face = WALL_THICK * 0.5;
+        for held in ["window", "door", "door-double", "doorway"] {
+            for Slab { at, size, .. } in body_of(&PartKind::Prop(held), None) {
+                let front = crate::builder::GHOST_PROUD + at.z + size.z * 0.5;
+                assert!(
+                    front > face + 1e-4,
+                    "a {held}'s ghost has a piece buried in the wall: its face reaches \
+                     {front} where the wall's own is at {face}"
+                );
+            }
+        }
+    }
+
     /// The check itself: no two full-thickness solids may occupy the same place.
     fn no_two_solids_share_space(body: &[Slab], framed: bool) {
         // Only the wall's own substance and frame - the panes are set back in the reveal

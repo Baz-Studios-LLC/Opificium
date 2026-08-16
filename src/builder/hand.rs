@@ -631,8 +631,23 @@ pub(crate) fn move_ghost(
                     }
                     _ => 0.0,
                 };
+                // AND ON THE FACE the cursor is looking at, rather than inside
+                // the wall.
+                //
+                // An opening's frame is drawn at the wall's own thickness and a
+                // window's bars are set back in the reveal, which is exactly
+                // right for a window standing in a hole - and buried, in a wall
+                // that has not got the hole yet. Everything but the proud sill
+                // was inside the timber. Brett, with a picture of three faint
+                // sticks where a window should be: "Can we get a better ghost
+                // while placing?"
+                //
+                // It goes in where it was AIMED when it lands, not where it was
+                // standing: the punch reads the aim, so a ghost held clear of
+                // the face still drops into the middle of the wall.
+                let out = Vec3::new(hit.normal.x, 0.0, hit.normal.z).normalize_or_zero();
                 Some((
-                    wall_at.translation + along * middle + Vec3::Y * lift,
+                    wall_at.translation + along * middle + Vec3::Y * lift + out * GHOST_PROUD,
                     record.yaw,
                 ))
             });

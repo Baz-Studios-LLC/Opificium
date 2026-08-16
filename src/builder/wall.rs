@@ -232,6 +232,15 @@ pub fn opening_lift(wall_foot: f32, tall: i32, usual: Band, aim: f32, grid: f32)
     )
 }
 
+/// How far an opening's ghost stands off the face it is aimed at.
+///
+/// Half the wall, so its middle reaches the face, and an atom more so the whole
+/// of it is clear of the timber. A ghost inside a wall is a ghost nobody can
+/// see: a window's frame is drawn at the wall's own thickness and its bars are
+/// set back in the reveal, both of them right for a window standing in a hole
+/// and both of them buried in a wall that has not got the hole yet.
+pub const GHOST_PROUD: f32 = WALL_THICK * 0.5 + ATOM;
+
 /// How far a window's ghost stands off where it is drawn, to show where it will
 /// land.
 ///

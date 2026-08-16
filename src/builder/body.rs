@@ -1288,6 +1288,21 @@ pub(crate) fn body_of(kind: &PartKind, repaint: Option<(&str, f32)>) -> Vec<Slab
                     "wood",
                     0.62,
                 ),
+                // And the lintel over it, which is the piece that closes the shape.
+                // Without it the ghost is an open U and a maker can see where a window
+                // starts but not where it stops - the one thing they are judging. It is
+                // the lintel a framed wall lands, to the atom; a plain wall puts its own
+                // plaster there instead, which is solid either way.
+                slab(
+                    0.0,
+                    (foot + rise) as f32 * ATOM + PLATE_TALL as f32 * ATOM * 0.5,
+                    0.0,
+                    wide as f32 * ATOM,
+                    PLATE_TALL as f32 * ATOM,
+                    WALL_THICK,
+                    "wood",
+                    0.62,
+                ),
             ];
             // And the panes it will be divided into, by the same rule the wall uses.
             let panes = |across: i32| (across as f32 / PANE_WANTED as f32).round().max(1.0) as i32;
