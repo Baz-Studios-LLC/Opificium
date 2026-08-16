@@ -1,31 +1,51 @@
-## Colours saved off one building, to paint the next
+## A terrain bench: ground, brought to the bench and shaped
 
-**KEEP THESE COLOURS**, at the foot of the palette. It reads every colour the
-building on the bench is painted with and keeps them as a named set — so the next
-house is painted from the eight or ten colours that make a village look like a
-village, rather than found again by eye across a hundred and twenty swatches.
+A fourth bench, for shaping the ground a game's world is made of. **THE TERRAIN**,
+in the rail under the rig.
 
-The sets hang under the ramps. Click any of their colours to arm it, exactly as you
-would a ramp's own.
+**A world is not a project.** The other benches work on one game's authored content
+and are pointed at it when the app opens. This one is a tool you bring ground to,
+the way the kiln takes an image — so it opens a world from its own shelf, with
+**OPEN A WORLD…**, and any folder holding a `heightmap.png` will do, whoever's it is.
+The last one is remembered. A project may *name* its world in `opificium.json` under
+`"world"`, which saves a walk across the disk and nothing more.
 
-**It is read off the building, not typed into a list.** A maker who has just
-finished a house has already made every decision a palette holds, so the only
-question left is what to call it — and the field arrives holding the work's name,
-since "the longhouse colours" is what is usually meant. Enter takes it.
+**Eight tools**, on the number row:
 
-**The whole building, every step and every level.** A roof's colours are exactly the
-ones forgotten by the time the next house is drawn, so a set saved while looking at
-bare footings still holds the roof. Only what was PAINTED: a part left alone wears
-its own colours, and there is no brush stroke there to repeat.
+| | | |
+| --- | --- | --- |
+| `1` Raise | `2` Lower | push the ground up, pull it down |
+| `3` Smooth | `4` Flatten | average out what is there, level to where you pressed |
+| `5` Path | `6` Roughen | a flat-bottomed cut for roads, fractal detail |
+| `7` Erode | `8` Ramp | let steep ground slump, a graded run between two points |
 
-**Saving under a name you have used replaces that set** — you painted a little more
-and this is what the longhouse is now, rather than a second longhouse.
+**Erode** is thermal erosion: ground steeper than material can hold — about
+thirty-four degrees, where sand and scree settle — sheds downhill and piles at the
+foot. Nothing is created or destroyed, so a hill does not shrink, it *settles*.
+**Ramp** is clicked rather than dragged: a start, a far end, and a steady climb
+between them that can be walked and carted. A preview shows the grade against the
+ground it would cut through before any of it is cut.
 
-**To forget one**, press the `-` beside its name; it becomes `?` and the next press
-does it. It asks because it cannot be undone: undo reaches the drawing, not the
-project's files.
+Undo and redo group **per stroke**, so a drag lasting two hundred frames comes back
+in one press. Ground re-meshes live under the brush, with the old mesh left standing
+until the new one lands, so nothing blinks out from underfoot. `Ctrl+S` keeps it.
 
-Sets live in the project, at `data/saved-palettes.json`, because the colours name
-that game's own ramps — a set saved for one game paints nothing in another.
+**Shift is the camera at this bench.** Both mouse buttons are tools — the left lays
+the brush down and the right takes it back off — so the eye turns on `Shift`+drag,
+and the drafting angles move to `Shift`+`1`–`6`. Middle-drag pans and the wheel
+zooms, exactly as everywhere else.
 
-See `FORMATS.md` for every file that passes between a game and the bench.
+**The whole world stands at once.** A bench is for judging the shape of one coastline
+against the one across the water, and a disc of ground following the eye about
+answers none of that.
+
+It paints in the open game's own ramps — water, sand, grass, foliage, stone, snow —
+by height and slope, and lays a moving sea over it with a tide, so a coastline can be
+read against the waterline it will actually have.
+
+Three files pass between a game and this bench, and `FORMATS.md` describes each:
+`heightmap.png` and `world.json` in, `edits.bin` out. Edits are stored as **signed
+height offsets** on top of generated ground, so re-rolling a game's noise or
+redrawing its map never moves hand-placed geography.
+
+Nothing about the builder, the kiln or the rig changes.

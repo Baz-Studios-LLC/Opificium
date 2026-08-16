@@ -92,8 +92,19 @@ fn steer(
     time: Res<Time>,
     mut rig: ResMut<OrbitRig>,
 ) {
-    // Orbit on right mouse, the game's way.
-    if buttons.pressed(MouseButton::Right) {
+    let terrain = *bench == crate::Bench::Terrain;
+    // At the terrain bench, SHIFT is the camera. Both mouse buttons there are
+    // tools - the left lays the brush down and the right takes it back off - so
+    // the eye needs a modifier rather than a button of its own, and a maker
+    // lowering a hill must never also swing the view out from under themselves.
+    let shift = terrain && keys.any_pressed([KeyCode::ShiftLeft, KeyCode::ShiftRight]);
+
+    let turning = if terrain {
+        shift && buttons.pressed(MouseButton::Left)
+    } else {
+        buttons.pressed(MouseButton::Right)
+    };
+    if turning {
         rig.yaw += motion.delta.x * 0.008;
         rig.pitch = (rig.pitch + motion.delta.y * 0.008).clamp(0.12, 1.55);
     }
@@ -105,8 +116,11 @@ fn steer(
     }
 
     // Snapped views on the number row: the drafting angles. Front is the
-    // door side - the gold sill - and overhead is the plan view.
+    // door side - the gold sill - and overhead is the plan view. At the terrain
+    // bench the bare row holds the tools, so these move onto Shift with the
+    // rest of the camera.
     let pi = std::f32::consts::PI;
+    let drafting = !terrain || shift;
     for (key, yaw, pitch) in [
         (KeyCode::Digit1, 0.0, 0.32),       // front, the door side
         (KeyCode::Digit2, pi * 0.5, 0.32),  // right side
@@ -115,7 +129,7 @@ fn steer(
         (KeyCode::Digit5, 0.0, 1.55),       // overhead, the plan
         (KeyCode::Digit6, 0.6, 0.7),        // the working perch
     ] {
-        if keys.just_pressed(key) {
+        if drafting && keys.just_pressed(key) {
             rig.yaw = yaw;
             rig.pitch = pitch;
         }
@@ -169,7 +183,10 @@ fn steer(
     // The wheel draws near and pulls away - unless the cursor is over a
     // pane, where the wheel belongs to the list.
     if scroll.delta.y != 0.0 && !over_pane.0 {
-        rig.distance = (rig.distance * (1.0 - scroll.delta.y * 0.08)).clamp(3.0, 60.0);
+        // A world is kilometres across where a building is metres, so the eye
+        // has to be able to stand far enough back to see a coastline.
+        let (near, far) = if terrain { (20.0, 6_000.0) } else { (3.0, 60.0) };
+        rig.distance = (rig.distance * (1.0 - scroll.delta.y * 0.08)).clamp(near, far);
     }
 }
 

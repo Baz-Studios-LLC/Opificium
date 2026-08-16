@@ -122,8 +122,12 @@ struct Handle {
     grip: Grip,
 }
 
+/// Visible to the crate so other benches can say "the bench eye, not this one".
+/// The overlay camera rides along with the real one and must never be mistaken
+/// for it: aiming a cursor ray through it, or setting its projection, quietly
+/// breaks whatever asked.
 #[derive(Component)]
-struct GizmoCamera;
+pub(crate) struct GizmoCamera;
 
 const ARROW_LAYER: usize = 1;
 
