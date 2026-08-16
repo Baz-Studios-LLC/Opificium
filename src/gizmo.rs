@@ -240,7 +240,7 @@ fn walk_modes(
 /// In MOVE and RESIZE, a left click selects what the cursor touches;
 /// escape and vanishing deselect. NORMAL keeps no selection at all.
 #[allow(clippy::too_many_arguments)]
-fn select_part(
+pub(crate) fn select_part(
     keys: Res<ButtonInput<KeyCode>>,
     buttons: Res<ButtonInput<MouseButton>>,
     mode: Res<ToolMode>,
@@ -251,6 +251,7 @@ fn select_part(
     hovered: Res<Hovered>,
     parts: Query<(), With<Placed>>,
     records: Query<(Entity, &Placed), Without<Ghost>>,
+    hovers: Query<&Interaction>,
     mut selected: ResMut<Selected>,
 ) {
     if dims.0.is_some() {
@@ -258,6 +259,18 @@ fn select_part(
     }
     if *bench != Bench::Builder || naming.0.is_some() {
         selected.clear();
+        return;
+    }
+    // A CLICK THAT LANDS ON INTERFACE IS THE INTERFACE'S BUSINESS, and letting go
+    // is a thing a click DOES - so it has to stand aside for one, exactly as
+    // placing and picking up already do.
+    //
+    // Without this, pressing GROUP let go of the very selection it was about to
+    // group: the line is offered because more than one thing is gathered, and the
+    // click that presses it was read as a click on nothing. Brett: "When I group
+    // things the group panel shows that they are all selected, but when I right
+    // click and click group, it doesn't lock them in a group."
+    if hovers.iter().any(|touch| *touch != Interaction::None) {
         return;
     }
     // NORMAL is placement: a click there picks a part up, and always did. But

@@ -2715,3 +2715,160 @@ fn pressing_a_brace_line_braces_the_post() {
         );
     }
 }
+
+/// PRESSING GROUP ACTUALLY GROUPS THEM.
+///
+/// Brett: "When I group things the group panel shows that they are all selected,
+/// but when I right click and click group, it doesn't lock them in a group."
+///
+/// The offer is read off the SELECTION - more than one thing gathered - and the
+/// answer has to stamp that same selection. Two halves again, and the half that
+/// can be seen working is the one that puts the line on the menu.
+#[test]
+fn pressing_group_locks_them_together() {
+    use bevy::asset::AssetPlugin;
+    let mut app = App::new();
+    app.add_plugins((MinimalPlugins, AssetPlugin::default()));
+    app.init_asset::<Mesh>().init_asset::<StandardMaterial>();
+    app.insert_resource(crate::look::load_palette_for_bake());
+    app.init_resource::<ButtonInput<KeyCode>>();
+    app.init_resource::<ButtonInput<MouseButton>>();
+    app.init_resource::<crate::gizmo::Selected>();
+    app.init_resource::<PieceKept>();
+    app.init_resource::<PieceWantsAName>();
+    app.init_resource::<crate::look::Fonts>();
+    app.init_resource::<MaterialFor>();
+    app.init_resource::<WindowPanes>();
+    app.init_resource::<DoorAs>();
+    app.init_resource::<Naming>();
+    // BOTH SYSTEMS, in the order the bench runs them. The answer alone has always
+    // worked; what broke it was the CHOOSING running first on the same click and
+    // letting go of the selection before the menu could read it.
+    app.init_resource::<crate::gizmo::ToolMode>();
+    app.init_resource::<crate::gizmo::GizmoHot>();
+    app.init_resource::<Hovered>();
+    app.init_resource::<DimsEntry>();
+    app.insert_resource(crate::Bench::Builder);
+    app.add_systems(Update, (crate::gizmo::select_part, work_part_menu).chain());
+    // In MOVE, which is where a maker gathers things to group them.
+    *app.world_mut().resource_mut::<crate::gizmo::ToolMode>() = crate::gizmo::ToolMode::Move;
+
+    let mut standing = Vec::new();
+    for step in 0..3 {
+        let at = [step as f32 * 2.0, 0.0, 0.0];
+        standing.push(
+            app.world_mut()
+                .spawn((
+                    Placed {
+                        part: part_name(&PartKind::wall(2.0)),
+                        at,
+                        yaw: 0.0,
+                        tilt: 0.0,
+                        ramp: None,
+                        shade: 0.5,
+                        stage: "walls".to_string(),
+                        flip: false,
+                        group: None,
+                        loose: false,
+                        material: String::new(),
+                    },
+                    Transform::from_xyz(at[0], at[1], at[2]),
+                ))
+                .id(),
+        );
+    }
+    for part in &standing {
+        app.world_mut()
+            .resource_mut::<crate::gizmo::Selected>()
+            .toggle(*part);
+    }
+
+    // THE PRESS, which is a LEFT CLICK - on the menu line, over no part at all,
+    // which is exactly what the choosing reads as "a click on nothing".
+    let menu = app.world_mut().spawn(PartMenu).id();
+    app.world_mut().spawn((
+        MenuLine {
+            deed: Deed::Group,
+            part: standing[0],
+        },
+        Interaction::Pressed,
+        BackgroundColor(Color::NONE),
+        ChildOf(menu),
+    ));
+    // And with the ray still finding a part BEHIND the menu, which is the other
+    // way the same click destroyed the selection: it re-chose that one part.
+    app.world_mut().resource_mut::<Hovered>().grab = Some(standing[2]);
+    app.world_mut()
+        .resource_mut::<ButtonInput<MouseButton>>()
+        .press(MouseButton::Left);
+    app.update();
+
+    let groups: Vec<Option<u32>> = standing
+        .iter()
+        .map(|part| app.world().get::<Placed>(*part).expect("stands").group)
+        .collect();
+    assert!(
+        groups.iter().all(|group| group.is_some()),
+        "GROUP left something ungrouped: {groups:?}"
+    );
+    assert!(
+        groups.windows(2).all(|pair| pair[0] == pair[1]),
+        "GROUP put them in different groups: {groups:?}"
+    );
+}
+
+/// AND A CLICK ON THE WORLD STILL LETS GO.
+///
+/// The other half of the same guard. Standing aside for interface must not mean
+/// standing aside for everything: a click on nothing is still how a maker drops a
+/// selection, which is what stops the next click doing nothing at all with no way
+/// to tell why.
+#[test]
+fn a_click_on_nothing_still_lets_go() {
+    let mut app = App::new();
+    app.add_plugins(MinimalPlugins);
+    app.init_resource::<ButtonInput<KeyCode>>();
+    app.init_resource::<ButtonInput<MouseButton>>();
+    app.init_resource::<crate::gizmo::Selected>();
+    app.init_resource::<crate::gizmo::ToolMode>();
+    app.init_resource::<crate::gizmo::GizmoHot>();
+    app.init_resource::<Hovered>();
+    app.init_resource::<DimsEntry>();
+    app.init_resource::<Naming>();
+    app.insert_resource(crate::Bench::Builder);
+    app.add_systems(Update, crate::gizmo::select_part);
+    *app.world_mut().resource_mut::<crate::gizmo::ToolMode>() = crate::gizmo::ToolMode::Move;
+
+    let wall = app
+        .world_mut()
+        .spawn((
+            Placed {
+                part: part_name(&PartKind::wall(2.0)),
+                at: [0.0, 0.0, 0.0],
+                yaw: 0.0,
+                tilt: 0.0,
+                ramp: None,
+                shade: 0.5,
+                stage: "walls".to_string(),
+                flip: false,
+                group: None,
+                loose: false,
+                material: String::new(),
+            },
+            Transform::default(),
+        ))
+        .id();
+    app.world_mut()
+        .resource_mut::<crate::gizmo::Selected>()
+        .toggle(wall);
+
+    // Nothing under the cursor, no interface anywhere, and a plain left click.
+    app.world_mut()
+        .resource_mut::<ButtonInput<MouseButton>>()
+        .press(MouseButton::Left);
+    app.update();
+    assert!(
+        app.world().resource::<crate::gizmo::Selected>().is_empty(),
+        "a click on nothing no longer lets go of the selection"
+    );
+}
