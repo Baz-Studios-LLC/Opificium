@@ -445,6 +445,16 @@ pub(crate) fn move_ghost(
         return;
     }
     let Some(kind_now) = hand.kind else {
+        // AN EMPTY HAND LEAVES NOTHING STANDING. Setting a part down empties the hand now
+        // - one part per pick - and this returned without taking the ghost away, so the
+        // last one hung in the air exactly where it was placed. Brett saw it as a second
+        // set of stairs beside the first.
+        //
+        // It never showed before, because the hand used to keep its tool for ever and
+        // there was never a frame with an empty hand and a ghost still standing.
+        for (ghost, _, _) in &ghosts {
+            commands.entity(ghost).despawn();
+        }
         return;
     };
 
