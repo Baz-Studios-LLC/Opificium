@@ -633,6 +633,12 @@ pub fn part_name(kind: &PartKind) -> String {
                 if hole.wide != usual_width(hole.what) {
                     name.push_str(&format!("@{}", hole.wide));
                 }
+                // And only when it is not standing where its kind would stand.
+                // Same rule, same reason: a window at the course is spelled the
+                // way it always was.
+                if let Some(band) = hole.band {
+                    name.push_str(&format!("+{}+{}", band.foot, band.rise));
+                }
                 // Only when the bars are dark. A wall drawn before they could be writes
                 // the name it always wrote, and reads back the same.
                 if hole.dark {
@@ -718,14 +724,27 @@ pub fn kind_from_name(name: &str) -> Option<PartKind> {
                 continue;
             }
             let Some(slot) = slots.next() else { break };
-            // `d0.5` or `d0.5@36`: a width only when it is not the usual one.
+            // `d0.5`, `d0.5@36`, `w0.5+18+16`: a width only when it is not the
+            // usual one, and a band only when it is not the one its kind takes.
             let (said, dark) = match said.strip_suffix('!') {
                 Some(said) => (said, true),
                 None => (said, false),
             };
-            let (where_at, wide) = match said[1..].split_once('@') {
-                Some((at, wide)) => (at, wide.parse::<i32>().ok()),
+            // The band comes off the end first, since what is left of the two
+            // numbers before it is what the older spellings said and no more.
+            let (rest, band) = match said[1..].split_once('+') {
+                Some((rest, band)) => {
+                    let mut two = band.split('+').map(|n| n.parse::<i32>());
+                    match (two.next(), two.next()) {
+                        (Some(Ok(foot)), Some(Ok(rise))) => (rest, Some(Band { foot, rise })),
+                        _ => (rest, None),
+                    }
+                }
                 None => (&said[1..], None),
+            };
+            let (where_at, wide) = match rest.split_once('@') {
+                Some((at, wide)) => (at, wide.parse::<i32>().ok()),
+                None => (rest, None),
             };
             let Ok(at) = where_at.parse() else { continue };
             let what = match said.as_bytes().first() {
@@ -738,6 +757,7 @@ pub fn kind_from_name(name: &str) -> Option<PartKind> {
                 at,
                 wide: wide.unwrap_or(usual_width(what)),
                 dark,
+                band,
             });
         }
         return Some(PartKind::Wall {

@@ -203,6 +203,80 @@ pub(crate) fn courses_of(tall: i32) -> (i32, i32, i32, i32, i32) {
 /// How many doors and windows one framed wall may hold.
 pub const MOST_OPENINGS: usize = 4;
 
+/// The band a window's GHOST is drawn in: the one an ordinary wall gives it.
+///
+/// A ghost cannot know which wall it is over until it is over one, so it is
+/// drawn for the ordinary wall and LIFTED to where it will land. Both halves ask
+/// here - the body that draws it and the hand that lifts it - because a ghost
+/// drawn off one number and moved by another is a ghost that lies about where it
+/// is going.
+pub(crate) fn ghost_band() -> Band {
+    band_of(Opening::Window, (WALL_HIGH / ATOM).round() as i32)
+}
+
+/// How much timber goes over an opening's head, given the room between its head
+/// and the head plate.
+///
+/// A lintel is a TIMBER, not a filler. It was whatever was left, which is the
+/// same thing while every opening reaches within a plate or two of the top - and
+/// becomes a post half the height of the wall the moment a window is set low in
+/// one. So: a plate's worth, unless what is left is small enough that framing it
+/// would be a strip nobody would build, in which case it takes the lot.
+///
+/// The wall ABOVE that is ordinary wall and gets ordinary framing, which is the
+/// other half of this and lives in [`body_of`](crate::builder::body_of).
+pub(crate) fn lintel_of(over: i32) -> i32 {
+    if over <= PLATE_TALL * 2 {
+        over
+    } else {
+        PLATE_TALL
+    }
+}
+
+/// The lowest a window's foot may be set, in atoms.
+///
+/// Its sill hangs a plate's worth below it and the wall's own sill plate takes
+/// the plate above the floor, so two plates is where the two stop fighting for
+/// the same atoms.
+pub(crate) const LOWEST_SILL: i32 = PLATE_TALL * 2;
+
+/// Where a kind of opening stands in a wall of this height when nobody has said
+/// otherwise.
+///
+/// Also what a NAME leaves out, exactly as [`usual_width`] is: a hole standing
+/// where its kind would stand writes no band at all, so every wall drawn before
+/// a window could be lifted reads back byte for byte the same.
+///
+/// A HAND asks this too, and must: the window it lifts off the course keeps the
+/// size the course gave it, so sliding one up a wall changes where it is and
+/// nothing else.
+pub(crate) fn band_of(what: Opening, tall: i32) -> Band {
+    let (_, _, _, high_foot, high_tall) = courses_of(tall);
+    let (rise, foot) = match what {
+        // A door reaches the FLOOR. It stood on the sill plate before, which put
+        // its head two atoms above the leaf hung in it - the leaf is two metres
+        // from the ground, and the hole was two metres from the top of the plate
+        // - so the door sat low in its own opening with daylight over it.
+        // Nothing crosses a doorway: the plate is laid in pieces around it,
+        // which is what you walk through.
+        Opening::Door => (DOOR_HIGH, 0),
+        // A window FILLS the upper course, from the rail up. It used to sit
+        // INSIDE that course with a sill of its own under it, landing directly
+        // against the rail - two beams touching read as one thick beam, and the
+        // window looked squeezed. Reaching the course's own foot instead, the
+        // rail IS its sill, one plate thick like every other horizontal in the
+        // wall.
+        Opening::Window => (high_tall, high_foot),
+    };
+    Band {
+        foot,
+        // A plate's worth of lintel over it, always: the timber that carries the
+        // wall across the hole. The head plate is not that timber - it carries
+        // the roof.
+        rise: rise.min(tall - PLATE_TALL - foot - PLATE_TALL),
+    }
+}
+
 /// A window bar's thickness - the mullion standing up it and the transom lying
 /// across. Half a stud: these divide the light rather than carry the wall, and
 /// a bar as heavy as a stud reads as a wall with a small hole either side of it
@@ -241,35 +315,11 @@ pub(crate) fn openings_at(
     openings: &[Option<Hole>; MOST_OPENINGS],
 ) -> Vec<(Opening, i32, i32, i32, i32, bool)> {
     let mut holes: Vec<(Opening, i32, i32, i32, i32, bool)> = Vec::new();
-    let (_inner_foot, _, _, high_foot, high_tall) = courses_of(tall);
     for hole in openings.iter().flatten().copied() {
         let (what, at) = (hole.what, hole.at);
-        // The HOLE's width, not its kind's: a double door frames a hole its two
-        // leaves fit through. What the kind still decides is how tall it stands and
-        // how far off the floor, which has nothing to do with how wide it is.
-        let (rise, foot) = match what {
-            // A door reaches the FLOOR. It stood on the sill plate before,
-            // which put its head two atoms above the leaf hung in it - the leaf
-            // is two metres from the ground, and the hole was two metres from
-            // the top of the plate - so the door sat low in its own opening
-            // with daylight over it. Nothing crosses a doorway: the plate is
-            // laid in pieces around it, which is what you walk through.
-            Opening::Door => (DOOR_HIGH, 0),
-            // A window FILLS the upper course, from the rail to the head plate.
-            //
-            // It used to sit inside that course with a sill of its own under it
-            // and a lintel of its own over it - and each of those landed
-            // directly against the rail or the plate, so the wall showed six
-            // atoms of solid timber above the glass and six below. Two beams
-            // touching read as one thick beam, and the window looked squeezed
-            // between them.
-            //
-            // Reaching the course's own edges instead, the rail IS its sill and
-            // the head plate IS its lintel. Both come out exactly a plate thick,
-            // like every other horizontal in the wall, and the window is taller
-            // by the two it is no longer paying for.
-            Opening::Window => (high_tall, high_foot),
-        };
+        // The HOLE's own band where it has one, and the band its kind takes
+        // otherwise. What the kind still decides is only what nobody has said.
+        let Band { foot, rise } = hole.band.unwrap_or_else(|| band_of(what, tall));
         let wide = hole.wide;
         let room = span - POST_WIDE - JAMB_WIDE - wide;
         if room < POST_WIDE + JAMB_WIDE {
@@ -277,7 +327,12 @@ pub(crate) fn openings_at(
         }
         let middle = (span as f32 * 0.5 + at / ATOM).round() as i32;
         let from = (middle - wide / 2).clamp(POST_WIDE + JAMB_WIDE, room);
-        let rise = rise.min(tall - PLATE_TALL - foot - PLATE_TALL);
+        // Inside the wall, whoever asked for it: never through the floor, never
+        // into the head plate. A band its kind chose is inside these already -
+        // this is the clamp that catches a band a HAND chose on a wall that has
+        // since been made shorter.
+        let foot = foot.clamp(0, (tall - PLATE_TALL).max(0));
+        let rise = rise.min(tall - PLATE_TALL - foot);
         // Two openings that overlap would frame each other's jambs and leave a
         // bay of no width between them. The later one simply does not fit.
         if holes.iter().any(|(theirs, hx, hw, hy, hh, _)| {

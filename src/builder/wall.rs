@@ -201,6 +201,47 @@ pub fn opening_seat(
     ((t * grid).round() / grid).clamp(-reach, reach)
 }
 
+/// How far UP a wall an opening aimed at `aim` sets its foot, in atoms.
+///
+/// The companion to [`opening_seat`], and deliberately the same shape: the same
+/// grid, striding up the wall the way that one strides along it. Brett: "I
+/// should be able to place the window atom perfect anywhere on the wall" - so G
+/// sets the stride and alt drops it to whole atoms, exactly as they do sideways.
+///
+/// The cursor holds a window by its MIDDLE, which is where a hand thinks it is
+/// holding it; the foot is what a wall is told.
+///
+/// THE STRIDES ARE MEASURED FROM THE COURSE the wall would have put it in, not
+/// from the wall's foot, and that is the whole difference between a window you
+/// can put anywhere and a window you can no longer put where it belongs. The
+/// course is one and an eighth of a metre up an ordinary wall; a stride of a
+/// quarter-metre off the FLOOR cannot land on it at all, so every window placed
+/// with the ordinary grid would have missed the rail by two atoms and every
+/// wall in the village would have been spelled a new way. Off the course, the
+/// course is the stop you get for aiming at it, and a stride is a stride away.
+pub fn opening_lift(wall_foot: f32, tall: i32, usual: Band, aim: f32, grid: f32) -> i32 {
+    let course = usual.foot as f32 * ATOM;
+    let want = aim - wall_foot - usual.rise as f32 * ATOM * 0.5 - course;
+    let stepped = (want * grid).round() / grid;
+    // Never sunk into the sill plate, never up into the head plate - and the
+    // second clamp gives way to the first on a wall too short to hold it, since
+    // a window with its foot above its head is not a window.
+    (usual.foot + (stepped / ATOM).round() as i32).clamp(
+        LOWEST_SILL,
+        (tall - PLATE_TALL - usual.rise).max(LOWEST_SILL),
+    )
+}
+
+/// How far a window's ghost stands off where it is drawn, to show where it will
+/// land.
+///
+/// The other half of [`ghost_band`], and a function rather than a line in the
+/// hand because a ghost lifted by arithmetic written out twice is the trap this
+/// bench keeps falling into: the offer moves and the answer does not.
+pub fn ghost_lift(foot: i32) -> f32 {
+    (foot - ghost_band().foot) as f32 * ATOM
+}
+
 pub(crate) fn punchable_length(record: &Placed) -> Option<f32> {
     match kind_from_name(&record.part)? {
         PartKind::Wall { long, .. } => Some(long),
@@ -345,12 +386,32 @@ pub(crate) fn punch_wall(
         mut openings,
     }) = kind_from_name(&record.part)
     {
+        let what = if is_door {
+            Opening::Door
+        } else {
+            Opening::Window
+        };
+        // WHERE UP THE WALL IT WAS AIMED, at the size that wall's own courses
+        // give it: a window slides up and down and keeps its size, rather than
+        // growing to fill wherever it has been put.
+        //
+        // Nothing at all when it landed where its kind would have put it anyway,
+        // and nothing for a door, which reaches the floor by definition. That is
+        // what keeps a wall punched the ordinary way spelled the ordinary way.
+        let tall = (high / ATOM).round().max((PLATE_TALL * 3 + 8) as f32) as i32;
+        let usual = band_of(what, tall);
+        let band = aimed
+            // The aim on THIS wall, not on whatever else the cursor found: the
+            // wall may have been chosen by nearness after a blind click, and a
+            // height read off some other thing's face is a height nobody meant.
+            .filter(|(touched, _, _)| *touched == wall && what == Opening::Window)
+            .map(|(_, point, _)| Band {
+                foot: opening_lift(wall_at.y, tall, usual, point.y, grid),
+                rise: usual.rise,
+            })
+            .filter(|band| *band != usual);
         let want = Some(Hole {
-            what: if is_door {
-                Opening::Door
-            } else {
-                Opening::Window
-            },
+            what,
             at: on_the_lattice(middle),
             // The width the OPENING needs, carried in from the one table rather
             // than implied by its kind. This is the whole of the fix: a double
@@ -358,6 +419,7 @@ pub(crate) fn punch_wall(
             wide: clear,
             // Timber until somebody says otherwise; the right-click menu blackens them.
             dark: false,
+            band,
         });
         // Into the first empty slot, so a second window joins the first rather
         // than replacing it. With every slot taken, the nearest one moves - a

@@ -53,6 +53,32 @@ pub struct Hole {
     ///
     /// A door has bars in nothing and ignores it.
     pub dark: bool,
+    /// Where it stands UP the wall - or nothing at all, for the band its kind
+    /// takes by itself.
+    ///
+    /// This is the freedom a window did not have. Its height was not a number
+    /// anywhere: a window WAS the wall's upper course, so the one thing it could
+    /// be told was how far along. Brett: "I should be able to place the window
+    /// atom perfect anywhere on the wall."
+    ///
+    /// Nothing when it sits where its kind would put it, which is why every wall
+    /// drawn before this reads and writes exactly the name it always did - and why
+    /// a window left at the course still RIDES the course when the wall is pulled
+    /// taller, while one you have put somewhere stays where you put it.
+    pub band: Option<Band>,
+}
+
+/// Where an opening's foot stands and how tall it is, in atoms off the wall's
+/// own foot.
+///
+/// The same two numbers a [`PartKind::Seg`] carries as `lift` and `high`, in the
+/// units a wall is actually solved in. One struct rather than two loose fields
+/// because they are one fact: a band with a foot and no height is not half an
+/// answer, it is no answer.
+#[derive(Clone, Copy, PartialEq)]
+pub struct Band {
+    pub foot: i32,
+    pub rise: i32,
 }
 
 impl PartKind {
@@ -86,6 +112,7 @@ impl Hole {
             at,
             wide: usual_width(what),
             dark: false,
+            band: None,
         }
     }
 }

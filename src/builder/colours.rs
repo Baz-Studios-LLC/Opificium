@@ -263,6 +263,7 @@ fn a_double_door_gets_a_double_hole() {
                 at: 0.0,
                 wide: double,
                 dark: false,
+                band: None,
             }),
             None,
             None,
@@ -303,6 +304,7 @@ fn a_framed_wall_names_its_openings() {
                 at: 0.5,
                 wide: DOOR_WIDE * 2,
                 dark: false,
+                band: None,
             }),
             None,
             None,
@@ -413,6 +415,7 @@ mod bars {
                     at: 0.0,
                     wide: WINDOW_WIDE,
                     dark: true,
+                    band: None,
                 }),
                 None,
                 None,
@@ -476,6 +479,7 @@ mod framing {
                     at: 0.75,
                     wide: WINDOW_WIDE,
                     dark: true,
+                    band: None,
                 }),
                 None,
                 None,
@@ -686,6 +690,320 @@ mod windows {
         }
     }
 
+    /// A window goes where it is put, and takes its frame with it.
+    ///
+    /// Brett: "I really want to rethink windows. I should be able to place the window atom
+    /// perfect anywhere on the wall." It could not: a window's height was not a number
+    /// anywhere. It WAS the wall's upper course, so the only thing it could be told was how
+    /// far along - and the one degree of freedom it lacked is the one that makes a townhall.
+    #[test]
+    fn a_window_goes_where_it_is_put() {
+        // The same window, in the same wall, at three heights - the one its kind gives it
+        // and two of its own.
+        let at_band = |band: Option<Band>| {
+            body_of(
+                &PartKind::Wall {
+                    long: 4.0,
+                    high: WALL_HIGH,
+                    framed: true,
+                    openings: [
+                        Some(Hole {
+                            band,
+                            ..Hole::plain(Opening::Window, 0.0)
+                        }),
+                        None,
+                        None,
+                        None,
+                    ],
+                },
+                None,
+            )
+        };
+        // Where the glass is, read off the wall: the proud sill is under it and nothing
+        // else in a wall stands proud of both faces.
+        let sill_of = |body: &[Slab]| {
+            body.iter()
+                .find(|Slab { size, .. }| size.z > WALL_THICK + 1e-4)
+                .expect("a window has a proud sill")
+                .at
+                .y
+        };
+
+        let usual = band_of(Opening::Window, (WALL_HIGH / ATOM).round() as i32);
+        assert!(
+            (sill_of(&at_band(None)) - sill_of(&at_band(Some(usual)))).abs() < 1e-4,
+            "a window told to stand where its kind stands did not stand there"
+        );
+
+        // A metre lower, and half a metre higher than that. Whole atoms both ways.
+        for step in [-16, 8] {
+            let moved = Band {
+                foot: usual.foot + step,
+                ..usual
+            };
+            let want = sill_of(&at_band(None)) + step as f32 * ATOM;
+            let got = sill_of(&at_band(Some(moved)));
+            assert!(
+                (got - want).abs() < 1e-4,
+                "a window lifted by {step} atoms put its sill at {got}, not {want}"
+            );
+        }
+    }
+
+    /// And it does not fight the wall at whatever height it has been put.
+    ///
+    /// The rail was a window's sill, so a window lifted off the rail brings a sill of its
+    /// own into atoms the rail already had - which is the speckle Brett has now found twice.
+    /// The rail gives way to a sill wherever the sill lands, not only where it used to.
+    #[test]
+    fn a_lifted_window_does_not_fight_the_wall() {
+        let tall = (WALL_HIGH / ATOM).round() as i32;
+        let usual = band_of(Opening::Window, tall);
+        let wall = |framed: bool, foot: i32| {
+            body_of(
+                &PartKind::Wall {
+                    long: 4.0,
+                    high: WALL_HIGH,
+                    framed,
+                    openings: [
+                        Some(Hole {
+                            band: Some(Band { foot, ..usual }),
+                            ..Hole::plain(Opening::Window, 0.0)
+                        }),
+                        None,
+                        None,
+                        None,
+                    ],
+                },
+                None,
+            )
+        };
+        // Every height between the sill plate and the head plate, an atom at a time: this
+        // is cheap and the faults are never where you expect them.
+        for foot in LOWEST_SILL..=tall - PLATE_TALL - usual.rise {
+            // A PLAIN wall, strictly - nothing in one may share space with anything.
+            no_two_solids_share_space(&wall(false, foot), false);
+
+            // A FRAMED wall, at the sill, which is the piece that meets the rail. The rest
+            // of a framed wall's carpentry has long-standing overlaps where braces run into
+            // the corner posts; not chased here, and not pretended away either.
+            let framed = wall(true, foot);
+            let sill = framed
+                .iter()
+                .find(|Slab { size, .. }| size.z > WALL_THICK + 1e-4)
+                .expect("a framed window has a proud sill");
+            for other in &framed {
+                // A BRACE is not its own box: it is drawn long and swung, so the box it
+                // was cut from sticks out past the bay at both ends. Asking where its box
+                // is answers a question nobody asked.
+                if std::ptr::eq(other, sill)
+                    || other.size.z > WALL_THICK + 1e-4
+                    || other.cant != 0.0
+                {
+                    continue;
+                }
+                let apart = |at_a: f32, s_a: f32, at_b: f32, s_b: f32| {
+                    (at_a - at_b).abs() >= (s_a + s_b) * 0.5 - 1e-3
+                };
+                assert!(
+                    apart(sill.at.x, sill.size.x, other.at.x, other.size.x)
+                        || apart(sill.at.y, sill.size.y, other.at.y, other.size.y),
+                    "a window with its foot at {foot} has its sill in the same place as \
+                     {:?} {:?}",
+                    other.at,
+                    other.size
+                );
+            }
+        }
+    }
+
+    /// A wall closes up over and under a window wherever the window has been put.
+    ///
+    /// The framing was worked out by COURSE, and a window that filled its course left
+    /// nothing to fill: the rail was its sill and the head plate carried its lintel. Set one
+    /// low and the course it stood in had no idea, so the wall showed daylight under the
+    /// sill and a post half the height of the wall over the head.
+    #[test]
+    fn a_lifted_window_leaves_no_hole() {
+        let tall = (WALL_HIGH / ATOM).round() as i32;
+        let usual = band_of(Opening::Window, tall);
+        for foot in [LOWEST_SILL, usual.foot - 8, usual.foot - 3, usual.foot] {
+            let band = Band { foot, ..usual };
+            let body = body_of(
+                &PartKind::Wall {
+                    long: 4.0,
+                    high: WALL_HIGH,
+                    framed: true,
+                    openings: [
+                        Some(Hole {
+                            band: Some(band),
+                            ..Hole::plain(Opening::Window, 0.0)
+                        }),
+                        None,
+                        None,
+                        None,
+                    ],
+                },
+                None,
+            );
+            // Straight up the middle of the window's own column, atom by atom, between the
+            // wall's two plates. Every atom is either the opening itself or something
+            // solid; an atom that is neither is a hole a maker can see through.
+            for row in PLATE_TALL..tall - PLATE_TALL {
+                let y = (row as f32 + 0.5) * ATOM;
+                if row >= band.foot && row < band.foot + band.rise {
+                    continue;
+                }
+                // A brace does not close a wall - it is a diagonal, and its box is not
+                // even where it is. Only the pieces that fill can be said to fill.
+                let filled = body.iter().any(|Slab { at, size, cant, .. }| {
+                    *cant == 0.0 && at.x.abs() < size.x * 0.5 && (at.y - y).abs() < size.y * 0.5
+                });
+                assert!(
+                    filled,
+                    "a window with its foot at {foot} leaves the wall open at {y} m"
+                );
+            }
+        }
+    }
+
+    /// A window that has been moved says so, and a window that has not says nothing new.
+    ///
+    /// The second half is what keeps every wall in every drawing spelled the way it was
+    /// spelled: a band is written only when it is not the band the wall would have given.
+    #[test]
+    fn a_moved_window_is_spelled_out() {
+        let wall = |band: Option<Band>| PartKind::Wall {
+            long: 4.0,
+            high: WALL_HIGH,
+            framed: true,
+            openings: [
+                Some(Hole {
+                    band,
+                    ..Hole::plain(Opening::Window, 0.5)
+                }),
+                None,
+                None,
+                None,
+            ],
+        };
+        assert_eq!(
+            part_name(&wall(None)),
+            "wall-4x2.5xfxw0.5",
+            "a window at its course is spelled a new way, and every wall ever drawn \
+             with one reads back as something else"
+        );
+
+        let moved = Band { foot: 7, rise: 12 };
+        let said = part_name(&wall(Some(moved)));
+        let read = kind_from_name(&said).expect("a wall the bench spelled, it can read");
+        assert_eq!(
+            part_name(&read),
+            said,
+            "a moved window does not survive its own name"
+        );
+        let PartKind::Wall { openings, .. } = read else {
+            panic!("read back as something other than a wall")
+        };
+        let hole = openings[0].expect("the window went missing");
+        assert!(
+            hole.band == Some(moved) && (hole.at - 0.5).abs() < 1e-4,
+            "the window came back at a different place from the one it was written at"
+        );
+    }
+
+    /// The ghost stands where the window will land - at every height, not just its own.
+    ///
+    /// Two halves again: the hand LIFTS the ghost and the punch TELLS the wall, off the same
+    /// aim. Written out twice they agree until one of them is touched, and then a maker
+    /// slides a window along a wall at one height and it lands at another.
+    #[test]
+    fn the_ghost_stands_where_the_window_lands() {
+        let tall = (WALL_HIGH / ATOM).round() as i32;
+        let usual = band_of(Opening::Window, tall);
+        let sill_of = |body: &[Slab]| {
+            body.iter()
+                .find(|Slab { size, .. }| size.z > WALL_THICK + 1e-4)
+                .expect("a window has a proud sill")
+                .at
+                .y
+        };
+        let held = sill_of(&body_of(&PartKind::Prop("window"), None));
+        for foot in [LOWEST_SILL, usual.foot - 5, usual.foot, usual.foot + 4] {
+            let landed = sill_of(&body_of(
+                &PartKind::Wall {
+                    long: 4.0,
+                    high: WALL_HIGH,
+                    framed: true,
+                    openings: [
+                        Some(Hole {
+                            band: Some(Band { foot, ..usual }),
+                            ..Hole::plain(Opening::Window, 0.0)
+                        }),
+                        None,
+                        None,
+                        None,
+                    ],
+                },
+                None,
+            ));
+            let shown = held + crate::builder::ghost_lift(foot);
+            assert!(
+                (shown - landed).abs() < 1e-4,
+                "the ghost shows a window with its sill at {shown} and it lands at {landed}"
+            );
+        }
+    }
+
+    /// Aiming where a window has always gone puts it exactly there.
+    ///
+    /// The strides up a wall are measured from the COURSE, not from the floor, and this is
+    /// the test that says why. A quarter-metre stride off the floor cannot land on a course
+    /// an eighth of a metre up: every window placed with the ordinary grid would have missed
+    /// the rail by two atoms, carried a band of its own in its name, and broken the rail it
+    /// was meant to sit on.
+    #[test]
+    fn the_ordinary_aim_lands_on_the_course() {
+        let tall = (WALL_HIGH / ATOM).round() as i32;
+        let usual = band_of(Opening::Window, tall);
+        // The cursor on the middle of the glass, on a wall standing on the ground.
+        let middle = (usual.foot as f32 + usual.rise as f32 * 0.5) * ATOM;
+        for grid in [1, 2, 4, 8, 16] {
+            let step = snap_step(false, grid);
+            assert_eq!(
+                crate::builder::opening_lift(0.0, tall, usual, middle, step),
+                usual.foot,
+                "aimed at the course on a grid of {grid}, the window landed off it"
+            );
+        }
+        // And a stride away is a stride away, whichever stride is set - the grid counts
+        // atoms, so a grid of four moves a window a quarter-metre at a time. Downward,
+        // where an ordinary wall has room: there are three atoms over a window at its
+        // course and a metre and a half under it.
+        for grid in [2, 4, 8] {
+            let step = snap_step(false, grid);
+            let down = grid as f32 * ATOM;
+            assert_eq!(
+                crate::builder::opening_lift(0.0, tall, usual, middle - down, step),
+                usual.foot - grid,
+                "a stride down on a grid of {grid} did not move the window one stride"
+            );
+        }
+        // Never through its own sill plate, and never up into the head plate, however
+        // wildly it is aimed.
+        let fine = snap_step(true, 16);
+        assert_eq!(
+            crate::builder::opening_lift(0.0, tall, usual, -5.0, fine),
+            LOWEST_SILL,
+            "a window aimed at the ground sank into the wall's sill plate"
+        );
+        assert_eq!(
+            crate::builder::opening_lift(0.0, tall, usual, 5.0, fine),
+            tall - PLATE_TALL - usual.rise,
+            "a window aimed over the wall pushed its head through the head plate"
+        );
+    }
+
     /// The check itself: no two full-thickness solids may occupy the same place.
     fn no_two_solids_share_space(body: &[Slab], framed: bool) {
         // Only the wall's own substance and frame - the panes are set back in the reveal
@@ -816,6 +1134,7 @@ mod windows {
                         at: 0.0,
                         wide,
                         dark: false,
+                        band: None,
                     }),
                     None,
                     None,

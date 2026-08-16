@@ -290,9 +290,9 @@ pub(crate) fn body_of(kind: &PartKind, repaint: Option<(&str, f32)>) -> Vec<Slab
                 // the head PLATE, and a plain wall has no plate - so what it filled there
                 // was ordinary wall, drawn a second time in the same atoms the plaster
                 // already occupies. That is the z-fighting over a plain wall's window.
-                let over = (tall - PLATE_TALL) - (hy + hh);
-                if *framed && over > 0 {
-                    timber(&mut body, *hx, *hw, hy + hh, over);
+                let lintel = lintel_of((tall - PLATE_TALL) - (hy + hh));
+                if *framed && lintel > 0 {
+                    timber(&mut body, *hx, *hw, hy + hh, lintel);
                 }
                 if *what == Opening::Window {
                     // A sill only where the rail is not already under it, for
@@ -371,46 +371,19 @@ pub(crate) fn body_of(kind: &PartKind, repaint: Option<(&str, f32)>) -> Vec<Slab
                 return body;
             }
 
-            // The framing, course by course - and the spans worked out FOR EACH
-            // COURSE rather than once for the wall.
+            // ORDINARY WALL, framed: bays across it, a stud at each division,
+            // braces in the pairs that carry, and the panels between.
             //
-            // An opening only interrupts the courses it actually stands in. In
-            // the courses it does not, the wall between its jambs is ordinary
-            // wall and wants ordinary framing: its own bays, its own studs, its
-            // own braces. Worked out once for the whole wall instead, the
-            // opening's entire column was left out top to bottom - which first
-            // showed as a hole under every window, and then, once that was
-            // filled with a single panel, as an apron with no timber in it
-            // while the bays either side of it were braced.
-            for (foot, rise) in [(inner_foot, low_tall), (high_foot, high_tall)] {
-                if rise <= 0 {
-                    continue;
-                }
-                let mut spans: Vec<(i32, i32)> = Vec::new();
-                let mut from = POST_WIDE;
-                for (what, hx, hw, hy, hh, _) in &holes {
-                    let jamb = jamb_of(*what);
-                    if foot < hy + hh && foot + rise > *hy {
-                        // The opening stands in this course: the wall stops at
-                        // its jamb and picks up again past the other one.
-                        spans.push((from, hx - jamb));
-                        from = hx + hw + jamb;
-                    } else {
-                        // It does not: the wall between its jambs is ordinary
-                        // wall in this course and wants ordinary framing. An
-                        // apron under a window is a bay like any other, and
-                        // gets its own studs and its own braces.
-                        spans.push((from, hx - jamb));
-                        spans.push((*hx, hx + hw));
-                        from = hx + hw + jamb;
-                    }
-                }
-                spans.push((from, span - POST_WIDE));
-
-                for (from, to) in spans {
+            // A REGION rather than a course, because an opening's own column is
+            // ordinary wall too - above its lintel and below its sill - and the
+            // wall it is standing in has no idea where those bands are. Worked
+            // out by course instead, the opening's entire column was left out top
+            // to bottom, which showed as a hole under every window.
+            let frame =
+                |body: &mut Vec<Slab>, from: i32, to: i32, foot: i32, rise: i32, braced: bool| {
                     let width = (to - from).max(0);
-                    if width <= 0 {
-                        continue;
+                    if width <= 0 || rise <= 0 {
+                        return;
                     }
                     let bays = ((width as f32 / BAY_WANTED as f32).round() as i32).max(1);
                     let mut edge = from;
@@ -423,18 +396,21 @@ pub(crate) fn body_of(kind: &PartKind, repaint: Option<(&str, f32)>) -> Vec<Slab
                     // Studs at the interior divisions, spanning exactly this
                     // course's clear height.
                     for edge in &edges[1..edges.len() - 1] {
-                        timber(&mut body, edge - STUD_WIDE / 2, STUD_WIDE, foot, rise);
+                        timber(body, edge - STUD_WIDE / 2, STUD_WIDE, foot, rise);
                     }
 
                     // Braces, in the low course only, a pair to a bay rising to
                     // meet at its middle.
-                    if foot == inner_foot {
+                    if braced {
                         for pair in edges.windows(2) {
                             let (a, b) = (pair[0], pair[1]);
                             let bay = (b - a) as f32 * ATOM;
                             let up = rise as f32 * ATOM;
                             let half = bay * 0.5;
-                            if half <= ATOM * 2.0 || up <= ATOM {
+                            // Nor in a band too shallow to brace: a pair of
+                            // braces in a strip under a low window's sill is
+                            // two chips of timber, not a brace.
+                            if half <= ATOM * 2.0 || up <= ATOM * 3.0 {
                                 continue;
                             }
                             // Both ends meet horizontal timber - the sill below,
@@ -495,7 +471,60 @@ pub(crate) fn body_of(kind: &PartKind, repaint: Option<(&str, f32)>) -> Vec<Slab
                             0.9,
                         ));
                     }
+                };
+
+            // The courses, each broken at every opening - whether the opening
+            // stands in that course or not. What is between an opening's jambs
+            // belongs to the opening, top to bottom, and is framed below with the
+            // bands it actually leaves.
+            for (foot, rise) in [(inner_foot, low_tall), (high_foot, high_tall)] {
+                let mut from = POST_WIDE;
+                for (what, hx, hw, ..) in &holes {
+                    let jamb = jamb_of(*what);
+                    frame(&mut body, from, hx - jamb, foot, rise, foot == inner_foot);
+                    from = hx + hw + jamb;
                 }
+                frame(
+                    &mut body,
+                    from,
+                    span - POST_WIDE,
+                    foot,
+                    rise,
+                    foot == inner_foot,
+                );
+            }
+
+            // And each opening's own column: the wall under its sill, and the
+            // wall over its lintel. Both are nought for a window filling the
+            // course it was born in - which is why this was never needed until a
+            // window could be set anywhere up the wall.
+            for (what, hx, hw, hy, hh, _) in &holes {
+                // A window hangs its sill a plate below its foot; a door has
+                // none, and nothing under it but the floor.
+                let sill = if *what == Opening::Window {
+                    PLATE_TALL
+                } else {
+                    0
+                };
+                // Braced, because this is the apron under a window and an apron
+                // is a bay like any other - the bays either side of it are.
+                frame(
+                    &mut body,
+                    *hx,
+                    hx + hw,
+                    inner_foot,
+                    hy - sill - inner_foot,
+                    true,
+                );
+                let over = hy + hh + lintel_of((tall - PLATE_TALL) - (hy + hh));
+                frame(
+                    &mut body,
+                    *hx,
+                    hx + hw,
+                    over,
+                    tall - PLATE_TALL - over,
+                    false,
+                );
             }
             body
         }
@@ -1220,9 +1249,9 @@ pub(crate) fn body_of(kind: &PartKind, repaint: Option<(&str, f32)>) -> Vec<Slab
             // so the thing sliding along the wall is the thing that lands in it.
             //
             // A wall of the ordinary height: a taller one glazes in more rows, and the
-            // ghost cannot know which wall it is over until it is over one.
-            let tall = (WALL_HIGH / ATOM).round() as i32;
-            let (_, _, _, foot, rise) = courses_of(tall);
+            // ghost cannot know which wall it is over until it is over one. The HAND
+            // lifts it from here to where it will land, off this same band.
+            let Band { foot, rise } = ghost_band();
             let wide = WINDOW_WIDE;
             let jamb = jamb_of(Opening::Window);
             let (half_w, half_j) = (wide as f32 * 0.5 * ATOM, jamb as f32 * ATOM);
