@@ -250,7 +250,8 @@ its colour already looked up, plus the marks that say what the place is FOR.
   "boxes": [ { "at": [0,1.25,0], "size": [4,2.5,0.25], "turn": [0,0,0,1],
                "form": "box", "rgb": [110,92,70], "alpha": 1.0, "cloth": "wood",
                "stage": "walls", "material": "oak" } ],
-  "marks": [ { "mark": "door", "at": [3.65,0.375,0.0], "yaw": 0.0 } ],
+  "marks": [ { "mark": "door", "at": [3.65,0.375,0.0], "yaw": 0.0 },
+             { "mark": "clock", "at": [0.0,4.5,-1.8], "yaw": 0.0, "wide": 1.25 } ],
   "levels": [
     { "name": "", "half_w": 3.65, "half_d": 6.7, "high": 5.2,
       "phases": [ { "boxes": [ "...the footings only..." ] },
@@ -281,6 +282,19 @@ original - and holds:
   clear, and the shell when it is done. A level may reach further than the one
   before it.
 - `marks`: what the place is FOR once that level is finished.
+
+A mark says WHAT, WHERE and WHICH WAY: `{mark, at, yaw}`. One of them says one
+thing more.
+
+- `wide`, in metres, and only where there is a width to have. A reader that meets
+  no `wide` is reading a mark that is only a place, which is nearly all of them.
+- `clock` is the mark that carries it. The bench builds the FACE - an octagonal
+  dial, baked as boxes with everything else, because a face does not move - and
+  the game draws the HANDS, because they do. Nothing that moves can be baked, so
+  the village is told where the middle of the dial is, which way it looks, and how
+  wide it is; two hands of that size, turned to the hour, are its own to draw and
+  its own to animate. Brett: "make it hands free and have the game create and
+  animate the hands."
 
 Every level is measured from ONE origin: the first level's finished footprint. An
 upgrade has to land on the building it upgrades, so it is never recentred on its

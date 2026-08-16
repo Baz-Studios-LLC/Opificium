@@ -43,3 +43,65 @@ fn bake_the_works() {
         println!("baked {name}: {boxes} boxes, {marks} marks");
     }
 }
+
+/// A clock bakes its face as boxes and its size as a mark.
+///
+/// Brett: "I wonder if we should make it hands free and have the game create and animate
+/// the hands?" That is the line the bench draws everywhere - the bake speaks STATIC boxes,
+/// so a thing that moves belongs to the game - and it leaves the village one question the
+/// boxes cannot answer: how big to draw the hands. So the mark carries it.
+#[test]
+fn a_clock_bakes_its_face_and_says_how_wide() {
+    let palette = crate::look::load_palette_for_bake();
+    let clock = Placed {
+        part: part_name(&PartKind::Clock(1.25)),
+        at: [2.0, 3.0, -1.0],
+        yaw: 0.0,
+        tilt: 0.0,
+        ramp: None,
+        shade: 0.5,
+        stage: "furnishing".to_string(),
+        flip: false,
+        loose: false,
+        material: String::new(),
+        group: None,
+    };
+    let (boxes, marks) = bake_one_phase(std::slice::from_ref(&clock), &palette, Vec3::ZERO);
+
+    // THE FACE IS BUILT. It does not move, so the village raises it like any other
+    // part of the building.
+    assert!(
+        boxes.len() >= 6,
+        "a clock baked {} boxes - its dial did not come through",
+        boxes.len()
+    );
+    // AND THE MARK SAYS HOW WIDE. Without it the game must hardcode a size per word
+    // and every clock in the world is the same clock.
+    let clock_mark = marks
+        .iter()
+        .find(|line| line.contains("\"mark\": \"clock\""))
+        .unwrap_or_else(|| panic!("no clock mark in {marks:?}"));
+    assert!(
+        clock_mark.contains("\"wide\": 1.2500"),
+        "the clock mark does not say how wide it is: {clock_mark}"
+    );
+    // At the middle of the FACE, which is where a hand turns - not at the part's foot,
+    // where nothing turns at all.
+    assert!(
+        clock_mark.contains("3.6250"),
+        "the clock mark is not at the middle of its own face: {clock_mark}"
+    );
+
+    // And a mark with no size to have says nothing about size: a door's routing mark
+    // is a place and only a place.
+    let door = Placed {
+        part: part_name(&PartKind::Widget("door")),
+        stage: "widget".to_string(),
+        ..clock.clone()
+    };
+    let (_, plain) = bake_one_phase(std::slice::from_ref(&door), &palette, Vec3::ZERO);
+    assert!(
+        plain.iter().all(|line| !line.contains("wide")),
+        "a mark that is only a place grew a width: {plain:?}"
+    );
+}

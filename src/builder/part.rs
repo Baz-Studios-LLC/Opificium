@@ -270,6 +270,19 @@ pub enum PartKind {
         /// different infill, not another kind of thing.
         framed: bool,
     },
+    /// A CLOCK'S FACE, as wide as it is drawn - and no hands.
+    ///
+    /// Brett: "I wonder if we should make it hands free and have the game create
+    /// and animate the hands?" Yes, and it is the same line a door already draws:
+    /// the bake speaks static boxes, so anything that MOVES is the game's. A
+    /// door's leaf is geometry and its routing mark is the village's business;
+    /// a clock's face is geometry and its hands are.
+    ///
+    /// So the bench builds a dial - an octagon, chamfered the only way a world of
+    /// boxes can chamfer, in bands - and puts a `clock` mark at its middle
+    /// carrying HOW WIDE it is, which is the one thing the game cannot measure
+    /// for itself from a heap of boxes.
+    Clock(f32),
     /// The same timber STOOD UP: a post on its own foot, as tall as it is drawn.
     ///
     /// Brett: "pole should be exactly like the beam only verticle" - and then, of
@@ -592,6 +605,9 @@ pub const DECOR: &[CatalogEntry] = &[
     prop("BARREL", "barrel"),
     prop("BASKET", "basket"),
     prop("BELL", "bell"),
+    // Not a prop: a clock is drawn to a size, and the game is told that size so it
+    // can hang hands of its own on the face.
+    structure("CLOCK", PartKind::Clock(1.0), "furnishing"),
     prop("CRATE", "crate"),
     prop("FENCE", "fence"),
     prop("LADDER", "ladder"),

@@ -37,6 +37,24 @@ pub(crate) fn bounds_of(parts: &[Placed]) -> (Vec3, Vec3) {
     (low, high)
 }
 
+/// One thing the village is told about a place: what it is, where, which way it
+/// faces - and, for the one mark that needs it, how wide.
+///
+/// A struct rather than the four-place tuple it was, because it just grew a fifth
+/// and this bench has been bitten once already by a tuple long enough that `(..,
+/// last)` bound the wrong end of it.
+struct Mark {
+    what: String,
+    at: Vec3,
+    yaw: f32,
+    /// Set down by a maker rather than implied by furniture - a hand-placed mark
+    /// wins over one a chair would have made for itself.
+    by_hand: bool,
+    /// How wide the thing it marks is, in metres, or nought for a mark that is
+    /// only a place.
+    wide: f32,
+}
+
 /// One phase, resolved: the boxes a game can draw, and the marks that say what the
 /// place is FOR, in a frame whose origin is `middle`.
 ///
@@ -51,7 +69,7 @@ pub(crate) fn bake_one_phase(
 ) -> (Vec<String>, Vec<String>) {
     let mut boxes: Vec<String> = Vec::new();
     // What, where, which way - and whether a hand put it there.
-    let mut marks: Vec<(String, Vec3, f32, bool)> = Vec::new();
+    let mut marks: Vec<Mark> = Vec::new();
     let say = |v: Vec3| format!("[{:.4}, {:.4}, {:.4}]", v.x, v.y, v.z);
 
     for record in parts {
@@ -66,12 +84,38 @@ pub(crate) fn bake_one_phase(
 
         // What the place is for, read from the widgets that say
         // so and from the furniture that means it.
-        let mark = |what: &str, at: Vec3, yaw: f32| (what.to_string(), at, yaw, false);
+        let mark = |what: &str, at: Vec3, yaw: f32| Mark {
+            what: what.to_string(),
+            at,
+            yaw,
+            by_hand: false,
+            wide: 0.0,
+        };
         match kind {
             PartKind::Widget(what) => {
-                marks.push((what.to_string(), anchor, record.yaw, true));
+                marks.push(Mark {
+                    by_hand: true,
+                    ..mark(what, anchor, record.yaw)
+                });
                 continue;
             }
+            // A CLOCK says how wide its face is, and it is the only mark that says
+            // anything but where it is. The village draws the hands - they move,
+            // and nothing that moves can be baked - so it has to be told what size
+            // to draw them, which is the one thing it cannot measure for itself
+            // from a heap of boxes. Brett: "I wonder if we should make it hands
+            // free and have the game create and animate the hands?"
+            //
+            // The face itself is baked with everything else: what the village adds
+            // is two hands on a dial that is already there.
+            PartKind::Clock(wide) => marks.push(Mark {
+                wide,
+                ..mark(
+                    "clock",
+                    anchor + turn * Vec3::new(0.0, wide * 0.5, 0.0),
+                    record.yaw,
+                )
+            }),
             // Beds and seats say nothing on their own: their
             // figures are set down WITH them and can be taken
             // away, so a chair with no sitter on it is a chair
@@ -192,21 +236,31 @@ pub(crate) fn bake_one_phase(
     // one beside it.
     let by_hand: Vec<(String, Vec3)> = marks
         .iter()
-        .filter(|(.., hand)| *hand)
-        .map(|(what, at, ..)| (what.clone(), *at))
+        .filter(|mark| mark.by_hand)
+        .map(|mark| (mark.what.clone(), mark.at))
         .collect();
-    marks.retain(|(what, at, _, hand)| {
-        *hand
-            || !by_hand
-                .iter()
-                .any(|(other, spot)| other == what && (spot.x - at.x).hypot(spot.z - at.z) < 0.8)
+    marks.retain(|mark| {
+        mark.by_hand
+            || !by_hand.iter().any(|(other, spot)| {
+                *other == mark.what && (spot.x - mark.at.x).hypot(spot.z - mark.at.z) < 0.8
+            })
     });
     let marks: Vec<String> = marks
         .iter()
-        .map(|(what, at, yaw, _)| {
+        .map(|mark| {
+            // The width only where there is one to say. A mark is WHERE something
+            // is; a clock is the one that is also HOW BIG, and a reader that meets
+            // no `wide` is reading a mark that has no size to have.
+            let wide = if mark.wide > 0.0 {
+                format!(", \"wide\": {:.4}", mark.wide)
+            } else {
+                String::new()
+            };
             format!(
-                "    {{\"mark\": \"{what}\", \"at\": {}, \"yaw\": {yaw:.4}}}",
-                say(*at)
+                "    {{\"mark\": \"{}\", \"at\": {}, \"yaw\": {:.4}{wide}}}",
+                mark.what,
+                say(mark.at),
+                mark.yaw
             )
         })
         .collect();

@@ -670,6 +670,7 @@ pub fn part_name(kind: &PartKind) -> String {
             name
         }
         PartKind::Pole(high) => format!("pole-{high}"),
+        PartKind::Clock(wide) => format!("clock-{wide}"),
         PartKind::Beam(long, high, low) => format!("beam-{long}x{high}x{low}"),
         PartKind::Ridge(long) => format!("ridge-{long}"),
         PartKind::Chimney(drop) => format!("chimney-{drop}"),
@@ -839,6 +840,9 @@ pub fn kind_from_name(name: &str) -> Option<PartKind> {
     if name == "prop:chimney" {
         // The first chimneys, from before the shaft could reach.
         return Some(PartKind::Chimney(0.0));
+    }
+    if let Some(rest) = name.strip_prefix("clock-") {
+        return rest.parse::<f32>().ok().map(PartKind::Clock);
     }
     if let Some(rest) = name.strip_prefix("pole-") {
         return rest.parse::<f32>().ok().map(PartKind::Pole);

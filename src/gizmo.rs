@@ -483,6 +483,8 @@ fn handles_for(mode: ToolMode, record: &Placed) -> Vec<(Vec3, Vec3, &'static str
                     Some((wide, steps as f32 * tread, true))
                 }
                 PartKind::Ridge(long) => Some((long, 0.0, false)),
+                // A dial is square, so its one handle sizes the whole face.
+                PartKind::Clock(wide) => Some((wide, 0.0, false)),
                 PartKind::Floor(w, d) => Some((w, d, true)),
                 PartKind::Ceiling { long, deep, .. } => Some((long, deep, true)),
                 PartKind::Foundation(w, d, _) => Some((w, d, true)),
@@ -1117,6 +1119,7 @@ fn work_gizmo(
                     }
                 }
                 PartKind::Ridge(_) => PartKind::Ridge(w),
+                PartKind::Clock(_) => PartKind::Clock(w),
                 PartKind::Floor(..) => PartKind::Floor(w, d),
                 // Pulled to a new size, and it keeps the roof it was going to raise.
                 PartKind::Ceiling { hipped, across, .. } => PartKind::Ceiling {

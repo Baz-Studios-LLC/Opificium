@@ -1819,6 +1819,113 @@ pub(crate) fn body_of(kind: &PartKind, repaint: Option<(&str, f32)>) -> Vec<Slab
             slab(-0.21875, 0.25, 0.21875, 0.0625, 0.5, 0.0625, "wood", 0.5),
             slab(0.21875, 0.25, 0.21875, 0.0625, 0.5, 0.0625, "wood", 0.5),
         ],
+        PartKind::Clock(wide) => {
+            // THE FACE, AND NO HANDS. Brett: "I wonder if we should make it hands
+            // free and have the game create and animate the hands?" - which is the
+            // line this bench already draws everywhere else: the bake speaks static
+            // boxes, so anything that MOVES belongs to the game. A door's leaf is
+            // geometry and its routing mark is the village's business; a clock's
+            // face is geometry and its hands are. See the `clock` mark in the oven,
+            // which carries this dial's width so a village can hang hands on it
+            // that are the right size.
+            //
+            // AN OCTAGON, in bands. Brett: "Maybe an octogon for the clock face?"
+            // Two squares crossed at a half-quarter make a STAR rather than an
+            // octagon - a rotated square's corners stand out past the first one's
+            // edges - and a chamfer can only be taken away, which is the one thing
+            // a world of boxes cannot do. Three bands can: a full-width course
+            // through the middle and a narrower one over and under, which is a
+            // square with its corners off.
+            //
+            // Worked in whole ATOMS from the face's own corner, like a framed wall
+            // and for the same reason: a band's width is three quarters of another
+            // band's, and three quarters of an odd number of atoms is a face half
+            // an atom off the lattice. Integers cannot land there.
+            let across = ((wide / ATOM).round() as i32).max(8) & !1;
+            // A pair of faces, lowest first - a mark on the left of the dial is
+            // built out from the middle and comes back the other way round.
+            trait Ordered {
+                fn min_max(self) -> (i32, i32);
+            }
+            impl Ordered for (i32, i32) {
+                fn min_max(self) -> (i32, i32) {
+                    (self.0.min(self.1), self.0.max(self.1))
+                }
+            }
+            // A piece from its own four faces, so nothing has to be centred by
+            // halving anything.
+            let piece = |body: &mut Vec<Slab>,
+                         x: (i32, i32),
+                         y: (i32, i32),
+                         z: (i32, i32),
+                         ramp: &str,
+                         shade: f32| {
+                body.push(slab(
+                    (x.0 + x.1) as f32 * 0.5 * ATOM,
+                    (y.0 + y.1) as f32 * 0.5 * ATOM,
+                    (z.0 + z.1) as f32 * 0.5 * ATOM,
+                    (x.1 - x.0) as f32 * ATOM,
+                    (y.1 - y.0) as f32 * ATOM,
+                    (z.1 - z.0) as f32 * ATOM,
+                    ramp,
+                    shade,
+                ));
+            };
+            // Three bands making an octagon of a square: the waist runs the whole
+            // width, the two caps are drawn in by a quarter each side.
+            let octagon = |body: &mut Vec<Slab>, w: i32, z: (i32, i32), ramp: &str, shade: f32| {
+                let waist = (((w as f32 * 0.375).round() as i32) & !1).max(2);
+                let cap = (w - waist) / 2;
+                let thin = (((w as f32 * 0.75).round() as i32) & !1).max(2);
+                let half = w / 2;
+                piece(body, (-half, half), (cap, cap + waist), z, ramp, shade);
+                for band in [(0, cap), (cap + waist, w)] {
+                    piece(body, (-thin / 2, thin / 2), band, z, ramp, shade);
+                }
+            };
+            let mut body = Vec::new();
+            // The rim behind, and the dial standing an atom proud of it.
+            octagon(&mut body, across, (0, 2), "wood", 0.35);
+            let dial = across - 4;
+            let inset = (across - dial) / 2;
+            let mut face = Vec::new();
+            octagon(&mut face, dial, (2, 3), "bone", 0.95);
+            for slab in &mut face {
+                slab.at.y += inset as f32 * ATOM;
+            }
+            body.append(&mut face);
+            // Four marks on the dial, at the quarters. Twelve would be a dozen
+            // slabs on a face read from across a square; the quarters are what says
+            // "a clock" at that distance, and the game's own hands say the rest.
+            //
+            // Measured as a RADIUS from the middle of the dial, so they ring it at
+            // the same inset however wide it is drawn.
+            let middle = across / 2;
+            let (near, far) = ((across / 2 - 5).max(1), (across / 2 - 3).max(2));
+            if far > near {
+                for side in [-1, 1] {
+                    // At noon and six: standing up.
+                    piece(
+                        &mut body,
+                        (-1, 1),
+                        (middle + side * near, middle + side * far).min_max(),
+                        (3, 4),
+                        "wood",
+                        0.3,
+                    );
+                    // At three and nine: lying across.
+                    piece(
+                        &mut body,
+                        (side * near, side * far).min_max(),
+                        (middle - 1, middle + 1),
+                        (3, 4),
+                        "wood",
+                        0.3,
+                    );
+                }
+            }
+            body
+        }
         PartKind::Prop("bell") => {
             // A BELL, for the belfry the townhall's tower already has an opening
             // for. Brett drew one in the mockup and asked for it once the tower

@@ -338,6 +338,7 @@ pub(crate) fn length_of(kind: &PartKind) -> Option<(f32, Box<dyn Fn(f32) -> Part
             }),
         )),
         PartKind::Ridge(long) => Some((long, Box::new(PartKind::Ridge))),
+        PartKind::Clock(wide) => Some((wide, Box::new(PartKind::Clock))),
         // Everything else a maker can size along its own length. Brett: "Trim to
         // roof needs to be added to all the parts in the bench" - and the three
         // above were only the three that had come up. A part that can be made
