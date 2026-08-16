@@ -3069,7 +3069,10 @@ fn nothing_fights_for_the_same_face() {
             .collect();
         for (i, one) in square.iter().enumerate() {
             for other in square.iter().skip(i + 1) {
-                if one.ramp == other.ramp {
+                // A difference a maker could see: another ramp, or a step of shade.
+                // Two pieces of one wood at one shade are one piece as far as the
+                // eye is concerned.
+                if one.ramp == other.ramp && (one.shade - other.shade).abs() < 0.05 {
                     continue;
                 }
                 let axes = [
@@ -3087,12 +3090,41 @@ fn nothing_fights_for_the_same_face() {
                     (pa - pb).abs() < (sa + sb) * 0.5 - 1e-3
                 };
                 for face in 0..3 {
+                    // Never the UNDERSIDE. Everything on this bench rests on its own
+                    // nought, so every part has a floor's worth of pieces ending at
+                    // the same height with their faces pointing down into whatever
+                    // carries them. Nobody has ever seen one.
+                    if face == 1
+                        && (one.at.y - one.size.y * 0.5).abs() < 1e-4
+                        && (other.at.y - other.size.y * 0.5).abs() < 1e-4
+                    {
+                        continue;
+                    }
+                    // How much of the face they actually share. A sliver where a
+                    // chair's seat meets its own back has flickered here since the
+                    // bench was written and nobody has ever seen it; what a maker
+                    // photographs is a hand's breadth or more of it.
+                    let shared: f32 = (0..3)
+                        .filter(|n| *n != face)
+                        .map(|n| {
+                            let (pa, sa, pb, sb) = axes[n];
+                            ((pa + sa * 0.5).min(pb + sb * 0.5)
+                                - (pa - sa * 0.5).max(pb - sb * 0.5))
+                            .max(0.0)
+                        })
+                        .product();
+                    if shared < 0.01 {
+                        continue;
+                    }
                     if flush(axes[face]) && (0..3).filter(|n| *n != face).all(|n| over(axes[n])) {
                         speckle.push(format!(
-                            "{} - {} and {} share a {} face",
+                            "{} - {} at {:.2} and {} at {:.2} share {:.3}m2 of a {} face",
                             entry.label,
                             one.ramp,
+                            one.shade,
                             other.ramp,
+                            other.shade,
+                            shared,
                             ["side", "top", "front"][face]
                         ));
                     }
@@ -3144,14 +3176,20 @@ fn a_row_of_books_fits_a_shelf() {
 
     // What a row actually takes up, corners and all - the leaning one included, which
     // is the piece that reaches furthest both ways.
+    //
+    // EVERY HAND OF BOOKS, not just the one the shelf happens to deal first: a row
+    // draws its heights from its seed, so a rule that held for one seed and not the
+    // next is no rule at all.
     let (mut tall, mut wide) = (0.0f32, 0.0f32);
-    for Slab { at, size, cant, .. } in body_of(&PartKind::Prop("books"), None) {
-        let turn = Mat2::from_angle(cant);
-        for sx in [-0.5f32, 0.5] {
-            for sy in [-0.5f32, 0.5] {
-                let corner = Vec2::new(at.x, at.y) + turn * Vec2::new(size.x * sx, size.y * sy);
-                tall = tall.max(corner.y);
-                wide = wide.max(corner.x.abs());
+    for seed in [0u32, 1, 7, 42, 1000, 65_535, u32::MAX] {
+        for Slab { at, size, cant, .. } in body_of(&PartKind::Books(seed), None) {
+            let turn = Mat2::from_angle(cant);
+            for sx in [-0.5f32, 0.5] {
+                for sy in [-0.5f32, 0.5] {
+                    let corner = Vec2::new(at.x, at.y) + turn * Vec2::new(size.x * sx, size.y * sy);
+                    tall = tall.max(corner.y);
+                    wide = wide.max(corner.x.abs());
+                }
             }
         }
     }
@@ -3168,4 +3206,95 @@ fn a_row_of_books_fits_a_shelf() {
         tall > gap * 0.5 && wide > clear * 0.5,
         "a row of books is lost on the shelf it is for: {tall} of {gap}, {wide} of {clear}"
     );
+}
+
+/// No two rows of books look alike, and each one looks the same every time.
+///
+/// Brett: "could we have the books be random colors when placed so every group doesnt look
+/// the same?" The row carries a SEED and draws its cloths and its heights from it - because
+/// a part on this bench IS its name, and a colour rolled at drawing time would be a
+/// different shelf every time the work was reopened.
+#[test]
+fn a_row_of_books_is_dealt_its_own_hand() {
+    let cloths = |seed: u32| {
+        let mut worn: Vec<(String, i64)> = body_of(&PartKind::Books(seed), None)
+            .iter()
+            .map(|slab| (slab.ramp.clone(), (slab.size.y * 64.0).round() as i64))
+            .collect();
+        worn.sort();
+        worn
+    };
+    // THE SAME EVERY TIME, which is the half that matters most: a work saved and
+    // reopened is the work that was saved.
+    assert_eq!(cloths(7), cloths(7), "one seed dealt two different rows");
+    // AND DIFFERENT FROM ITS NEIGHBOURS. Not every pair need differ - five books from
+    // nine cloths will sometimes repeat - but a room full of shelves must not be one
+    // shelf drawn over and over.
+    let hands: Vec<Vec<(String, i64)>> = (0..24).map(cloths).collect();
+    let mut apart = hands.clone();
+    apart.sort();
+    apart.dedup();
+    assert!(
+        apart.len() > 18,
+        "twenty-four rows come out as {} different shelves",
+        apart.len()
+    );
+    // And a seed is dealt from where a row goes down, so two rows in one room differ.
+    assert_ne!(
+        crate::builder::a_fresh_seed(Vec3::new(0.0, 0.0, 0.0), 3),
+        crate::builder::a_fresh_seed(Vec3::new(2.0, 0.0, 0.0), 3),
+        "two rows set down apart were dealt the same hand"
+    );
+    // A row drawn before seeds existed still opens.
+    assert!(
+        matches!(kind_from_name("prop:books"), Some(PartKind::Books(0))),
+        "the old rows no longer open"
+    );
+}
+
+/// MIRROR is offered on the parts a mirror would change, and on no others.
+///
+/// Brett, of the books: "could we right click them to mirror them". A part has carried
+/// `flip` since a gable needed a far half, and there was no way to ask for it once a thing
+/// was down. Offered everywhere it would be a line that does nothing on half the shelf,
+/// which is worse than no line: it has to be tried before a maker learns it is nothing.
+#[test]
+fn a_mirror_is_offered_where_it_would_show() {
+    // A row of books leans one way, a chair faces one way, a flight climbs one way.
+    for kind in [
+        PartKind::Books(3),
+        PartKind::Prop("chair"),
+        PartKind::Prop("loom"),
+    ] {
+        assert!(
+            deeds_for(&kind).contains(&Deed::Mirror),
+            "{} cannot be mirrored, and it is not the same both ways",
+            part_name(&kind)
+        );
+    }
+    // A wall, a floor, a plain gable: the same on both sides of their own middle, so a
+    // mirror does nothing at all to them.
+    for kind in [
+        PartKind::wall(2.0),
+        PartKind::Floor(2.0, 2.0),
+        PartKind::gable(4.0, ROOF_PITCH_DEGREES),
+        PartKind::Pole(2.5),
+        // Drawn with mirrored ends on purpose, so they already ARE their own mirror -
+        // and a flight climbs along its DEPTH, so turning it about its length leaves it
+        // exactly where it was.
+        PartKind::Prop("desk"),
+        PartKind::Stairs {
+            rise: STEP_UP,
+            wide: 1.25,
+            stone: false,
+            rail_stone: false,
+            hand: RAIL_HIGH,
+        },
+    ] {
+        assert!(
+            !deeds_for(&kind).contains(&Deed::Mirror),
+            "{} offers a mirror that would change nothing",
+            part_name(&kind)
+        );
+    }
 }

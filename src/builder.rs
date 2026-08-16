@@ -159,6 +159,26 @@ pub fn a_fresh_group<'a>(records: impl Iterator<Item = &'a Placed>) -> u32 {
         .map_or(1, |highest| highest + 1)
 }
 
+/// A number to draw a part's own dice from, taken from where it is going down and
+/// how much is already standing.
+///
+/// A row of books is dealt a fresh hand every time one is set down - Brett: "could
+/// we have the books be random colors when placed so every group doesnt look the
+/// same?" - and the hand is remembered in the part's NAME rather than rolled again
+/// at drawing time, so a shelf comes back the shelf it was every time the work is
+/// reopened.
+///
+/// Where and how much, rather than a clock: the bench has no wall clock to ask, and
+/// two rows set down in different places want different books whatever the hour.
+pub fn a_fresh_seed(at: Vec3, standing: usize) -> u32 {
+    let mix = |measure: f32| (measure * 64.0).round() as i64 as u32;
+    mix(at.x)
+        .wrapping_mul(2_246_822_519)
+        .wrapping_add(mix(at.z).wrapping_mul(3_266_489_917))
+        .wrapping_add(standing as u32)
+        .wrapping_mul(668_265_263)
+}
+
 /// How far a mark may sit from a part and still be carried by it.
 ///
 /// A metre: a double door's two marks stand half a metre either side of its
@@ -673,6 +693,7 @@ pub fn part_name(kind: &PartKind) -> String {
         PartKind::Pole(high) => format!("pole-{high}"),
         PartKind::Clock(wide) => format!("clock-{wide}"),
         PartKind::Table(long, deep) => format!("table-{long}x{deep}"),
+        PartKind::Books(seed) => format!("books-{seed}"),
         // The four corners of one square, each spelled as what it IS. The three
         // that existed as props keep reading under their old names as well.
         PartKind::Door { double, leaf } => match (double, leaf) {
@@ -864,6 +885,13 @@ pub fn kind_from_name(name: &str) -> Option<PartKind> {
             double: door.0,
             leaf: door.1,
         });
+    }
+    if let Some(rest) = name.strip_prefix("books-") {
+        return rest.parse::<u32>().ok().map(PartKind::Books);
+    }
+    if name == "prop:books" {
+        // The rows drawn before one carried a seed, at the colours they all had.
+        return Some(PartKind::Books(0));
     }
     if let Some(rest) = name.strip_prefix("table-") {
         return sides_of(rest).map(|(long, deep)| PartKind::Table(long, deep));
@@ -1520,6 +1548,15 @@ fn place_grab_remove(
                 // WHAT COMES WITH IT, grouped with it: a table arrives with the
                 // chairs drawn up to it, and the lot moves as one thing.
                 let mut record = record;
+                // AND WHAT IS DEALT AFRESH: a row of books gets its own hand of
+                // colours, so no two shelves in a village are the same shelf.
+                let kind = match kind {
+                    PartKind::Books(_) => {
+                        PartKind::Books(a_fresh_seed(Vec3::from(record.at), placed.iter().count()))
+                    }
+                    other => other,
+                };
+                record.part = part_name(&kind);
                 let company = !company_of(&kind).is_empty();
                 let group = a_fresh_group(placed.iter().map(|(_, _, standing, _)| standing));
                 if company {

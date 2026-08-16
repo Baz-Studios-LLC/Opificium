@@ -49,6 +49,12 @@ pub(crate) enum Deed {
         up: bool,
         count: i32,
     },
+    /// Turn a part about its own length, so what was on the left is on the right.
+    ///
+    /// Brett, of a row of books: "could we right click them to mirror them". A part
+    /// already carries `flip` - a gable's far half has always used it - and there
+    /// was no way to ask for it once a thing was down.
+    Mirror,
     /// Frame a wall, or take the framing off it again.
     Frame(bool),
     /// Which of the four doors this is: one leaf or two, or none at all.
@@ -193,6 +199,7 @@ impl Deed {
                 double: true,
                 leaf: false,
             } => "A WIDE OPENING",
+            Deed::Mirror => "MIRROR",
             Deed::Frame(true) => "ADD FRAMING",
             Deed::Frame(false) => "REMOVE FRAMING",
             // Short, because the drawer they hang in already says GENERATE ROOF.
@@ -597,6 +604,12 @@ pub(crate) fn deeds_for(kind: &PartKind) -> Vec<Deed> {
         deeds.push(Deed::More(PANES_ACROSS));
         deeds.push(Deed::More(PANES_UP));
     }
+    // MIRRORED, but only where it would show. A part drawn the same on both sides of
+    // its own middle is a part a mirror does nothing to, and a line that does nothing
+    // is worse than no line: it has to be tried before a maker learns it is nothing.
+    if !mirrors_onto_itself(kind) {
+        deeds.push(Deed::Mirror);
+    }
     // Every part can be told what it is, and what it is made of - each behind one line.
     deeds.push(Deed::More(PART_OF));
     deeds.push(Deed::More(BUILT_OF));
@@ -646,6 +659,25 @@ fn wall_of(
             })
         })
         .map(|(entity, ..)| entity)
+}
+
+/// Whether a part is its own mirror image, and so has nothing to gain from being
+/// turned about.
+///
+/// Asked of the BODY rather than of a list of kinds, because it is a fact about the
+/// geometry and a list would go stale the first time a part was redrawn.
+pub(crate) fn mirrors_onto_itself(kind: &PartKind) -> bool {
+    let body = body_of(kind, None);
+    body.iter().all(|piece| {
+        body.iter().any(|other| {
+            (other.at.x + piece.at.x).abs() < 1e-4
+                && (other.at.y - piece.at.y).abs() < 1e-4
+                && (other.at.z - piece.at.z).abs() < 1e-4
+                && (other.size - piece.size).length() < 1e-4
+                && other.ramp == piece.ramp
+                && (other.cant + piece.cant).abs() < 1e-4
+        })
+    })
 }
 
 /// The drawer the four doors hang in.
@@ -1383,6 +1415,25 @@ pub(crate) fn work_part_menu(
                         }
                     }
                 }
+            }
+        }
+        Some((Deed::Mirror, part)) => {
+            if let Ok((_, _, mut record)) = placed.get_mut(part)
+                && let Some(kind) = kind_from_name(&record.part)
+            {
+                record.flip = !record.flip;
+                let copy = record.clone();
+                commands.entity(part).despawn_related::<Children>();
+                dress_part(
+                    &mut commands,
+                    &mut meshes,
+                    &mut materials,
+                    &palette,
+                    &kind,
+                    &copy,
+                    part,
+                    false,
+                );
             }
         }
         Some((Deed::Frame(framed), part)) => {

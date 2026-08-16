@@ -312,6 +312,15 @@ pub enum PartKind {
         /// because a gap in a wall run is a portal found by walking it.
         leaf: bool,
     },
+    /// A ROW OF BOOKS, and the SEED its colours are drawn from.
+    ///
+    /// Brett: "could we have the books be random colors when placed so every group
+    /// doesnt look the same?" A seed rather than a roll of the dice at drawing
+    /// time, because a part on this bench IS its name: the same row has to come
+    /// back the same every time it is redrawn, saved, reopened and baked, and only
+    /// a number carried in the name can promise that. What varies is which seed a
+    /// maker is handed when they set one down.
+    Books(u32),
     /// A TABLE, as long and as deep as it is drawn.
     ///
     /// Brett: "Can we get. longer table that os a conference table?" - and a
@@ -666,7 +675,7 @@ pub const DECOR: &[CatalogEntry] = &[
     prop("BARREL", "barrel"),
     prop("BASKET", "basket"),
     prop("BELL", "bell"),
-    prop("BOOKS", "books"),
+    structure("BOOKS", PartKind::Books(0), "furnishing"),
     // Not a prop: a clock is drawn to a size, and the game is told that size so it
     // can hang hands of its own on the face.
     structure("CLOCK", PartKind::Clock(1.0), "furnishing"),

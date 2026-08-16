@@ -1250,7 +1250,9 @@ fn shape_of(kind: &PartKind) -> Vec<Slab> {
                 0.03125, 0.1875, 0.03125, 0.3125, 0.375, 0.3125, "wood", 0.45,
             ),
             // The back, standing where a back actually meets a back.
-            slab(-0.03125, 0.75, -0.21875, 0.4375, 0.75, 0.0625, "wood", 0.55),
+            // Standing BEHIND the seat rather than in its own back edge - sharing
+            // that edge put two faces at one depth down the whole width of it.
+            slab(-0.03125, 0.75, -0.28125, 0.4375, 0.75, 0.0625, "wood", 0.55),
         ],
         PartKind::Prop("bench") => vec![
             // Wide enough for the two bodies it claims to seat, and cut
@@ -1265,7 +1267,10 @@ fn shape_of(kind: &PartKind) -> Vec<Slab> {
             // way an upholstered seat is built - a sitter's shins have to
             // hang somewhere, and a solid block to the front edge is the
             // one place they cannot.
-            slab(0.0, 0.1875, -0.0625, 1.875, 0.375, 0.625, "wood", 0.5),
+            // Stopping short of the back and the arms rather than reaching their
+            // outer faces: a plinth flush with what stands on it is a seam down
+            // every one of them.
+            slab(0.0, 0.1875, -0.03125, 1.875, 0.375, 0.5625, "wood", 0.5),
             slab(
                 -0.90625, 0.3125, 0.03125, 0.1875, 0.625, 0.8125, "wood", 0.55,
             ),
@@ -1320,7 +1325,11 @@ fn shape_of(kind: &PartKind) -> Vec<Slab> {
         ],
         PartKind::Prop("chest") => vec![
             slab(0.03125, 0.25, 0.0, 0.8125, 0.5, 0.5, "wood", 0.5),
-            slab(0.03125, 0.5, 0.03125, 0.8125, 0.125, 0.5625, "wood", 0.35),
+            // The lid RESTS on the carcase. Overlapping it shared the chest's front
+            // and both its sides for the lid's whole depth.
+            slab(
+                0.03125, 0.5625, 0.03125, 0.8125, 0.125, 0.5625, "wood", 0.35,
+            ),
             slab(
                 0.0,
                 0.34375,
@@ -1558,56 +1567,88 @@ fn shape_of(kind: &PartKind) -> Vec<Slab> {
                 ),
             ]
         }
-        PartKind::Prop("books") => {
+        // A row drawn before it had a seed of its own.
+        PartKind::Prop("books") => shape_of(&PartKind::Books(0)),
+        PartKind::Books(seed) => {
             // A ROW OF BOOKS, for a shelf or a desk or the arm of a chair. Standing
             // on its own nought like everything else, so it is set on a shelf and
             // lifted to it rather than sunk through it.
             //
-            // Each a different height and a different cloth, because a row of
-            // identical books is a pattern rather than a shelf - and the last one
-            // leaning on its neighbours, which is what a shelf nobody has tidied
-            // looks like.
+            // NO TWO ROWS ALIKE. Brett: "could we have the books be random colors
+            // when placed so every group doesnt look the same?" - so the row carries
+            // a SEED, and the colours and the heights are drawn from it. A seed
+            // rather than a roll of the dice at drawing time, because a part on this
+            // bench is its name: the same row must come back the same every time it
+            // is redrawn, saved, reopened and baked, and only a number carried in
+            // the name can promise that. What varies is which seed a maker is handed
+            // when they set one down.
             let a = ATOM;
-            // SIX ATOMS AT MOST, because that is what a shelf leaves: its shelves
-            // stand half a metre apart and are an atom thick, so the gap is seven
-            // and a book of eight goes straight through the one above it. Brett,
-            // with a picture of exactly that: "Books are slightly too big to fit in
-            // shelves."
-            let spines = [
-                (-a * 5.0, 5.0, "cloth-wine", 0.45),
-                (-a * 3.0, 6.0, "cloth-blue", 0.4),
-                (-a * 1.0, 4.0, "cloth-green", 0.45),
-                (a * 1.0, 6.0, "cloth-sable", 0.5),
-                (a * 3.0, 5.0, "cloth-rust", 0.5),
+            let cloths = [
+                ("cloth-wine", 0.45),
+                ("cloth-blue", 0.4),
+                ("cloth-green", 0.45),
+                ("cloth-sable", 0.5),
+                ("cloth-rust", 0.5),
+                ("cloth-red", 0.45),
+                ("cloth-purple", 0.4),
+                ("cloth-teal", 0.45),
+                ("cloth-gold", 0.35),
             ];
-            let mut body: Vec<Slab> = spines
-                .into_iter()
-                .map(|(x, tall, cloth, shade)| {
-                    slab(
-                        x,
-                        a * tall * 0.5,
-                        0.0,
-                        a * 2.0,
-                        a * tall,
-                        a * 4.0,
-                        cloth,
-                        shade,
-                    )
-                })
-                .collect();
-            // The one that has been put back in a hurry - leaning INTO the row it
-            // came out of, not away from it. Leant the other way it hung out past
-            // the shelf's own side, which is where the shelf is.
+            // The plainest arithmetic that walks a list unpredictably and always
+            // walks it the same way for one seed.
+            let mut roll = seed.wrapping_mul(2_654_435_761).wrapping_add(1);
+            let mut next = move |most: u32| {
+                roll = roll.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
+                ((roll >> 16) % most) as usize
+            };
+            // FIVE ATOMS AT MOST, because that is what a shelf leaves: its boards
+            // stand half a metre apart and are an atom thick, so the gap is seven,
+            // and the one leaning needs room to lean in. Brett, with a picture of a
+            // book standing through the board above it: "Books are slightly too big
+            // to fit in shelves."
+            let mut body: Vec<Slab> = Vec::new();
+            let mut wearing = cloths.len();
+            for step in 0..4 {
+                // Never the same cloth twice running: two reds side by side read as
+                // one wide book.
+                let mut pick = next(cloths.len() as u32);
+                if pick == wearing {
+                    pick = (pick + 1) % cloths.len();
+                }
+                wearing = pick;
+                let (cloth, shade) = cloths[pick];
+                let tall = 4.0 + next(2) as f32;
+                body.push(slab(
+                    a * (-5.0 + step as f32 * 2.0),
+                    a * tall * 0.5,
+                    0.0,
+                    a * 2.0,
+                    a * tall,
+                    a * 4.0,
+                    cloth,
+                    shade,
+                ));
+            }
+            // And the one put back in a hurry, leaning on the row it came out of.
+            //
+            // Its foot stands CLEAR of the last upright rather than inside it: a
+            // leaning book drawn through its neighbour is two solids at nearly one
+            // angle, which is the worst kind of flicker there is. Where it stands is
+            // worked out from the lean - a turned box reaches further across than it
+            // is wide - so it touches the row and stops.
+            let (tall, lean) = (5.0f32, 10f32.to_radians());
+            let reach = (a * 1.0) * lean.cos() + (a * tall * 0.5) * lean.sin();
+            let (cloth, shade) = cloths[(wearing + 3) % cloths.len()];
             body.push(canted(
-                a * 4.0,
-                a * 2.5,
+                a * 2.0 + reach,
+                a * tall * 0.5,
                 0.0,
                 a * 2.0,
-                a * 5.0,
+                a * tall,
                 a * 4.0,
-                "cloth-red",
-                0.45,
-                10f32.to_radians(),
+                cloth,
+                shade,
+                lean,
                 Vec2::ZERO,
             ));
             body
@@ -1617,9 +1658,9 @@ fn shape_of(kind: &PartKind) -> Vec<Slab> {
                 -0.40625, 0.8125, 0.03125, 0.0625, 1.625, 0.3125, "wood", 0.5,
             ),
             slab(0.40625, 0.8125, 0.03125, 0.0625, 1.625, 0.3125, "wood", 0.5),
-            slab(0.0, 0.53125, 0.03125, 0.875, 0.0625, 0.3125, "wood", 0.65),
-            slab(0.0, 1.03125, 0.03125, 0.875, 0.0625, 0.3125, "wood", 0.65),
-            slab(0.0, 1.53125, 0.03125, 0.875, 0.0625, 0.3125, "wood", 0.65),
+            slab(0.0, 0.53125, 0.03125, 0.75, 0.0625, 0.3125, "wood", 0.65),
+            slab(0.0, 1.03125, 0.03125, 0.75, 0.0625, 0.3125, "wood", 0.65),
+            slab(0.0, 1.53125, 0.03125, 0.75, 0.0625, 0.3125, "wood", 0.65),
         ],
         PartKind::Prop("cupboard") => vec![
             slab(0.0, 0.75, -0.03125, 0.875, 1.5, 0.4375, "wood", 0.5),
@@ -1647,16 +1688,42 @@ fn shape_of(kind: &PartKind) -> Vec<Slab> {
             slab(
                 -0.03125, 0.15625, -0.03125, 0.4375, 0.3125, 0.4375, "sand", 0.55,
             ),
-            slab(0.0, 0.28125, 0.0, 0.5, 0.0625, 0.5, "sand", 0.4),
+            // The rim sits ON the weave rather than in its last course: sunk in, it
+            // shared three of the basket's own faces at once.
+            slab(0.0, 0.34375, 0.0, 0.5, 0.0625, 0.5, "sand", 0.4),
         ],
-        PartKind::Prop("rug") => vec![
-            slab(0.0, 0.03125, 0.0, 1.375, 0.0625, 0.875, "cloth-red", 0.55),
-            slab(0.0, 0.03125, 0.0, 1.125, 0.0625, 0.625, "cloth-red", 0.75),
-        ],
+        PartKind::Prop("rug") => {
+            // A BORDER ROUND A FIELD, laid beside each other - not a field laid ON a
+            // border. Both were one atom thick at one height, so the whole of the
+            // inner panel had two surfaces at one depth: the largest flat fight in
+            // the bench, and Brett photographed it. A rug is woven, not stacked.
+            let a = ATOM;
+            let piece = |x: (f32, f32), z: (f32, f32), shade: f32| {
+                slab(
+                    (x.0 + x.1) * 0.5 * a,
+                    a * 0.5,
+                    (z.0 + z.1) * 0.5 * a,
+                    (x.1 - x.0) * a,
+                    a,
+                    (z.1 - z.0) * a,
+                    "cloth-red",
+                    shade,
+                )
+            };
+            vec![
+                // The field.
+                piece((-9.0, 9.0), (-5.0, 5.0), 0.75),
+                // And the border round it, in four strips that meet at the corners.
+                piece((-11.0, 11.0), (-7.0, -5.0), 0.55),
+                piece((-11.0, 11.0), (5.0, 7.0), 0.55),
+                piece((-11.0, -9.0), (-5.0, 5.0), 0.55),
+                piece((9.0, 11.0), (-5.0, 5.0), 0.55),
+            ]
+        }
         PartKind::Prop("woodpile") => vec![
             slab(0.0, 0.125, -0.03125, 1.0, 0.25, 0.6875, "wood", 0.4),
-            slab(0.0, 0.34375, 0.0, 1.0, 0.1875, 0.5, "wood", 0.5),
-            slab(0.0, 0.46875, 0.03125, 1.0, 0.1875, 0.3125, "wood", 0.6),
+            slab(0.0, 0.34375, 0.0, 0.875, 0.1875, 0.5, "wood", 0.5),
+            slab(0.0, 0.46875, 0.03125, 0.75, 0.1875, 0.3125, "wood", 0.6),
         ],
         PartKind::Prop("candle") => vec![
             slab(
@@ -2275,7 +2342,7 @@ fn shape_of(kind: &PartKind) -> Vec<Slab> {
         }
         PartKind::Prop("anvil") => vec![
             slab(-0.03125, 0.15625, 0.0, 0.4375, 0.3125, 0.375, "wood", 0.4),
-            slab(0.0, 0.40625, 0.0, 0.25, 0.1875, 0.25, "stone", 0.3),
+            slab(0.0, 0.40625, 0.0, 0.25, 0.1875, 0.125, "stone", 0.3),
             slab(-0.03125, 0.5, 0.0, 0.6875, 0.125, 0.25, "stone", 0.45),
         ],
         PartKind::Prop("loom") => vec![
