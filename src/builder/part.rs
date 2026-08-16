@@ -73,6 +73,13 @@ impl PartKind {
 
 impl Hole {
     /// An opening at the width its kind usually takes.
+    ///
+    /// Unused by the bench itself since the framed-wall shelf entries went: a hole punched
+    /// into a wall carries the width the OPENING needs, which is the whole of how a double
+    /// door came to frame a hole its leaves fit through. Kept because it is what a dozen
+    /// tests mean by "an ordinary door", and because the next thing that wants a hole at
+    /// its usual width will want exactly this.
+    #[allow(dead_code)]
     pub const fn plain(what: Opening, at: f32) -> Hole {
         Hole {
             what,
@@ -405,36 +412,6 @@ pub const STRUCTURE: &[CatalogEntry] = &[
             high: WALL_HIGH,
             framed: false,
             openings: [None; MOST_OPENINGS],
-        },
-        "walls",
-    ),
-    structure(
-        "WALL, FRAMED",
-        PartKind::Wall {
-            framed: true,
-            long: 3.0,
-            high: WALL_HIGH,
-            openings: [None; MOST_OPENINGS],
-        },
-        "walls",
-    ),
-    structure(
-        "WALL, FRAMED, DOOR",
-        PartKind::Wall {
-            framed: true,
-            long: 3.0,
-            high: WALL_HIGH,
-            openings: [Some(Hole::plain(Opening::Door, 0.0)), None, None, None],
-        },
-        "walls",
-    ),
-    structure(
-        "WALL, FRAMED, WINDOW",
-        PartKind::Wall {
-            framed: true,
-            long: 3.0,
-            high: WALL_HIGH,
-            openings: [Some(Hole::plain(Opening::Window, 0.0)), None, None, None],
         },
         "walls",
     ),
