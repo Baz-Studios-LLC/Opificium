@@ -44,6 +44,14 @@ pub(crate) const WALL_THICK: f32 = 0.25;
 /// it came from.
 pub(crate) const FLOOR_THICK: f32 = 0.125;
 
+/// How far a sill stands proud of the wall's face, on each side.
+///
+/// One atom. A sill sheds water, which it cannot do flush - and on the bench it is the
+/// line that tells you where a window is from across the room. Brett asked for it on both
+/// framed and plain walls, which is the point: it is part of the WINDOW, and the window is
+/// one window.
+pub(crate) const SILL_PROUD: f32 = ATOM;
+
 /// How thick a gable end is, standing at the end of a roof.
 ///
 /// A wall's thickness, because that is what a gable IS - the wall carried on up to the

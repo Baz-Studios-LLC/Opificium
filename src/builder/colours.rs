@@ -654,14 +654,47 @@ mod windows {
     /// else. A plain wall drew plaster over the whole head and apron AND a lintel and sill
     /// inside them, which is exactly that.
     #[test]
-    fn a_plain_wall_does_not_fight_itself() {
-        let body = a_wall_with_a_window(false);
+    fn a_wall_does_not_fight_itself() {
+        // A PLAIN wall, strictly: its plaster and its window's frame are laid by two
+        // different pieces of reasoning, and where they met was the speckle Brett saw.
+        no_two_solids_share_space(&a_wall_with_a_window(false), false);
+
+        // A FRAMED wall, at the one place this touched: a window sits ON the rail, so the
+        // rail gives way where a sill lands. The rest of a framed wall's carpentry has
+        // long-standing overlaps - braces and noggings running into the corner posts -
+        // which have never shown, being all one wood at one shade. Not chased here, and
+        // not pretended away either.
+        let framed = a_wall_with_a_window(true);
+        let sill = framed
+            .iter()
+            .find(|Slab { size, .. }| size.z > WALL_THICK + 1e-4)
+            .expect("a framed window has a proud sill");
+        for other in &framed {
+            if std::ptr::eq(other, sill) || other.size.z > WALL_THICK + 1e-4 {
+                continue;
+            }
+            let apart = |at_a: f32, s_a: f32, at_b: f32, s_b: f32| {
+                (at_a - at_b).abs() >= (s_a + s_b) * 0.5 - 1e-3
+            };
+            assert!(
+                apart(sill.at.x, sill.size.x, other.at.x, other.size.x)
+                    || apart(sill.at.y, sill.size.y, other.at.y, other.size.y),
+                "the sill shares its place with {:?} {:?} - the rail did not give way",
+                other.at,
+                other.size
+            );
+        }
+    }
+
+    /// The check itself: no two full-thickness solids may occupy the same place.
+    fn no_two_solids_share_space(body: &[Slab], framed: bool) {
         // Only the wall's own substance and frame - the panes are set back in the reveal
         // and are meant to sit inside the opening.
         let solid: Vec<&Slab> = body
             .iter()
             .filter(|Slab { size, .. }| size.z >= WALL_THICK - 1e-4)
             .collect();
+        let which = if framed { "framed" } else { "plain" };
         let overlaps = |a: &Slab, b: &Slab| {
             let over = |at_a: f32, s_a: f32, at_b: f32, s_b: f32| {
                 (at_a - at_b).abs() < (s_a + s_b) * 0.5 - 1e-3
@@ -672,7 +705,7 @@ mod windows {
             for other in solid.iter().skip(i + 1) {
                 assert!(
                     !overlaps(one, other),
-                    "two solids share space: {:?} {:?} against {:?} {:?}",
+                    "two solids share space in a {which} wall: {:?} {:?} against {:?} {:?}",
                     one.at,
                     one.size,
                     other.at,

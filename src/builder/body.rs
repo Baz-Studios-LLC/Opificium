@@ -204,16 +204,46 @@ pub(crate) fn body_of(kind: &PartKind, repaint: Option<(&str, f32)>) -> Vec<Slab
                     plaster(&mut body, hx - jamb, hw + jamb * 2, hy + hh, tall - hy - hh);
                     // Stopping a plate's depth short, where the sill will stand.
                     plaster(&mut body, hx - jamb, hw + jamb * 2, 0, hy - PLATE_TALL);
-                    // And the jambs' own columns beside the sill, which it does not cover.
-                    plaster(&mut body, hx - jamb, jamb, hy - PLATE_TALL, PLATE_TALL);
-                    plaster(&mut body, hx + hw, jamb, hy - PLATE_TALL, PLATE_TALL);
+                    // Nothing beside the sill: it reaches past the reveal on both sides
+                    // and covers the jambs' own columns itself.
                     from = hx + hw + jamb;
                 }
                 plaster(&mut body, from, span - from, 0, tall);
             } else {
                 course(&mut body, 0, PLATE_TALL);
                 course(&mut body, tall - PLATE_TALL, PLATE_TALL);
-                course(&mut body, rail_foot, PLATE_TALL);
+                // THE RAIL, broken where a window's sill lands. A window sits ON the
+                // rail - the rail was its sill - so a sill of its own would have stood in
+                // the same atoms, which is two solids at one depth however proud one of
+                // them is.
+                {
+                    // BETWEEN THE POSTS, not through them. A corner post runs the whole
+                    // clear height and the rail sits inside that band, so a rail starting
+                    // at the wall's edge ran its last four atoms inside the post - two
+                    // timbers of the same wood at one depth, which never showed because
+                    // they are the same colour.
+                    let mut from = POST_WIDE;
+                    for (what, hx, hw, hy, hh, _) in &holes {
+                        if *what != Opening::Window {
+                            continue;
+                        }
+                        // Only where the sill would actually reach this course.
+                        if hy - PLATE_TALL >= rail_foot + PLATE_TALL || *hy <= rail_foot {
+                            continue;
+                        }
+                        let jamb = jamb_of(*what);
+                        let _ = hh;
+                        timber(&mut body, from, hx - jamb - from, rail_foot, PLATE_TALL);
+                        from = hx + hw + jamb;
+                    }
+                    timber(
+                        &mut body,
+                        from,
+                        span - POST_WIDE - from,
+                        rail_foot,
+                        PLATE_TALL,
+                    );
+                }
 
                 // A post at each end, running the whole clear height behind the
                 // rail - a corner post is one timber, not two stacked.
@@ -266,9 +296,30 @@ pub(crate) fn body_of(kind: &PartKind, repaint: Option<(&str, f32)>) -> Vec<Slab
                     // the same reason as the lintel above - and in a plain wall the
                     // plaster stops short to leave room for it, so it is the one timber
                     // under a plain window rather than a second skin over the first.
-                    if !*framed || *hy > high_foot {
-                        timber(&mut body, *hx, *hw, hy - PLATE_TALL, PLATE_TALL);
-                    }
+                    // A SILL IN EITHER WALL, standing an atom proud of both faces. The
+                    // rail gives way to it in a framed wall - see the courses below -
+                    // because a sill and a rail in the same atoms is the flicker this was
+                    // meant to avoid rather than cause.
+                    // PAST THE REVEAL in a plain wall, where the jamb frames the window
+                    // and stands above the sill - the sill covers the plaster columns
+                    // beside it. Between the jambs in a framed wall, where they run the
+                    // whole clear height and a wider sill would stand inside them.
+                    let (from, wide) = if *framed {
+                        (*hx, *hw)
+                    } else {
+                        (hx - jamb, hw + jamb * 2)
+                    };
+                    let (x, w) = across(from, wide);
+                    body.push(slab(
+                        x,
+                        (hy - PLATE_TALL) as f32 * ATOM + PLATE_TALL as f32 * ATOM * 0.5,
+                        0.0,
+                        w,
+                        PLATE_TALL as f32 * ATOM,
+                        WALL_THICK + SILL_PROUD * 2.0,
+                        "wood",
+                        0.62,
+                    ));
 
                     // The cross in the light: a mullion up the middle and a
                     // transom across it, dividing the opening into four panes.
