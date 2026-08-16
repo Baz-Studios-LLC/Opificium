@@ -28,7 +28,7 @@ pub enum Opening {
 /// - a phase change, a save and reopen - and never reached the game, because the
 /// bake skips a name it cannot read. Every framed-wall door in every drawing was
 /// losing its leaf in silence.
-pub(crate) const PUNCHED: [&str; 2] = ["door-leaf", "door-double-leaf"];
+pub(crate) const PUNCHED: [&str; 3] = ["door-leaf", "door-double-leaf", "window"];
 
 /// One opening in a framed wall: what kind, where along it, and how wide.
 ///
@@ -53,28 +53,32 @@ pub struct Hole {
     ///
     /// A door has bars in nothing and ignores it.
     pub dark: bool,
-    /// Where it stands UP the wall - or nothing at all, for the band its kind
-    /// takes by itself.
+    /// How tall it is, in atoms.
     ///
-    /// This is the freedom a window did not have. Its height was not a number
-    /// anywhere: a window WAS the wall's upper course, so the one thing it could
-    /// be told was how far along. Brett: "I should be able to place the window
-    /// atom perfect anywhere on the wall."
+    /// A WINDOW'S OWN, not the wall's. This was the wall's upper course and
+    /// nothing else - a window WAS that course - so its height changed when the
+    /// wall's did, its panes were counted off a number nobody chose, and a
+    /// three-pane window could not be made at all. Brett, with the townhall
+    /// drawn: "i want to uncouple the windows size and pane count from the wall
+    /// height."
     ///
-    /// Nothing when it sits where its kind would put it, which is why every wall
-    /// drawn before this reads and writes exactly the name it always did - and why
-    /// a window left at the course still RIDES the course when the wall is pulled
-    /// taller, while one you have put somewhere stays where you put it.
-    pub band: Option<Band>,
+    /// A door still takes its kind's, since a door is as tall as a door.
+    pub high: i32,
+    /// How far its foot stands off the wall's own foot, in atoms.
+    ///
+    /// The other half of the same freedom: "I need to pick the size of the
+    /// window and choose anywhere on the wall I want to put it."
+    pub lift: i32,
 }
 
-/// Where an opening's foot stands and how tall it is, in atoms off the wall's
-/// own foot.
+/// Where an opening stands in a wall and how tall it is, in atoms off the
+/// wall's own foot.
 ///
-/// The same two numbers a [`PartKind::Seg`] carries as `lift` and `high`, in the
-/// units a wall is actually solved in. One struct rather than two loose fields
-/// because they are one fact: a band with a foot and no height is not half an
-/// answer, it is no answer.
+/// Not what a hole STORES - a hole carries these flat, because a size and a
+/// place are two facts and a maker changes them one at a time. This is what
+/// [`band_of`](super::band_of) ANSWERS with: the band a kind takes when nobody
+/// has said otherwise, which is where a hole's two numbers come from at the one
+/// moment it is made.
 #[derive(Clone, Copy, PartialEq)]
 pub struct Band {
     pub foot: i32,
@@ -106,14 +110,72 @@ impl Hole {
     /// tests mean by "an ordinary door", and because the next thing that wants a hole at
     /// its usual width will want exactly this.
     #[allow(dead_code)]
-    pub const fn plain(what: Opening, at: f32) -> Hole {
+    pub fn plain(what: Opening, at: f32) -> Hole {
+        Hole::usual(what, at, (WALL_HIGH / ATOM).round() as i32)
+    }
+
+    /// An opening at the width and band its kind takes in a wall this tall.
+    ///
+    /// The one place a hole is made from nothing but its kind, and the reason
+    /// the wall's own courses still mean something: they are what a hole is
+    /// GIVEN when nobody has said, rather than what it IS ever after.
+    pub fn usual(what: Opening, at: f32, tall: i32) -> Hole {
+        let band = band_of(what, tall);
         Hole {
             what,
             at,
             wide: usual_width(what),
             dark: false,
-            band: None,
+            high: band.rise,
+            lift: band.foot,
         }
+    }
+}
+
+/// The size of window the shelf hands out, in panes.
+///
+/// A maker sizes a window once and then places six more like it. Without this,
+/// the shelf hands back a two-by-two every time and the whole townhall is sized
+/// window by window through the menu - so the LAST size chosen is what WINDOW
+/// means until it is chosen again.
+///
+/// Not where the size LIVES: that is on the part, and on the hole it punches.
+/// This is only what the shelf reaches for, the way a brush remembers the colour
+/// it was last dipped in.
+#[derive(Resource, Clone, Copy)]
+pub struct WindowPanes {
+    pub across: i32,
+    pub up: i32,
+}
+
+impl Default for WindowPanes {
+    fn default() -> Self {
+        WindowPanes { across: 2, up: 2 }
+    }
+}
+
+impl WindowPanes {
+    /// The window this many panes makes.
+    pub fn window(self) -> PartKind {
+        PartKind::Window {
+            wide: panes_across(self.across),
+            high: panes_across(self.up),
+        }
+    }
+}
+
+/// The kind a shelf button actually hands over.
+///
+/// Every entry is itself, except a WINDOW: the shelf's own is the two-by-two a
+/// maker starts from, and what they want back is the one they last sized. Asked
+/// in ONE place, because the button that arms the hand and the border that shows
+/// which button is armed have to agree about what the button means - and a
+/// border that disagreed would simply stop lighting up the moment a maker
+/// resized a window.
+pub fn from_the_shelf(kind: PartKind, panes: WindowPanes) -> PartKind {
+    match kind {
+        PartKind::Window { .. } => panes.window(),
+        other => other,
     }
 }
 
@@ -131,6 +193,22 @@ pub const fn usual_width(what: Opening) -> i32 {
 /// What a shelf entry stands for.
 #[derive(Clone, Copy, PartialEq)]
 pub enum PartKind {
+    /// A WINDOW, of a size a maker chose: how wide and how tall, in atoms,
+    /// always a whole number of panes each way.
+    ///
+    /// It was `Prop("window")` - one window, forever the same, taking its height
+    /// from whatever wall it was aimed at and its panes from that. So a hall
+    /// wanting three-pane windows over its door could not have them, and a
+    /// cottage and a townhall were glazed to the same two-by-two whatever they
+    /// were built of.
+    ///
+    /// The size is on the PART, so the thing in your hand is the size you are
+    /// about to place, the ghost draws it, and picking one up brings its size
+    /// back to hand. See [`panes_across`](super::panes_across).
+    Window {
+        wide: i32,
+        high: i32,
+    },
     /// A WALL: how long, how high, whether it is framed, and what it makes room for.
     ///
     /// One part where there were two. A framed wall used to be its own species, which is
@@ -429,7 +507,17 @@ pub const STRUCTURE: &[CatalogEntry] = &[
         },
         "walls",
     ),
-    structure("WINDOW", PartKind::Prop("window"), "walls"),
+    // The size the shelf hands out is only where a maker STARTS: two panes by
+    // two, the ordinary cottage window. What they hand back is whatever they
+    // last chose - see `WindowPanes`.
+    structure(
+        "WINDOW",
+        PartKind::Window {
+            wide: WINDOW_WIDE,
+            high: WINDOW_WIDE,
+        },
+        "walls",
+    ),
 ];
 
 pub const FURNITURE: &[CatalogEntry] = &[

@@ -294,6 +294,28 @@ pub(crate) const BAR_WIDE: i32 = 1;
 /// three-metre wall on two by three, which is what a townhall's windows look like.
 pub(crate) const PANE_WANTED: i32 = 9;
 
+/// How many panes fit across a span of atoms - the rule that divides a window.
+pub(crate) fn panes_in(across: i32) -> i32 {
+    (across as f32 / PANE_WANTED as f32).round().max(1.0) as i32
+}
+
+/// And back: the atoms a whole number of panes wants.
+///
+/// The two are exact inverses by construction, which is the point. A maker asks
+/// for three panes up and gets a window that divides into three - not a window
+/// of some height that happens to round to three, which is what choosing a size
+/// in metres would have meant. Brett counts his windows in panes: "The three
+/// high two wide windows with the black crossbars need to be made."
+pub(crate) fn panes_across(panes: i32) -> i32 {
+    panes.clamp(1, MOST_PANES) * PANE_WANTED
+}
+
+/// The most panes a window is offered either way.
+///
+/// Four is a shopfront. Past that a maker wants two windows, and a drawer with
+/// twelve lines in it is a drawer nobody reads.
+pub(crate) const MOST_PANES: i32 = 4;
+
 /// A span of atoms in `n` parts that sum to exactly the span.
 ///
 /// Integer division leaves a remainder of up to `n - 1` atoms. Dropping it
@@ -317,10 +339,11 @@ pub(crate) fn openings_at(
     let mut holes: Vec<(Opening, i32, i32, i32, i32, bool)> = Vec::new();
     for hole in openings.iter().flatten().copied() {
         let (what, at) = (hole.what, hole.at);
-        // The HOLE's own band where it has one, and the band its kind takes
-        // otherwise. What the kind still decides is only what nobody has said.
-        let Band { foot, rise } = hole.band.unwrap_or_else(|| band_of(what, tall));
-        let wide = hole.wide;
+        // THE HOLE'S OWN, all four of them. The wall decides nothing about a
+        // window any more - it hands one a band at the moment it is made and has
+        // no further say, which is what lets a townhall's windows be three panes
+        // tall in a wall whose courses would have given them two.
+        let (foot, rise, wide) = (hole.lift, hole.high, hole.wide);
         let room = span - POST_WIDE - JAMB_WIDE - wide;
         if room < POST_WIDE + JAMB_WIDE {
             continue;

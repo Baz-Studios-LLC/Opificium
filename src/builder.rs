@@ -506,6 +506,7 @@ impl Plugin for BuilderPlugin {
             .init_resource::<SnapGrid>()
             .init_resource::<Clipboard>()
             .init_resource::<RoofsLifted>()
+            .init_resource::<WindowPanes>()
             .add_systems(
                 Startup,
                 (raise_shelf, raise_palette).after(crate::rail::raise_rail),
@@ -621,6 +622,9 @@ pub fn part_name(kind: &PartKind) -> String {
             if *framed {
                 name.push_str("xf");
             }
+            // What this wall would have given a hole of each kind, which is what
+            // a name is allowed to leave unsaid.
+            let tall = (high / ATOM).round().max((PLATE_TALL * 3 + 8) as f32) as i32;
             for hole in openings.iter().flatten() {
                 let letter = match hole.what {
                     Opening::Door => 'd',
@@ -633,11 +637,13 @@ pub fn part_name(kind: &PartKind) -> String {
                 if hole.wide != usual_width(hole.what) {
                     name.push_str(&format!("@{}", hole.wide));
                 }
-                // And only when it is not standing where its kind would stand.
-                // Same rule, same reason: a window at the course is spelled the
-                // way it always was.
-                if let Some(band) = hole.band {
-                    name.push_str(&format!("+{}+{}", band.foot, band.rise));
+                // And only when it is not the band this wall would have given
+                // it. Same rule, same reason: a door, which is always a door's
+                // height on the floor, is spelled the way it always was, and so
+                // is every wall drawn before a window had a size of its own.
+                let usual = band_of(hole.what, tall);
+                if hole.lift != usual.foot || hole.high != usual.rise {
+                    name.push_str(&format!("+{}+{}", hole.lift, hole.high));
                 }
                 // Only when the bars are dark. A wall drawn before they could be writes
                 // the name it always wrote, and reads back the same.
@@ -647,6 +653,9 @@ pub fn part_name(kind: &PartKind) -> String {
             }
             name
         }
+        // In ATOMS, which is what it is measured in - and always a whole number
+        // of panes, so `window-18x27` is two across and three up.
+        PartKind::Window { wide, high } => format!("window-{wide}x{high}"),
         PartKind::Gable(long, pitch) => format!("gable-{long}x{pitch}"),
         PartKind::Beam(long, high, low) => format!("beam-{long}x{high}x{low}"),
         PartKind::BeamRun => "beamrun".to_string(),
@@ -742,6 +751,10 @@ pub fn kind_from_name(name: &str) -> Option<PartKind> {
                 }
                 None => (&said[1..], None),
             };
+            // A name that says no band means the band this wall gives - which is
+            // the one place the courses still speak, and the reason every wall
+            // drawn before a window had a size of its own comes back unchanged.
+            let tall = (high / ATOM).round().max((PLATE_TALL * 3 + 8) as f32) as i32;
             let (where_at, wide) = match rest.split_once('@') {
                 Some((at, wide)) => (at, wide.parse::<i32>().ok()),
                 None => (rest, None),
@@ -752,12 +765,16 @@ pub fn kind_from_name(name: &str) -> Option<PartKind> {
                 Some(b'w') => Some(Opening::Window),
                 _ => None,
             };
-            *slot = what.map(|what| Hole {
-                what,
-                at,
-                wide: wide.unwrap_or(usual_width(what)),
-                dark,
-                band,
+            *slot = what.map(|what| {
+                let usual = band.unwrap_or_else(|| band_of(what, tall));
+                Hole {
+                    what,
+                    at,
+                    wide: wide.unwrap_or(usual_width(what)),
+                    dark,
+                    high: usual.rise,
+                    lift: usual.foot,
+                }
             });
         }
         return Some(PartKind::Wall {
@@ -766,6 +783,12 @@ pub fn kind_from_name(name: &str) -> Option<PartKind> {
             framed,
             openings,
         });
+    }
+    if let Some(rest) = name.strip_prefix("window-") {
+        let mut parts = rest.split('x');
+        let wide = parts.next()?.parse().ok()?;
+        let high = parts.next().and_then(|n| n.parse().ok()).unwrap_or(wide);
+        return Some(PartKind::Window { wide, high });
     }
     if let Some(rest) = name.strip_prefix("hiproof-") {
         let mut parts = rest.split('x');
@@ -1313,7 +1336,7 @@ fn place_grab_remove(
             // stand alone: if one lands on a wall, the wall parts around
             // the opening and the frame settles in.
             let opening = opening_of(&kind);
-            let punched = if let Some((wide, head, sill, is_door, clear)) = opening
+            let punched = if let Some(opens) = opening
                 && let Some((ghost_at, _)) = ghost_spots.iter().next()
             {
                 punch_wall(
@@ -1324,11 +1347,7 @@ fn place_grab_remove(
                     &placed,
                     hovered.build.map(|hit| (hit.entity, hit.point, hit.normal)),
                     ghost_at.translation,
-                    wide,
-                    head,
-                    sill,
-                    is_door,
-                    clear,
+                    opens,
                     &hand,
                     snap_step(held_fine(&keys), snap_grid.0),
                 )
@@ -1403,11 +1422,22 @@ fn place_grab_remove(
                     false,
                 );
                 commands.entity(grabbed).insert(healed);
+                // A WINDOW COMES BACK AT ITS OWN SIZE. It is the size that makes it
+                // the window it is now, so a hand that dropped it back at the shelf's
+                // two-by-two would have quietly resized every window a maker ever
+                // moved.
                 *hand = Hand {
-                    kind: Some(PartKind::Prop(match taken.map(|hole| hole.what) {
-                        Some(Opening::Door) => "door",
-                        _ => "window",
-                    })),
+                    kind: Some(match taken {
+                        Some(hole) if hole.what == Opening::Window => PartKind::Window {
+                            wide: hole.wide,
+                            high: hole.high,
+                        },
+                        Some(_) => PartKind::Prop("door"),
+                        None => PartKind::Window {
+                            wide: WINDOW_WIDE,
+                            high: WINDOW_WIDE,
+                        },
+                    }),
                     stage: record.stage.clone(),
                     yaw: record.yaw,
                     ..Hand::default()

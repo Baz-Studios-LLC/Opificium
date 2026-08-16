@@ -40,7 +40,7 @@ pub(crate) fn heal_wall_at(
     // and a quarter wide, and wrong the moment a double door existed.
     let Some(width) = kind_from_name(&frame_record.part)
         .and_then(|kind| opening_of(&kind))
-        .map(|(wide, ..)| wide)
+        .map(|opens| opens.wide)
     else {
         return false;
     };
@@ -144,21 +144,71 @@ pub(crate) fn heal_wall_at(
 /// includes the frame the prop brings with it - and a framed wall brings its own
 /// frame, so what it needs is the CLEAR span the leaves must fit through, in atoms.
 /// Those are different numbers, and only one table should hold either.
-pub fn opening_of(kind: &PartKind) -> Option<(f32, f32, f32, bool, i32)> {
+pub fn opening_of(kind: &PartKind) -> Option<Opens> {
+    let door = |wide: f32, clear: i32, widget: bool| {
+        Some(Opens {
+            wide,
+            head: 2.125,
+            sill: 0.0,
+            widget,
+            clear,
+            tall: DOOR_HIGH,
+        })
+    };
     match kind {
         // One leaf a metre wide: sixteen atoms of clear.
-        PartKind::Prop("door") => Some((1.25, 2.125, 0.0, true, DOOR_WIDE)),
+        PartKind::Prop("door") => door(1.25, DOOR_WIDE, true),
         // Twice the leaf, so twice the hole - and twice the clear, which is the
         // half that was missing. `door-double-leaf` hangs two metre-wide leaves at
         // either side of the middle, spanning two metres, so a framed wall that
         // reserved a single door's sixteen atoms put them over solid timber.
-        PartKind::Prop("door-double") => Some((2.25, 2.125, 0.0, true, DOOR_WIDE * 2)),
+        PartKind::Prop("door-double") => door(2.25, DOOR_WIDE * 2, true),
         // A bare doorway needs no widget: the gap itself is the portal,
         // and a widget would only say it twice.
-        PartKind::Prop("doorway") => Some((1.25, 2.125, 0.0, false, DOOR_WIDE)),
-        PartKind::Prop("window") => Some((1.25, 2.0, 0.75, false, WINDOW_WIDE)),
+        PartKind::Prop("doorway") => door(1.25, DOOR_WIDE, false),
+        // A WINDOW SAYS ITS OWN SIZE. Everything above is a fixed thing - a door
+        // is as tall as a door - and this one is whatever a maker set, which is
+        // the whole of what "uncouple the window size from the wall height"
+        // means: the table stops answering for it and passes on what it holds.
+        PartKind::Window { wide, high } => Some(Opens {
+            // The hole a PLAIN wall parts for it, frame and all.
+            wide: (wide + jamb_of(Opening::Window) * 2) as f32 * ATOM,
+            head: (ghost_band().foot + high) as f32 * ATOM,
+            sill: ghost_band().foot as f32 * ATOM,
+            widget: false,
+            clear: *wide,
+            tall: *high,
+        }),
+        // A window drawn before one had a size of its own.
+        PartKind::Prop("window") => opening_of(&PartKind::Window {
+            wide: WINDOW_WIDE,
+            high: ghost_band().rise,
+        }),
         _ => None,
     }
+}
+
+/// What an opening asks of the wall it is going into.
+///
+/// Six numbers that were a six-place tuple for about an hour, until `(.., clear)`
+/// in a test quietly bound the last of them instead of the fifth. A tuple that
+/// long is a trap with a lid on it.
+#[derive(Clone, Copy)]
+pub struct Opens {
+    /// How far a PLAIN wall parts for it, in metres, frame included.
+    pub wide: f32,
+    /// Where its head is, in metres off the wall's foot.
+    pub head: f32,
+    /// How much wall is left under it, in metres.
+    pub sill: f32,
+    /// Whether a routing widget comes with it - a real door, that a villager
+    /// walks through.
+    pub widget: bool,
+    /// The CLEAR span its leaves or its glass must fit through, in atoms. A
+    /// framed wall brings its own frame, so this is what it reserves.
+    pub clear: i32,
+    /// And how tall that clear opening is, in atoms.
+    pub tall: i32,
 }
 
 /// Where the routing widgets stand in an opening, measured along the wall from
@@ -323,14 +373,18 @@ pub(crate) fn punch_wall(
     placed: &Query<(Entity, &Transform, &Placed, &Visibility), Without<Ghost>>,
     aimed: Option<(Entity, Vec3, Vec3)>,
     at: Vec3,
-    wide: f32,
-    head: f32,
-    sill: f32,
-    is_door: bool,
-    clear: i32,
+    opens: Opens,
     hand: &Hand,
     grid: f32,
 ) -> bool {
+    let Opens {
+        wide,
+        head,
+        sill,
+        widget: is_door,
+        clear,
+        ..
+    } = opens;
     // The wall the cursor's own ray touches wins outright; the search
     // by proximity is the fallback for a blind click.
     let mut best: Option<(Entity, f32, Vec3, f32, f32, Placed)> = None;
@@ -400,25 +454,29 @@ pub(crate) fn punch_wall(
         } else {
             Opening::Window
         };
-        // WHERE UP THE WALL IT WAS AIMED, at the size that wall's own courses
-        // give it: a window slides up and down and keeps its size, rather than
-        // growing to fill wherever it has been put.
+        // THE SIZE IT IS, and WHERE UP THE WALL IT WAS AIMED.
         //
-        // Nothing at all when it landed where its kind would have put it anyway,
-        // and nothing for a door, which reaches the floor by definition. That is
-        // what keeps a wall punched the ordinary way spelled the ordinary way.
+        // The size is the opening's own, carried in from the one table: the
+        // width its leaves or its glass must fit through, and for a window the
+        // height a maker chose. The wall's own courses answer only where nobody
+        // has said - a door, which reaches the floor by definition, and a blind
+        // click with nothing aimed at.
         let tall = (high / ATOM).round().max((PLATE_TALL * 3 + 8) as f32) as i32;
         let usual = band_of(what, tall);
-        let band = aimed
+        let rise = if what == Opening::Window {
+            opens.tall
+        } else {
+            usual.rise
+        };
+        let lift = aimed
             // The aim on THIS wall, not on whatever else the cursor found: the
             // wall may have been chosen by nearness after a blind click, and a
             // height read off some other thing's face is a height nobody meant.
             .filter(|(touched, _, _)| *touched == wall && what == Opening::Window)
-            .map(|(_, point, _)| Band {
-                foot: opening_lift(wall_at.y, tall, usual, point.y, grid),
-                rise: usual.rise,
+            .map(|(_, point, _)| {
+                opening_lift(wall_at.y, tall, Band { rise, ..usual }, point.y, grid)
             })
-            .filter(|band| *band != usual);
+            .unwrap_or(usual.foot);
         let want = Some(Hole {
             what,
             at: on_the_lattice(middle),
@@ -428,7 +486,8 @@ pub(crate) fn punch_wall(
             wide: clear,
             // Timber until somebody says otherwise; the right-click menu blackens them.
             dark: false,
-            band,
+            high: rise,
+            lift,
         });
         // Into the first empty slot, so a second window joins the first rather
         // than replacing it. With every slot taken, the nearest one moves - a

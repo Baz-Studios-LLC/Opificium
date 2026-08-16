@@ -38,6 +38,17 @@ pub(crate) enum Deed {
     ANewMaterial,
     /// Paint the bars of this wall's windows dark, or leave them as timber.
     BarsIn(bool),
+    /// How many panes this wall's windows are divided into, one way or the other.
+    ///
+    /// In PANES rather than in metres, because that is how a maker counts a window -
+    /// Brett: "The three high two wide windows with the black crossbars need to be
+    /// made" - and because a size in metres would land between two panes and round
+    /// to whichever it happened to be nearer.
+    Panes {
+        /// Up the wall rather than across it.
+        up: bool,
+        count: i32,
+    },
     /// Frame a wall, or take the framing off it again.
     Frame(bool),
     /// Raise a roof over a ceiling, sized to it.
@@ -65,7 +76,7 @@ impl Deed {
     /// One place for the question, because two menus ask it - the menu itself and every
     /// drawer - and a drawer that marked nothing would leave a maker guessing which of
     /// four looks their stairs are wearing.
-    fn is_standing(self, kind: &PartKind, wearing: &str, material: &str) -> bool {
+    pub(crate) fn is_standing(self, kind: &PartKind, wearing: &str, material: &str) -> bool {
         match self {
             Deed::Nature(nature) => nature == wearing,
             Deed::BuiltOf(word) => word == material,
@@ -77,6 +88,20 @@ impl Deed {
                 PartKind::Stairs { stone, rail_stone: rail, .. }
                     if *stone == treads_stone && *rail == rail_stone
             ),
+            // The window it would make, against the window that is there. Read off
+            // the hole rather than off any number kept beside it, so a window
+            // resized any other way still marks the line it is standing on.
+            Deed::Panes { up, count } => match kind {
+                PartKind::Wall { openings, .. } => openings
+                    .iter()
+                    .flatten()
+                    .find(|hole| hole.what == Opening::Window)
+                    .is_some_and(|hole| panes_in(if up { hole.high } else { hole.wide }) == count),
+                PartKind::Window { wide, high } => {
+                    panes_in(if up { *high } else { *wide }) == count
+                }
+                _ => false,
+            },
             _ => false,
         }
     }
@@ -113,6 +138,11 @@ impl Deed {
             Deed::MadeOfStone(false) => "IN TIMBER",
             Deed::BuiltOf(word) => word,
             Deed::ANewMaterial => "+ ANOTHER...",
+            // Just the number: the drawer they hang in says which way.
+            Deed::Panes { count: 1, .. } => "1",
+            Deed::Panes { count: 2, .. } => "2",
+            Deed::Panes { count: 3, .. } => "3",
+            Deed::Panes { .. } => "4",
             Deed::BarsIn(true) => "BARS IN BLACK",
             Deed::BarsIn(false) => "BARS IN TIMBER",
             Deed::Frame(true) => "ADD FRAMING",
@@ -484,6 +514,11 @@ pub(crate) fn deeds_for(kind: &PartKind) -> Vec<Deed> {
             .find(|hole| hole.what == Opening::Window)
     {
         deeds.push(Deed::BarsIn(!window.dark));
+        // And how big it is, in panes, each way. Two drawers rather than a list of
+        // shapes: a maker who wants one more pane up should not have to find the
+        // line that says the width they already have.
+        deeds.push(Deed::More(PANES_ACROSS));
+        deeds.push(Deed::More(PANES_UP));
     }
     // Every part can be told what it is, and what it is made of - each behind one line.
     deeds.push(Deed::More(PART_OF));
@@ -500,12 +535,22 @@ pub(crate) const BUILT_OF: &str = "MADE OF...";
 /// The drawer a flight's materials hang in.
 pub(crate) const MADE_OF: &str = "STONE OR TIMBER...";
 
+/// The two drawers a window's size hangs in, counted in panes.
+pub(crate) const PANES_ACROSS: &str = "PANES ACROSS...";
+pub(crate) const PANES_UP: &str = "PANES UP...";
+
 /// What the PART OF drawer holds.
 pub(crate) const PART_OF: &str = "PART OF...";
 
 pub(crate) fn deeds_in(group: &str) -> Vec<Deed> {
     match group {
         PART_OF => NATURES.iter().map(|nature| Deed::Nature(nature)).collect(),
+        PANES_ACROSS => (1..=MOST_PANES)
+            .map(|count| Deed::Panes { up: false, count })
+            .collect(),
+        PANES_UP => (1..=MOST_PANES)
+            .map(|count| Deed::Panes { up: true, count })
+            .collect(),
         // The project's own words, and a way to add one. Brett: "We can have the basic
         // stuff like stone, wood, clay, and then there could be a plus where I could type
         // my own."
@@ -822,7 +867,9 @@ pub(crate) fn work_part_menu(
     mut keeping: ResMut<PieceKept>,
     mut wants_naming: ResMut<PieceWantsAName>,
     mut naming: ResMut<Naming>,
-    mut material_for: ResMut<MaterialFor>,
+    // Bundled: the ceiling is sixteen, and a window's size is the seventeenth
+    // thing this menu can change.
+    errands: (ResMut<MaterialFor>, ResMut<WindowPanes>),
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut lines: Query<(Entity, &MenuLine, &Interaction, &mut BackgroundColor)>,
@@ -833,6 +880,7 @@ pub(crate) fn work_part_menu(
     if menus.is_empty() {
         return;
     }
+    let (mut material_for, mut panes) = errands;
     let mut chosen = None;
     let mut pressed_line = None;
     let mut over = false;
@@ -1089,6 +1137,57 @@ pub(crate) fn work_part_menu(
                     if hole.what == Opening::Window {
                         hole.dark = dark;
                     }
+                }
+                let made = PartKind::Wall {
+                    long,
+                    high,
+                    framed,
+                    openings,
+                };
+                record.part = part_name(&made);
+                let copy = record.clone();
+                commands.entity(part).despawn_related::<Children>();
+                dress_part(
+                    &mut commands,
+                    &mut meshes,
+                    &mut materials,
+                    &palette,
+                    &made,
+                    &copy,
+                    part,
+                    false,
+                );
+            }
+        }
+        Some((Deed::Panes { up, count }, part)) => {
+            if let Ok((_, _, mut record)) = placed.get_mut(part)
+                && let Some(PartKind::Wall {
+                    framed,
+                    long,
+                    high,
+                    mut openings,
+                }) = kind_from_name(&record.part)
+            {
+                let atoms = panes_across(count);
+                // EVERY window in the wall, the same way BARS IN BLACK paints every
+                // one: the menu acts on the part, and a wall with two windows of two
+                // sizes is a thing a maker builds deliberately, one wall at a time.
+                for hole in openings.iter_mut().flatten() {
+                    if hole.what != Opening::Window {
+                        continue;
+                    }
+                    if up {
+                        hole.high = atoms;
+                    } else {
+                        hole.wide = atoms;
+                    }
+                    // Remembered for the NEXT one. A townhall wants seven windows of
+                    // one size, and sizing each of them in turn is six trips through
+                    // this menu that a maker should not have to make.
+                    *panes = WindowPanes {
+                        across: panes_in(hole.wide),
+                        up: panes_in(hole.high),
+                    };
                 }
                 let made = PartKind::Wall {
                     long,

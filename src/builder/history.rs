@@ -337,7 +337,7 @@ pub(crate) fn reflow_openings(
     if now.distance(old_spot) < 0.03 {
         return;
     }
-    let Some((wide, head, sill, is_door, clear)) = opening_for(record) else {
+    let Some(opens) = opening_for(record) else {
         return;
     };
 
@@ -371,11 +371,7 @@ pub(crate) fn reflow_openings(
         &placed,
         None,
         now,
-        wide,
-        head,
-        sill,
-        is_door,
-        clear,
+        opens,
         &carried,
         // The same step a placement takes, so dragging a door along a wall moves it
         // in the strides the maker set rather than in sixteenths.

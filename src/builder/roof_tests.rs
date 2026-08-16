@@ -1452,6 +1452,7 @@ fn naming_a_nature_leaves_the_body_alone() {
     app.init_resource::<PieceWantsAName>();
     app.init_resource::<crate::look::Fonts>();
     app.init_resource::<MaterialFor>();
+    app.init_resource::<WindowPanes>();
     app.init_resource::<Naming>();
     app.add_systems(Update, work_part_menu);
 

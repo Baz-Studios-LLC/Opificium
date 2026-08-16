@@ -602,7 +602,7 @@ pub(crate) fn move_ghost(
     // whatever the cursor finds, roofs included, and leaps a metre the
     // instant the aim slips off the timber. It seats itself here with the
     // punch's own arithmetic, so what you see is where it goes.
-    if let Some((wide, ..)) = opening_of(&kind_now) {
+    if let Some(opens) = opening_of(&kind_now) {
         let seat = hovered
             .build
             .filter(|hit| hit.normal.y.abs() < 0.3)
@@ -611,18 +611,29 @@ pub(crate) fn move_ghost(
                 let length = punchable_length(record)?;
                 let along = Quat::from_rotation_y(record.yaw) * Vec3::X;
                 let step = snap_step(held_fine(&keys), snap_grid.0);
-                let middle =
-                    opening_seat(wall_at.translation, along, length, wide, hit.point, step);
+                let middle = opening_seat(
+                    wall_at.translation,
+                    along,
+                    length,
+                    opens.wide,
+                    hit.point,
+                    step,
+                );
                 // AND HOW FAR UP, for a window: the punch asks the same question
                 // of the same aim, so what is sliding along the wall is at the
                 // height the wall will be told about. A door reaches the floor
                 // and does not ask.
                 let lift = match kind_from_name(&record.part) {
                     Some(PartKind::Wall { high, .. })
-                        if matches!(kind_now, PartKind::Prop("window")) =>
+                        if matches!(kind_now, PartKind::Window { .. }) =>
                     {
                         let tall = (high / ATOM).round().max((PLATE_TALL * 3 + 8) as f32) as i32;
-                        let usual = band_of(Opening::Window, tall);
+                        // Its OWN height, at the wall's own course - which is the
+                        // pair the punch works from, so the two agree.
+                        let usual = Band {
+                            rise: opens.tall,
+                            ..band_of(Opening::Window, tall)
+                        };
                         let foot =
                             opening_lift(wall_at.translation.y, tall, usual, hit.point.y, step);
                         // Drawn for the ordinary wall, so what it is lifted BY is

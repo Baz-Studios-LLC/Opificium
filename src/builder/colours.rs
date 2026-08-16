@@ -218,7 +218,7 @@ fn an_opening_lands_on_the_grid() {
 #[test]
 fn a_double_door_gets_a_double_hole() {
     // What the one table says each opening needs cleared, and what its leaf spans.
-    let clear_of = |what: &'static str| opening_of(&PartKind::Prop(what)).map(|(.., clear)| clear);
+    let clear_of = |what: &'static str| opening_of(&PartKind::Prop(what)).map(|opens| opens.clear);
     let single = clear_of("door").expect("a door");
     let double = clear_of("door-double").expect("a double door");
     assert_eq!(single, DOOR_WIDE);
@@ -259,11 +259,8 @@ fn a_double_door_gets_a_double_hole() {
         tall,
         &[
             Some(Hole {
-                what: Opening::Door,
-                at: 0.0,
                 wide: double,
-                dark: false,
-                band: None,
+                ..Hole::plain(Opening::Door, 0.0)
             }),
             None,
             None,
@@ -300,11 +297,8 @@ fn a_framed_wall_names_its_openings() {
         high: WALL_HIGH,
         openings: [
             Some(Hole {
-                what: Opening::Door,
-                at: 0.5,
                 wide: DOOR_WIDE * 2,
-                dark: false,
-                band: None,
+                ..Hole::plain(Opening::Door, 0.5)
             }),
             None,
             None,
@@ -411,11 +405,8 @@ mod bars {
             framed: true,
             openings: [
                 Some(Hole {
-                    what: Opening::Window,
-                    at: 0.0,
-                    wide: WINDOW_WIDE,
                     dark: true,
-                    band: None,
+                    ..Hole::plain(Opening::Window, 0.0)
                 }),
                 None,
                 None,
@@ -475,11 +466,8 @@ mod framing {
             framed: false,
             openings: [
                 Some(Hole {
-                    what: Opening::Window,
-                    at: 0.75,
-                    wide: WINDOW_WIDE,
                     dark: true,
-                    band: None,
+                    ..Hole::plain(Opening::Window, 0.75)
                 }),
                 None,
                 None,
@@ -690,6 +678,169 @@ mod windows {
         }
     }
 
+    /// A window is the size it was given, in any wall you put it in.
+    ///
+    /// The whole of what Brett asked for, in one assertion: "i want to uncouple the windows
+    /// size and pane count from the wall height." A window WAS the wall's upper course, so
+    /// the same window in a cottage and in a hall was two different windows - and the one
+    /// the townhall wanted, three panes tall over its door, was not a window any wall would
+    /// give.
+    #[test]
+    fn a_window_is_the_size_it_was_given() {
+        // The clear opening's height, read off the mullion that divides it - the one piece
+        // that is exactly as tall as the glass.
+        let glass = |wall_high: f32, high: i32| {
+            body_of(
+                &PartKind::Wall {
+                    long: 6.0,
+                    high: wall_high,
+                    framed: true,
+                    openings: [
+                        Some(Hole {
+                            high,
+                            lift: LOWEST_SILL,
+                            ..Hole::plain(Opening::Window, 0.0)
+                        }),
+                        None,
+                        None,
+                        None,
+                    ],
+                },
+                None,
+            )
+            .iter()
+            .filter(|Slab { size, .. }| size.z < WALL_THICK - 1e-4 && size.x < 0.2 && size.y > 0.2)
+            .map(|Slab { size, .. }| size.y)
+            .fold(0.0f32, f32::max)
+        };
+        // Three panes up, in a cottage wall, a hall wall and one between.
+        let want = panes_across(3) as f32 * ATOM;
+        for wall_high in [2.5, 3.0, 3.5, 4.0] {
+            let got = glass(wall_high, panes_across(3));
+            assert!(
+                (got - want).abs() < 1e-4,
+                "the same window is {got} tall in a wall of {wall_high} and {want} in \
+                 another - the wall is still deciding"
+            );
+        }
+    }
+
+    /// And the panes follow the size, exactly, both ways.
+    ///
+    /// A window divides into as many panes as it has room for, which is the rule that made
+    /// the count the wall's business too. Asking for three and getting three is the whole
+    /// contract, and it holds because the atoms and the panes are exact inverses.
+    #[test]
+    fn a_window_has_the_panes_it_was_asked_for() {
+        for across in 1..=MOST_PANES {
+            for up in 1..=MOST_PANES {
+                let panes = WindowPanes { across, up };
+                let body = body_of(&panes.window(), None);
+                // A mullion is thin across and tall; a transom is the other way about.
+                let thin = |body: &[Slab], up: bool| {
+                    body.iter()
+                        .filter(|Slab { at, size, .. }| {
+                            let _ = at;
+                            size.z < WALL_THICK - 1e-4
+                                && if up { size.y < 0.2 } else { size.x < 0.2 }
+                                && if up { size.x > 0.2 } else { size.y > 0.2 }
+                        })
+                        .count() as i32
+                };
+                assert_eq!(
+                    thin(&body, false),
+                    across - 1,
+                    "a window of {across} panes across has the wrong count of mullions"
+                );
+                assert_eq!(
+                    thin(&body, true),
+                    up - 1,
+                    "a window of {up} panes up has the wrong count of transoms"
+                );
+            }
+        }
+    }
+
+    /// The size a maker chose is the size the shelf hands back, and the size the menu marks.
+    ///
+    /// A townhall wants seven windows of one size. Without this a maker sizes one through
+    /// the menu and the shelf gives them the two-by-two again for the next - six more trips
+    /// through a menu to build one facade.
+    #[test]
+    fn the_shelf_hands_back_the_size_you_chose() {
+        let shelf = PartKind::Window {
+            wide: WINDOW_WIDE,
+            high: WINDOW_WIDE,
+        };
+        let chosen = WindowPanes { across: 2, up: 3 };
+        assert!(
+            crate::builder::from_the_shelf(shelf, chosen) == chosen.window(),
+            "the shelf handed back a window of a size nobody asked for"
+        );
+        // And nothing else on the shelf is touched by it.
+        let wall = PartKind::wall(4.0);
+        assert!(
+            crate::builder::from_the_shelf(wall, chosen) == wall,
+            "the shelf resized something that was not a window"
+        );
+
+        // The menu marks the line the window is standing on - BOTH halves, since a drawer
+        // that offers four sizes and marks none leaves a maker counting panes by eye.
+        let wall = PartKind::Wall {
+            long: 4.0,
+            high: WALL_HIGH,
+            framed: true,
+            openings: [
+                Some(Hole {
+                    wide: panes_across(2),
+                    high: panes_across(3),
+                    ..Hole::plain(Opening::Window, 0.0)
+                }),
+                None,
+                None,
+                None,
+            ],
+        };
+        for (deed, want) in [
+            (Deed::Panes { up: true, count: 3 }, true),
+            (Deed::Panes { up: true, count: 2 }, false),
+            (
+                Deed::Panes {
+                    up: false,
+                    count: 2,
+                },
+                true,
+            ),
+            (
+                Deed::Panes {
+                    up: false,
+                    count: 3,
+                },
+                false,
+            ),
+        ] {
+            assert_eq!(
+                deed.is_standing(&wall, "walls", ""),
+                want,
+                "the menu marks the wrong line for a window of two panes by three"
+            );
+        }
+        // And the drawers are offered at all, which is the other half again: a size nobody
+        // can reach is a size nobody has.
+        let deeds = deeds_for(&wall);
+        for drawer in [PANES_ACROSS, PANES_UP] {
+            assert!(
+                deeds.contains(&Deed::More(drawer)),
+                "a wall with a window does not offer {drawer}"
+            );
+            assert_eq!(
+                deeds_in(drawer).len() as i32,
+                MOST_PANES,
+                "{drawer} does not offer every size"
+            );
+        }
+    }
+
     /// A window goes where it is put, and takes its frame with it.
     ///
     /// Brett: "I really want to rethink windows. I should be able to place the window atom
@@ -700,7 +851,7 @@ mod windows {
     fn a_window_goes_where_it_is_put() {
         // The same window, in the same wall, at three heights - the one its kind gives it
         // and two of its own.
-        let at_band = |band: Option<Band>| {
+        let at_band = |band: Band| {
             body_of(
                 &PartKind::Wall {
                     long: 4.0,
@@ -708,7 +859,8 @@ mod windows {
                     framed: true,
                     openings: [
                         Some(Hole {
-                            band,
+                            lift: band.foot,
+                            high: band.rise,
                             ..Hole::plain(Opening::Window, 0.0)
                         }),
                         None,
@@ -730,9 +882,12 @@ mod windows {
         };
 
         let usual = band_of(Opening::Window, (WALL_HIGH / ATOM).round() as i32);
+        // A hole made from nothing but its kind stands where that kind stands - which is
+        // the one thing a wall's courses still decide, and only at the moment of making.
+        let born = Hole::plain(Opening::Window, 0.0);
         assert!(
-            (sill_of(&at_band(None)) - sill_of(&at_band(Some(usual)))).abs() < 1e-4,
-            "a window told to stand where its kind stands did not stand there"
+            born.lift == usual.foot && born.high == usual.rise,
+            "a window made from its kind alone did not start at its kind's own band"
         );
 
         // A metre lower, and half a metre higher than that. Whole atoms both ways.
@@ -741,8 +896,8 @@ mod windows {
                 foot: usual.foot + step,
                 ..usual
             };
-            let want = sill_of(&at_band(None)) + step as f32 * ATOM;
-            let got = sill_of(&at_band(Some(moved)));
+            let want = sill_of(&at_band(usual)) + step as f32 * ATOM;
+            let got = sill_of(&at_band(moved));
             assert!(
                 (got - want).abs() < 1e-4,
                 "a window lifted by {step} atoms put its sill at {got}, not {want}"
@@ -767,7 +922,7 @@ mod windows {
                     framed,
                     openings: [
                         Some(Hole {
-                            band: Some(Band { foot, ..usual }),
+                            lift: foot,
                             ..Hole::plain(Opening::Window, 0.0)
                         }),
                         None,
@@ -836,7 +991,8 @@ mod windows {
                     framed: true,
                     openings: [
                         Some(Hole {
-                            band: Some(band),
+                            lift: band.foot,
+                            high: band.rise,
                             ..Hole::plain(Opening::Window, 0.0)
                         }),
                         None,
@@ -873,13 +1029,14 @@ mod windows {
     /// spelled: a band is written only when it is not the band the wall would have given.
     #[test]
     fn a_moved_window_is_spelled_out() {
-        let wall = |band: Option<Band>| PartKind::Wall {
+        let wall = |band: Band| PartKind::Wall {
             long: 4.0,
             high: WALL_HIGH,
             framed: true,
             openings: [
                 Some(Hole {
-                    band,
+                    lift: band.foot,
+                    high: band.rise,
                     ..Hole::plain(Opening::Window, 0.5)
                 }),
                 None,
@@ -887,15 +1044,16 @@ mod windows {
                 None,
             ],
         };
+        let usual = band_of(Opening::Window, (WALL_HIGH / ATOM).round() as i32);
         assert_eq!(
-            part_name(&wall(None)),
+            part_name(&wall(usual)),
             "wall-4x2.5xfxw0.5",
             "a window at its course is spelled a new way, and every wall ever drawn \
              with one reads back as something else"
         );
 
         let moved = Band { foot: 7, rise: 12 };
-        let said = part_name(&wall(Some(moved)));
+        let said = part_name(&wall(moved));
         let read = kind_from_name(&said).expect("a wall the bench spelled, it can read");
         assert_eq!(
             part_name(&read),
@@ -907,7 +1065,7 @@ mod windows {
         };
         let hole = openings[0].expect("the window went missing");
         assert!(
-            hole.band == Some(moved) && (hole.at - 0.5).abs() < 1e-4,
+            hole.lift == moved.foot && hole.high == moved.rise && (hole.at - 0.5).abs() < 1e-4,
             "the window came back at a different place from the one it was written at"
         );
     }
@@ -937,7 +1095,7 @@ mod windows {
                     framed: true,
                     openings: [
                         Some(Hole {
-                            band: Some(Band { foot, ..usual }),
+                            lift: foot,
                             ..Hole::plain(Opening::Window, 0.0)
                         }),
                         None,
@@ -1153,11 +1311,8 @@ mod windows {
                 framed: true,
                 openings: [
                     Some(Hole {
-                        what: Opening::Door,
-                        at: 0.0,
                         wide,
-                        dark: false,
-                        band: None,
+                        ..Hole::plain(Opening::Door, 0.0)
                     }),
                     None,
                     None,

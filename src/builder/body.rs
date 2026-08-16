@@ -351,9 +351,7 @@ pub(crate) fn body_of(kind: &PartKind, repaint: Option<(&str, f32)>) -> Vec<Slab
                     // divides it into two lights, two into three, and the same across -
                     // so the glazing follows the window's size instead of always being
                     // the same four panes whatever shape the hole is.
-                    let panes =
-                        |across: i32| (across as f32 / PANE_WANTED as f32).round().max(1.0) as i32;
-                    let (cols, rows) = (panes(*hw), panes(*hh));
+                    let (cols, rows) = (panes_in(*hw), panes_in(*hh));
                     for at in 1..cols {
                         let x = hx + (hw * at) / cols - BAR_WIDE / 2;
                         bar(&mut body, x, BAR_WIDE, *hy, *hh);
@@ -1238,7 +1236,19 @@ pub(crate) fn body_of(kind: &PartKind, repaint: Option<(&str, f32)>) -> Vec<Slab
             slab(0.5625, 1.0, 0.0, 0.125, 2.0, 0.375, "wood", 0.45),
             slab(0.0, 2.0625, 0.0, 1.25, 0.125, 0.375, "wood", 0.45),
         ],
-        PartKind::Prop("window") => {
+        // A window drawn before one had a size of its own. Read as the size it
+        // was, rather than as nothing at all - a name that reads back as nothing
+        // is a part that vanishes at the next respawn and never reaches a game.
+        PartKind::Prop("window") => body_of(
+            &PartKind::Window {
+                wide: WINDOW_WIDE,
+                high: ghost_band().rise,
+            },
+            // The repaint is applied once, at the tail of this function, to
+            // whatever comes back - so this asks for the shape and nothing else.
+            None,
+        ),
+        PartKind::Window { wide, high } => {
             // WHAT IT WILL BECOME, drawn from the numbers that will make it. Brett: "right
             // now the window only slides at one size, can we make it more representative of
             // what it will look like when placed?"
@@ -1248,11 +1258,11 @@ pub(crate) fn body_of(kind: &PartKind, repaint: Option<(&str, f32)>) -> Vec<Slab
             // was aimed at would have glazed it. Every one of those is read here instead,
             // so the thing sliding along the wall is the thing that lands in it.
             //
-            // A wall of the ordinary height: a taller one glazes in more rows, and the
-            // ghost cannot know which wall it is over until it is over one. The HAND
-            // lifts it from here to where it will land, off this same band.
-            let Band { foot, rise } = ghost_band();
-            let wide = WINDOW_WIDE;
+            // Its own size, and the ordinary wall's foot: the size is the PART'S now, so
+            // the ghost is exactly what lands however tall the wall is - only how far up
+            // is left for the hand, which lifts it from this foot to where it is aimed.
+            let (wide, rise) = (*wide, *high);
+            let foot = ghost_band().foot;
             let jamb = jamb_of(Opening::Window);
             let (half_w, half_j) = (wide as f32 * 0.5 * ATOM, jamb as f32 * ATOM);
             let middle = (foot as f32 + rise as f32 * 0.5) * ATOM;
@@ -1305,7 +1315,6 @@ pub(crate) fn body_of(kind: &PartKind, repaint: Option<(&str, f32)>) -> Vec<Slab
                 ),
             ];
             // And the panes it will be divided into, by the same rule the wall uses.
-            let panes = |across: i32| (across as f32 / PANE_WANTED as f32).round().max(1.0) as i32;
             let thin = WALL_THICK - (INFILL_SET * 2) as f32 * ATOM;
             let bar = |body: &mut Vec<Slab>, x: f32, y: f32, w: f32, h: f32| {
                 body.push(slab(x, y, 0.0, w, h, thin, "wood", 0.55));
@@ -1314,7 +1323,7 @@ pub(crate) fn body_of(kind: &PartKind, repaint: Option<(&str, f32)>) -> Vec<Slab
             // lands on the lattice, and a bar placed by float division sits between two of
             // them - which a test catches and a maker would find as a seam that will not
             // meet anything.
-            let (cols, rows) = (panes(wide), panes(rise));
+            let (cols, rows) = (panes_in(wide), panes_in(rise));
             for at in 1..cols {
                 let from = (wide * at) / cols - BAR_WIDE / 2;
                 bar(
