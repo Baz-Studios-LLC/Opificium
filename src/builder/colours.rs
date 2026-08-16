@@ -555,17 +555,23 @@ fn a_post_stands_as_tall_as_it_is_drawn() {
         .iter()
         .find(|entry| entry.label == "POLE")
         .expect("the shelf has lost its post");
-    let PartKind::Pole(high) = entry.kind else {
+    let PartKind::Pole { high, .. } = entry.kind else {
         panic!("the shelf's post is not a post")
     };
     assert!(high > 1.0, "the shelf's post is {high}m - a stub");
 
     // Its body follows its height, which is the whole of what it is.
     for want in [1.0f32, 2.5, 6.0] {
-        let tall = body_of(&PartKind::Pole(want), None)
-            .iter()
-            .map(|Slab { at, size, .. }| at.y + size.y * 0.5)
-            .fold(0.0f32, f32::max);
+        let tall = body_of(
+            &PartKind::Pole {
+                high: want,
+                knees: Knee::Bare,
+            },
+            None,
+        )
+        .iter()
+        .map(|Slab { at, size, .. }| at.y + size.y * 0.5)
+        .fold(0.0f32, f32::max);
         assert!(
             (tall - want).abs() < 1e-4,
             "a post asked for {want}m stands {tall}m"
@@ -577,7 +583,10 @@ fn a_post_stands_as_tall_as_it_is_drawn() {
     // appeared on every wall and moved only the framed ones - and it cannot be seen by
     // looking at either side alone.
     for kind in [
-        PartKind::Pole(2.5),
+        PartKind::Pole {
+            high: 2.5,
+            knees: Knee::Bare,
+        },
         PartKind::Foundation(2.0, 2.0, 0.5),
         PartKind::wall(4.0),
         PartKind::Wall {
@@ -615,12 +624,15 @@ fn a_post_stands_as_tall_as_it_is_drawn() {
 
     // A post drawn before it had a height of its own still opens, at the height it had.
     assert!(
-        matches!(kind_from_name("prop:pole"), Some(PartKind::Pole(high)) if (high - WALL_HIGH).abs() < 1e-4),
+        matches!(kind_from_name("prop:pole"), Some(PartKind::Pole { high: high, knees: Knee::Bare }) if (high - WALL_HIGH).abs() < 1e-4),
         "the old corner posts no longer open"
     );
-    let name = part_name(&PartKind::Pole(3.75));
+    let name = part_name(&PartKind::Pole {
+        high: 3.75,
+        knees: Knee::Bare,
+    });
     assert!(
-        matches!(kind_from_name(&name), Some(PartKind::Pole(high)) if (high - 3.75).abs() < 1e-4),
+        matches!(kind_from_name(&name), Some(PartKind::Pole { high: high, knees: Knee::Bare }) if (high - 3.75).abs() < 1e-4),
         "{name} did not come back"
     );
 }
@@ -3297,7 +3309,10 @@ fn a_mirror_is_offered_where_it_would_show() {
         PartKind::wall(2.0),
         PartKind::Floor(2.0, 2.0),
         PartKind::gable(4.0, ROOF_PITCH_DEGREES),
-        PartKind::Pole(2.5),
+        PartKind::Pole {
+            high: 2.5,
+            knees: Knee::Bare,
+        },
         // Drawn with mirrored ends on purpose, so they already ARE their own mirror -
         // and a flight climbs along its DEPTH, so turning it about its length leaves it
         // exactly where it was.
@@ -3416,4 +3431,111 @@ fn barn_doors_meet_at_a_seam() {
         stiles.iter().any(|at| *at < -0.25) && stiles.iter().any(|at| *at > 0.25),
         "the outer edges of the pair carry no stile"
     );
+}
+
+/// A POST'S KNEES ARE OFFERED AND ANSWERED, which is two matches and not one.
+///
+/// Brett wanted "a way to add the support beam to a pole". A knee is a property
+/// of the post - it moves with it, stretches with it, and there is nothing to do
+/// to it on its own - so it is a right-click drawer, and a drawer is the shape
+/// this bench keeps getting half right: a line that appears and does nothing.
+#[test]
+fn a_post_offers_and_answers_its_knees() {
+    let bare = PartKind::Pole {
+        high: 2.5,
+        knees: Knee::Bare,
+    };
+    // OFFERED: the drawer is on the post, and holds every answer there is.
+    assert!(
+        deeds_for(&bare).contains(&Deed::More(BRACES)),
+        "a post is not offered its braces"
+    );
+    let offered = deeds_in(BRACES);
+    for knees in [Knee::Bare, Knee::One, Knee::Both] {
+        assert!(
+            offered.contains(&Deed::Knees(knees)),
+            "the braces drawer is missing a line"
+        );
+    }
+    assert_eq!(offered.len(), 3, "the braces drawer offers a fourth thing");
+    // ANSWERED: the line marks the post standing there, and no other.
+    for standing in [Knee::Bare, Knee::One, Knee::Both] {
+        let post = PartKind::Pole {
+            high: 2.5,
+            knees: standing,
+        };
+        for line in [Knee::Bare, Knee::One, Knee::Both] {
+            assert_eq!(
+                Deed::Knees(line).is_standing(&post, "frame", ""),
+                line == standing,
+                "the braces drawer marks the wrong line"
+            );
+        }
+    }
+}
+
+/// AND A BRACED POST IS STILL A POST: it spells itself, comes back, and keeps
+/// its height when a maker asks for a knee.
+#[test]
+fn a_knee_survives_being_saved() {
+    for knees in [Knee::Bare, Knee::One, Knee::Both] {
+        let post = PartKind::Pole { high: 3.25, knees };
+        let name = part_name(&post);
+        assert!(
+            kind_from_name(&name) == Some(post),
+            "{name} does not come back as itself"
+        );
+    }
+    // The bare post spells itself the way it always did, so every work already
+    // drawn opens unchanged.
+    assert_eq!(
+        part_name(&PartKind::Pole {
+            high: 2.5,
+            knees: Knee::Bare
+        }),
+        "pole-2.5",
+        "a plain post no longer spells itself the old way"
+    );
+    // And the knees are drawn where they were asked for: one reaching the post's
+    // own +X, two reaching both ways, none at all when none were wanted.
+    for (knees, wanted) in [(Knee::Bare, 0), (Knee::One, 1), (Knee::Both, 2)] {
+        let body = body_of(&PartKind::Pole { high: 2.5, knees }, None);
+        let braces: Vec<&Slab> = body.iter().filter(|piece| piece.cant != 0.0).collect();
+        assert_eq!(
+            braces.len(),
+            wanted,
+            "a post wears the wrong number of knees"
+        );
+        for brace in braces {
+            // Forty-five, and reaching the way it is drawn.
+            assert!(
+                (brace.cant.abs() - std::f32::consts::FRAC_PI_4).abs() < 1e-4,
+                "a knee is not cut at forty-five"
+            );
+            assert_eq!(
+                brace.cant.signum(),
+                brace.at.x.signum(),
+                "a knee leans away from the corner it braces"
+            );
+            // Its head is up under the beam, not out in the middle of the post.
+            assert!(
+                brace.at.y > 2.5 * 0.5,
+                "a knee has slid down to the foot of the post"
+            );
+        }
+    }
+    // A post too short to brace is not braced into the ground.
+    let stub = body_of(
+        &PartKind::Pole {
+            high: ATOM * 2.0,
+            knees: Knee::Both,
+        },
+        None,
+    );
+    for brace in stub.iter().filter(|piece| piece.cant != 0.0) {
+        assert!(
+            brace.at.y - brace.size.x * 0.5 > -1e-3,
+            "a knee on a stub post reaches below the ground"
+        );
+    }
 }

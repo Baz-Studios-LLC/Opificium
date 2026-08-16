@@ -64,6 +64,13 @@ pub(crate) enum Deed {
     /// Three shelf lines and a missing fourth become one line and a drawer, which
     /// is the rule that took the framed wall and the stone rail before it.
     DoorAs { double: bool, leaf: Leaf },
+    /// How many knee braces a post carries up into the beam over it.
+    ///
+    /// Brett wanted "a way to add the support beam to a pole" - and a knee is a
+    /// PROPERTY of the post, not a part beside it: it moves when the post moves,
+    /// stretches when the post stretches, and there is nothing a maker could
+    /// usefully do to it on its own.
+    Knees(Knee),
     /// Raise a roof over a ceiling, sized to it - and say WHICH in the same press.
     ///
     /// It was two lines: GENERATE ROOF, and a toggle beside it that read as a
@@ -133,6 +140,11 @@ impl Deed {
                 } => *wide == double && *hung == leaf,
                 _ => false,
             },
+            // Which knees the post in front of the maker is wearing, read off the
+            // post itself - so one braced any other way still marks its own line.
+            Deed::Knees(want) => {
+                matches!(kind, PartKind::Pole { knees, .. } if *knees == want)
+            }
             // Which ridge the ceiling is standing there wearing. Both lines are
             // actions, and the mark says which of the two the beam in front of the
             // maker is promising.
@@ -207,6 +219,10 @@ impl Deed {
                 double: true,
                 leaf: Leaf::Gone,
             } => "A WIDE OPENING",
+            // Short, because the drawer they hang in already says BRACES.
+            Deed::Knees(Knee::Bare) => "NONE",
+            Deed::Knees(Knee::One) => "ONE",
+            Deed::Knees(Knee::Both) => "BOTH SIDES",
             Deed::Mirror => "MIRROR",
             Deed::Frame(true) => "ADD FRAMING",
             Deed::Frame(false) => "REMOVE FRAMING",
@@ -586,6 +602,10 @@ pub(crate) fn deeds_for(kind: &PartKind) -> Vec<Deed> {
     if let PartKind::Wall { framed, .. } | PartKind::Gable { framed, .. } = kind {
         deeds.push(Deed::Frame(!framed));
     }
+    // A POST'S KNEES, in a drawer, because there are three answers and not two.
+    if matches!(kind, PartKind::Pole { .. }) {
+        deeds.push(Deed::More(BRACES));
+    }
     // A flight's materials, in a drawer of their own: four looks rather than two toggles.
     if matches!(kind, PartKind::Stairs { .. }) {
         deeds.push(Deed::More(MADE_OF));
@@ -694,6 +714,9 @@ pub(crate) const ROOF_OVER: &str = "GENERATE ROOF...";
 pub(crate) const PANES_ACROSS: &str = "PANES ACROSS...";
 pub(crate) const PANES_UP: &str = "PANES UP...";
 
+/// The knees a post can wear.
+pub(crate) const BRACES: &str = "BRACES...";
+
 /// What the PART OF drawer holds.
 pub(crate) const PART_OF: &str = "PART OF...";
 
@@ -711,6 +734,10 @@ pub(crate) fn deeds_in(group: &str) -> Vec<Deed> {
         .into_iter()
         .map(|(double, leaf)| Deed::DoorAs { double, leaf })
         .collect(),
+        BRACES => [Knee::Bare, Knee::One, Knee::Both]
+            .into_iter()
+            .map(Deed::Knees)
+            .collect(),
         ROOF_OVER => vec![
             Deed::RoofOf { hipped: false },
             Deed::RoofOf { hipped: true },
@@ -1436,6 +1463,29 @@ pub(crate) fn work_part_menu(
                     &mut materials,
                     &palette,
                     &kind,
+                    &copy,
+                    part,
+                    false,
+                );
+            }
+        }
+        Some((Deed::Knees(knees), part)) => {
+            // Its height stays: bracing a post is not moving it, and a post that
+            // jumped back to the shelf's height when a maker asked for a knee
+            // would be a post they had to stretch twice.
+            if let Ok((_, _, mut record)) = placed.get_mut(part)
+                && let Some(PartKind::Pole { high, .. }) = kind_from_name(&record.part)
+            {
+                let made = PartKind::Pole { high, knees };
+                record.part = part_name(&made);
+                let copy = record.clone();
+                commands.entity(part).despawn_related::<Children>();
+                dress_part(
+                    &mut commands,
+                    &mut meshes,
+                    &mut materials,
+                    &palette,
+                    &made,
                     &copy,
                     part,
                     false,

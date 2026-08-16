@@ -113,6 +113,24 @@ pub(crate) fn barn_leaves(double: bool) -> Vec<Slab> {
     body
 }
 
+/// A post's own section, and the lighter timber a knee brace is cut from.
+pub(crate) const POST_THICK: f32 = 0.375;
+pub(crate) const KNEE_THICK: f32 = 0.25;
+
+/// HOW FAR A KNEE REACHES, out from the post and down it - one number, because a
+/// brace is cut at forty-five.
+///
+/// A share of the post's height, so a knee under a low shed roof is not the same
+/// timber as one under a tithe barn's. Bounded either way: too short and it is a
+/// notch rather than a brace, too long and it is a strut across the whole bay. And
+/// never more than the post is tall, or the brace would come out below the ground.
+pub(crate) fn knee_run(high: f32) -> f32 {
+    let want = (high * 0.3).clamp(0.375, 0.875);
+    // On the lattice, and inside the post.
+    let atoms = (want.min(high - ATOM) / ATOM).floor().max(1.0);
+    atoms * ATOM
+}
+
 /// How deep a barn door's rails and braces are, measured across the leaf.
 pub(crate) const BARN_RAIL: i32 = 3;
 
@@ -1875,23 +1893,56 @@ fn shape_of(kind: &PartKind) -> Vec<Slab> {
             // atom and none of them on one of the trough's own.
             slab(-0.03125, 0.21875, 0.0, 1.0625, 0.0625, 0.25, "water", 0.7),
         ],
-        PartKind::Pole(high) => vec![
+        PartKind::Pole { high, knees } => {
             // The corner post: shoulders over both wall ends at a meeting,
             // a shade darker so the frame reads against the panels. The beam's
             // own section, stood on its foot.
-            slab(
+            let mut body = vec![slab(
                 0.0,
                 high * 0.5,
                 0.0,
-                0.375,
+                POST_THICK,
                 high.max(ATOM),
-                0.375,
+                POST_THICK,
                 "wood",
                 0.45,
-            ),
-        ],
+            )];
+            // And the knees, if it wears any. Each runs at a true forty-five - the
+            // only angle a brace is ever cut at, because at forty-five the timber
+            // carries along its own length instead of bending - so how far it
+            // reaches OUT and how far it reaches DOWN are one number.
+            //
+            // It is CANTED rather than leaned: canting swings a piece within the
+            // face it stands in, which is where a brace lies. Leaning would take
+            // it out sideways through the bay.
+            let run = knee_run(*high);
+            for way in knees.ways() {
+                body.push(Slab {
+                    // Its foot buried in the post and its head buried under the
+                    // beam, so neither joint shows a gap: a brace cut exactly to
+                    // length meets both at a corner, and a corner is where the
+                    // daylight gets in.
+                    at: Vec3::new(way * run * 0.5, high - run * 0.5, 0.0),
+                    size: Vec3::new(run * std::f32::consts::SQRT_2, KNEE_THICK, KNEE_THICK),
+                    ramp: "wood".to_string(),
+                    shade: 0.45,
+                    clarity: 1.0,
+                    shape: Shape::Box,
+                    lean: 0.0,
+                    cant: way * std::f32::consts::FRAC_PI_4,
+                    cut: Vec2::ZERO,
+                });
+            }
+            body
+        }
         // A post drawn before one had a height of its own.
-        PartKind::Prop("pole") => body_of(&PartKind::Pole(WALL_HIGH), None),
+        PartKind::Prop("pole") => body_of(
+            &PartKind::Pole {
+                high: WALL_HIGH,
+                knees: Knee::Bare,
+            },
+            None,
+        ),
         // A BARN LEAF on its own, for a wall that has framed its own opening.
         PartKind::Prop("barn-leaf") => barn_leaves(false),
         PartKind::Prop("barn-double-leaf") => barn_leaves(true),

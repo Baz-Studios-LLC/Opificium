@@ -690,7 +690,13 @@ pub fn part_name(kind: &PartKind) -> String {
             }
             name
         }
-        PartKind::Pole(high) => format!("pole-{high}"),
+        // A BARE post spells itself the way it always did, so every work ever
+        // drawn opens unchanged; the knees are a word on the end.
+        PartKind::Pole { high, knees } => match knees {
+            Knee::Bare => format!("pole-{high}"),
+            Knee::One => format!("pole-{high}+brace"),
+            Knee::Both => format!("pole-{high}+braces"),
+        },
         PartKind::Clock(wide) => format!("clock-{wide}"),
         PartKind::Table(long, deep) => format!("table-{long}x{deep}"),
         PartKind::Books(seed) => format!("books-{seed}"),
@@ -909,12 +915,25 @@ pub fn kind_from_name(name: &str) -> Option<PartKind> {
         return rest.parse::<f32>().ok().map(PartKind::Clock);
     }
     if let Some(rest) = name.strip_prefix("pole-") {
-        return rest.parse::<f32>().ok().map(PartKind::Pole);
+        let (high, knees) = match rest.strip_suffix("+braces") {
+            Some(high) => (high, Knee::Both),
+            None => match rest.strip_suffix("+brace") {
+                Some(high) => (high, Knee::One),
+                None => (rest, Knee::Bare),
+            },
+        };
+        return high
+            .parse::<f32>()
+            .ok()
+            .map(|high| PartKind::Pole { high, knees });
     }
     if name == "prop:pole" {
         // The corner post, from before it had a height of its own. At the height
         // it always had, which is a wall's - it was drawn to stand beside one.
-        return Some(PartKind::Pole(WALL_HIGH));
+        return Some(PartKind::Pole {
+            high: WALL_HIGH,
+            knees: Knee::Bare,
+        });
     }
     if let Some(rest) = name.strip_prefix("rail-") {
         let mut parts = rest.split('x');

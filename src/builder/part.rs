@@ -236,6 +236,36 @@ pub const fn usual_width(what: Opening) -> i32 {
     }
 }
 
+/// THE KNEE BRACES A POST CARRIES up into the beam over it.
+///
+/// A post on its own is a hinge: nothing stops the beam it holds from racking
+/// sideways, and an open bay - a lean-to, a market cross, a cart shed - has no
+/// wall to stop it either. The knee is what does, and it is the shape you see
+/// under every barn eave in the world.
+///
+/// One or two, because a post at the end of a run braces the way the run goes and
+/// a post in the middle of one braces both. The single knee reaches along the
+/// post's own +X, and `flip` turns it round - the same mirror a gable's far half
+/// has always used.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum Knee {
+    /// A bare post.
+    Bare,
+    One,
+    Both,
+}
+
+impl Knee {
+    /// Which ways the knees reach, along the post's own X.
+    pub fn ways(self) -> &'static [f32] {
+        match self {
+            Knee::Bare => &[],
+            Knee::One => &[1.0],
+            Knee::Both => &[-1.0, 1.0],
+        }
+    }
+}
+
 /// WHAT HANGS IN A DOORWAY, which is three things rather than two.
 ///
 /// It was a `leaf: bool` beside the `double: bool`, and adding barn doors as a
@@ -390,7 +420,13 @@ pub enum PartKind {
     ///
     /// It grows from its FOOT, on the gold handle a foundation and a wall already
     /// wear, because that is what standing on something means.
-    Pole(f32),
+    ///
+    /// And it can carry KNEES: the short diagonals from the post up into the beam
+    /// it holds, which is how an open bay stands up without a wall in it.
+    Pole {
+        high: f32,
+        knees: Knee,
+    },
     /// A squared timber laid along its own length: the corner post's section,
     /// on its side and as long as it is drawn — and how far each end is cut
     /// back at an angle, nought for a square end.
@@ -635,7 +671,14 @@ pub const STRUCTURE: &[CatalogEntry] = &[
         },
         "walls",
     ),
-    structure("POLE", PartKind::Pole(WALL_HIGH), "frame"),
+    structure(
+        "POLE",
+        PartKind::Pole {
+            high: WALL_HIGH,
+            knees: Knee::Bare,
+        },
+        "frame",
+    ),
     structure("RAIL", PartKind::RailRun { stone: false }, "frame"),
     structure("RIDGE", PartKind::RidgeRun, "roof"),
     structure("ROOF", PartKind::Roof(2.2, 2.2), "roof"),

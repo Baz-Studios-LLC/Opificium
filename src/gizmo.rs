@@ -335,7 +335,7 @@ fn select_part(
 /// framed ones, so it appeared on a plain wall and did nothing when pulled.
 pub(crate) fn risen(kind: PartKind, high: f32) -> Option<PartKind> {
     match kind {
-        PartKind::Pole(_) => Some(PartKind::Pole(high)),
+        PartKind::Pole { knees, .. } => Some(PartKind::Pole { high, knees }),
         PartKind::Foundation(w, d, _) => Some(PartKind::Foundation(w, d, high)),
         // ANY wall, framed or not: every wall has a height.
         PartKind::Wall {
@@ -365,7 +365,7 @@ pub(crate) fn stands_at(kind: &PartKind) -> Option<f32> {
         PartKind::Wall { high, .. } => Some(*high),
         // A POST wears this one alone. It is a beam stood up, and how tall it
         // stands is the only number it has.
-        PartKind::Pole(high) => Some(*high),
+        PartKind::Pole { high, .. } => Some(*high),
         _ => None,
     }
 }

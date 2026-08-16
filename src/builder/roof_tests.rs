@@ -1804,7 +1804,13 @@ fn only_parts_with_a_length_can_be_trimmed() {
     assert!(length_of(&PartKind::Chimney(1.75)).is_none());
     // A POST has no length to come back along: what it measures is its height, and
     // a saw brought along its X would take it off at the knee.
-    assert!(length_of(&PartKind::Pole(2.5)).is_none());
+    assert!(
+        length_of(&PartKind::Pole {
+            high: 2.5,
+            knees: Knee::Bare
+        })
+        .is_none()
+    );
 }
 
 #[test]
@@ -2610,4 +2616,95 @@ fn r_turns_what_the_hand_holds() {
         standing(&app, wall) != 0.0,
         "an empty hand can no longer turn the work at all"
     );
+}
+
+/// PRESSING A BRACE LINE BRACES THE POST, and draws it again wearing them.
+///
+/// The other half of `a_post_offers_and_answers_its_knees`, and the half this
+/// bench keeps forgetting: a drawer that offers three lines and is answered by
+/// nobody compiles perfectly and does nothing when pressed. So this presses them.
+#[test]
+fn pressing_a_brace_line_braces_the_post() {
+    use bevy::asset::AssetPlugin;
+    let mut app = App::new();
+    app.add_plugins((MinimalPlugins, AssetPlugin::default()));
+    app.init_asset::<Mesh>().init_asset::<StandardMaterial>();
+    app.insert_resource(crate::look::load_palette_for_bake());
+    app.init_resource::<ButtonInput<KeyCode>>();
+    app.init_resource::<ButtonInput<MouseButton>>();
+    app.init_resource::<crate::gizmo::Selected>();
+    app.init_resource::<PieceKept>();
+    app.init_resource::<PieceWantsAName>();
+    app.init_resource::<crate::look::Fonts>();
+    app.init_resource::<MaterialFor>();
+    app.init_resource::<WindowPanes>();
+    app.init_resource::<DoorAs>();
+    app.init_resource::<Naming>();
+    app.add_systems(Update, work_part_menu);
+
+    // A post a maker has already stretched, so the press has a height to lose.
+    let post = app
+        .world_mut()
+        .spawn((
+            Placed {
+                part: part_name(&PartKind::Pole {
+                    high: 3.25,
+                    knees: Knee::Bare,
+                }),
+                at: [0.0, 0.0, 0.0],
+                yaw: 0.0,
+                tilt: 0.0,
+                ramp: None,
+                shade: 0.5,
+                stage: "frame".to_string(),
+                flip: false,
+                group: None,
+                loose: false,
+                material: String::new(),
+            },
+            Transform::default(),
+        ))
+        .id();
+
+    for knees in [Knee::Both, Knee::One, Knee::Bare] {
+        let menu = app.world_mut().spawn(PartMenu).id();
+        app.world_mut().spawn((
+            MenuLine {
+                deed: Deed::Knees(knees),
+                part: post,
+            },
+            Interaction::Pressed,
+            BackgroundColor(Color::NONE),
+            ChildOf(menu),
+        ));
+        app.update();
+
+        let said = app
+            .world()
+            .get::<Placed>(post)
+            .expect("the post stands")
+            .part
+            .clone();
+        let Some(kind) = kind_from_name(&said) else {
+            panic!("{said} is not a part any more")
+        };
+        assert!(
+            matches!(kind, PartKind::Pole { high, knees: wears }
+                if wears == knees && (high - 3.25).abs() < 1e-4),
+            "{said} is not the post that was asked for: bracing it lost its height"
+        );
+        // AND IT WAS DRAWN AGAIN. A record saying one thing while the screen shows
+        // another is what "the line does nothing" looks like from the outside.
+        let drawn = app
+            .world()
+            .entity(post)
+            .get::<Children>()
+            .map(|kids| kids.len())
+            .unwrap_or(0);
+        assert_eq!(
+            drawn,
+            body_of(&kind, None).len(),
+            "the post still wears the body it had: {drawn} pieces"
+        );
+    }
 }

@@ -207,7 +207,7 @@ pub(crate) fn is_structure(kind: &PartKind) -> bool {
             | PartKind::Stairs { .. }
             | PartKind::Rail { .. }
             | PartKind::Prop("steps")
-            | PartKind::Pole(..)
+            | PartKind::Pole { .. }
     )
 }
 
@@ -802,14 +802,14 @@ pub(crate) fn move_ghost(
     // Walls click to wall ends - a butt joint or a square corner - and
     // the corner pole magnetizes to the same points it exists to cover.
     let magnetic = matches!(kind, PartKind::Wall { long: _, .. })
-        || matches!(kind, PartKind::Pole(..))
+        || matches!(kind, PartKind::Pole { .. })
         || kind.run_axes() == Some(1);
     if magnetic {
         let mut ends = wall_ends(&placed);
         let platforms = platform_rects(&placed);
         // The pole magnetizes to centreline crossings at platform corners
         // - the exact point two flush walls meet - alongside wall ends.
-        if matches!(kind, PartKind::Pole(..)) || kind.run_axes() == Some(1) {
+        if matches!(kind, PartKind::Pole { .. }) || kind.run_axes() == Some(1) {
             for platform in &platforms {
                 let spin = Quat::from_rotation_y(platform.yaw);
                 for (sx, sz) in [(-1.0f32, -1.0f32), (1.0, -1.0), (-1.0, 1.0), (1.0, 1.0)] {
