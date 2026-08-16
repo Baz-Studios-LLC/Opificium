@@ -2129,17 +2129,18 @@ fn the_pitch_a_handle_can_reach_is_the_pitch_a_roof_can_hold() {
     );
 }
 
-/// Choosing a hipped roof on a ceiling changes the ceiling, and then raises a hip.
+/// Choosing a hipped roof raises one, and leaves the ceiling wearing its ridge.
 ///
-/// Brett: "Right clicking a ceiling and choosing to generate a hipped roof doesnt work."
+/// Brett: "Right clicking a ceiling and choosing to generate a hipped roof doesnt work",
+/// and then, having found the two lines: "Generate roof should have a sub menu for gable
+/// or hipped... Its just confusing."
 ///
-/// The name took and the roof came out a hip - it was the ceiling that never changed. A
-/// ceiling is not the same shape in the two states: it WEARS the ridge it will raise, and
-/// a gabled one stops short at each end to leave room for its gables. So the line moved a
-/// slab from 5.5m to 6m and a beam from 6m to 4.25m, and drew none of it, because this was
-/// the one line on the menu that edited the record without building the part again.
+/// It was two presses that looked like one choice - GENERATE ROOF, and a toggle beside it
+/// that read as a second way to generate and was really a setting. One line now, under a
+/// drawer, doing both: the ceiling takes the ridge it is about to raise and is drawn again
+/// wearing it, and the roof goes up.
 #[test]
-fn choosing_a_hip_changes_the_ceiling_and_raises_one() {
+fn choosing_a_hip_raises_one_and_wears_its_ridge() {
     use bevy::asset::AssetPlugin;
     let mut app = App::new();
     app.add_plugins((MinimalPlugins, AssetPlugin::default()));
@@ -2190,7 +2191,8 @@ fn choosing_a_hip_changes_the_ceiling_and_raises_one() {
         app.update();
     };
 
-    press(&mut app, Deed::Hipped(true));
+    // ONE PRESS: the drawer's own line sets the ridge and raises the roof together.
+    press(&mut app, Deed::RoofOf { hipped: true });
     let said = app
         .world()
         .get::<Placed>(ceiling)
@@ -2216,7 +2218,6 @@ fn choosing_a_hip_changes_the_ceiling_and_raises_one() {
         body_of(&kind, None).len()
     );
 
-    press(&mut app, Deed::RoofOver);
     let raised: Vec<String> = app
         .world_mut()
         .query::<&Placed>()
@@ -2233,5 +2234,30 @@ fn choosing_a_hip_changes_the_ceiling_and_raises_one() {
     assert!(
         raised.iter().any(|name| name == &said),
         "the ceiling went with the roof it raised"
+    );
+
+    // AND THE OTHER LINE RAISES THE OTHER ROOF, from the same drawer. Both halves:
+    // the drawer offers exactly these two, and each one is what it says.
+    let offered = deeds_in(ROOF_OVER);
+    assert_eq!(
+        offered.len(),
+        2,
+        "the roof drawer offers {} lines",
+        offered.len()
+    );
+    for hipped in [false, true] {
+        assert!(
+            offered.contains(&Deed::RoofOf { hipped }),
+            "the drawer does not offer the {} roof",
+            if hipped { "hipped" } else { "gable" }
+        );
+    }
+    // And a ceiling wearing a hip's ridge marks the hip's line, so the beam in front of
+    // the maker and the mark in the menu say the same thing.
+    let wearing = kind_from_name(&said).expect("the ceiling reads");
+    assert!(
+        Deed::RoofOf { hipped: true }.is_standing(&wearing, "roof", "")
+            && !Deed::RoofOf { hipped: false }.is_standing(&wearing, "roof", ""),
+        "the menu marks the wrong roof for a ceiling wearing a hip's ridge"
     );
 }
