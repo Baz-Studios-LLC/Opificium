@@ -728,6 +728,90 @@ pub fn saved_palettes() -> PathBuf {
     root().join("data/saved-palettes.json")
 }
 
+/// What a part may be BUILT of, as far as the game is concerned.
+///
+/// Not its colour. Brett: "The color shouldn't have anything to do with that. That's just
+/// what you painted in the palette." A wall painted pale is a wall painted pale; a wall
+/// MADE of stone is one the village quarries for, hauls, and takes longer over. One is
+/// how a building looks and the other is what it costs, and a bench that confused them
+/// would have a game charging for whitewash.
+///
+/// The same shape as the kinds, and for the same reason: the bench holds a few words every
+/// game would know, and the project holds whatever else that game understands. Brett: "We
+/// can have the basic stuff like stone, wood, clay, and then there could be a plus where I
+/// could type my own."
+///
+/// The bench's own three are a STARTING POINT, not a vocabulary - like the twenty-four
+/// ramps it paints with when a game exports no palette. A project that names its own
+/// materials replaces them entirely, because a game that has thought about this has
+/// thought about all of it.
+pub const BENCH_MATERIALS: [&str; 3] = ["wood", "stone", "clay"];
+
+/// Where this game's list of materials lives.
+pub fn materials_file() -> PathBuf {
+    root().join("data/materials.json")
+}
+
+/// The materials this project builds from.
+pub fn materials() -> Vec<String> {
+    let road = materials_file();
+    let Ok(text) = std::fs::read_to_string(&road) else {
+        return BENCH_MATERIALS
+            .iter()
+            .map(|word| word.to_string())
+            .collect();
+    };
+    match serde_json::from_str::<MaterialsFile>(&text) {
+        Ok(file) if !file.materials.is_empty() => file.materials,
+        Ok(_) => BENCH_MATERIALS
+            .iter()
+            .map(|word| word.to_string())
+            .collect(),
+        Err(why) => {
+            warn!("{}: {why}", road.display());
+            BENCH_MATERIALS
+                .iter()
+                .map(|word| word.to_string())
+                .collect()
+        }
+    }
+}
+
+/// Adds one this project did not know.
+///
+/// It is the GAME'S word, like a kind's: the bench writes it into the bake and takes no
+/// other reading of it, so a material the game has never heard of is a part it will build
+/// out of nothing.
+pub fn add_a_material(word: &str) -> Result<(), String> {
+    let word = word.trim().to_lowercase();
+    if word.is_empty() {
+        return Err("a material needs a word".to_string());
+    }
+    let mut known = materials();
+    if known.iter().any(|had| had == &word) {
+        return Ok(());
+    }
+    known.push(word);
+    let road = materials_file();
+    if let Some(under) = road.parent() {
+        std::fs::create_dir_all(under).map_err(|why| format!("{}: {why}", under.display()))?;
+    }
+    let text = serde_json::to_string_pretty(&MaterialsFile {
+        format: 1,
+        materials: known,
+    })
+    .map_err(|why| format!("could not write the materials: {why}"))?;
+    std::fs::write(&road, format!("{text}\n")).map_err(|why| format!("{}: {why}", road.display()))
+}
+
+#[derive(Serialize, Deserialize, Default)]
+struct MaterialsFile {
+    #[serde(default)]
+    format: u32,
+    #[serde(default)]
+    materials: Vec<String>,
+}
+
 /// Where this game's list of building kinds lives.
 pub fn kinds_file() -> PathBuf {
     current()

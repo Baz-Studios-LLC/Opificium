@@ -32,6 +32,10 @@ pub(crate) enum Deed {
     },
     /// A rail or a trim in the other material.
     MadeOfStone(bool),
+    /// What the village BUILDS this part out of - the game's word, not a colour.
+    BuiltOf(&'static str),
+    /// Teach this project a material it does not know yet.
+    ANewMaterial,
     /// Paint the bars of this wall's windows dark, or leave them as timber.
     BarsIn(bool),
     /// Frame a wall, or take the framing off it again.
@@ -61,9 +65,10 @@ impl Deed {
     /// One place for the question, because two menus ask it - the menu itself and every
     /// drawer - and a drawer that marked nothing would leave a maker guessing which of
     /// four looks their stairs are wearing.
-    fn is_standing(self, kind: &PartKind, wearing: &str) -> bool {
+    fn is_standing(self, kind: &PartKind, wearing: &str, material: &str) -> bool {
         match self {
             Deed::Nature(nature) => nature == wearing,
+            Deed::BuiltOf(word) => word == material,
             Deed::StairsOf {
                 treads_stone,
                 rail_stone,
@@ -106,6 +111,8 @@ impl Deed {
             } => "TIMBER, STONE RAIL",
             Deed::MadeOfStone(true) => "IN STONE",
             Deed::MadeOfStone(false) => "IN TIMBER",
+            Deed::BuiltOf(word) => word,
+            Deed::ANewMaterial => "+ ANOTHER...",
             Deed::BarsIn(true) => "BARS IN BLACK",
             Deed::BarsIn(false) => "BARS IN TIMBER",
             Deed::Frame(true) => "ADD FRAMING",
@@ -482,11 +489,17 @@ pub(crate) fn deeds_for(kind: &PartKind) -> Vec<Deed> {
     {
         deeds.push(Deed::BarsIn(!window.dark));
     }
-    // Every part can be told what it is - behind one line, since it is one question with
-    // five answers and it was taking five of the menu's lines to ask it.
+    // Every part can be told what it is, and what it is made of - each behind one line.
     deeds.push(Deed::More(PART_OF));
+    deeds.push(Deed::More(BUILT_OF));
     deeds
 }
+
+/// The drawer that says what a part is BUILT of.
+///
+/// Every part takes one, the way every part takes a nature: what a thing is made of is a
+/// fact about it, not about which shelf it came off.
+pub(crate) const BUILT_OF: &str = "MADE OF...";
 
 /// The drawer a flight's materials hang in.
 pub(crate) const MADE_OF: &str = "STONE OR TIMBER...";
@@ -497,6 +510,17 @@ pub(crate) const PART_OF: &str = "PART OF...";
 pub(crate) fn deeds_in(group: &str) -> Vec<Deed> {
     match group {
         PART_OF => NATURES.iter().map(|nature| Deed::Nature(nature)).collect(),
+        // The project's own words, and a way to add one. Brett: "We can have the basic
+        // stuff like stone, wood, clay, and then there could be a plus where I could type
+        // my own."
+        BUILT_OF => {
+            let mut deeds: Vec<Deed> = crate::project::materials()
+                .into_iter()
+                .map(|word| Deed::BuiltOf(crate::project::a_kept_word(&word)))
+                .collect();
+            deeds.push(Deed::ANewMaterial);
+            deeds
+        }
         MADE_OF => [(false, false), (true, true), (true, false), (false, true)]
             .into_iter()
             .map(|(treads_stone, rail_stone)| Deed::StairsOf {
@@ -636,6 +660,7 @@ pub(crate) fn raise_part_menu(
         at,
         part,
         &record.stage,
+        &record.material,
         &Some(kind),
         deeds,
     );
@@ -654,6 +679,7 @@ pub(crate) fn hang_a_drawer(
     line: Entity,
     part: Entity,
     wearing: &str,
+    material: &str,
     kind: &Option<PartKind>,
     deeds: Vec<Deed>,
 ) {
@@ -681,7 +707,7 @@ pub(crate) fn hang_a_drawer(
     for deed in deeds {
         let standing = kind
             .as_ref()
-            .is_some_and(|kind| deed.is_standing(kind, wearing));
+            .is_some_and(|kind| deed.is_standing(kind, wearing, material));
         let row = commands
             .spawn((
                 MenuLine { deed, part },
@@ -728,6 +754,7 @@ pub(crate) fn hang_the_part_menu(
     at: Vec2,
     part: Entity,
     wearing: &str,
+    material: &str,
     kind: &Option<PartKind>,
     deeds: Vec<Deed>,
 ) {
@@ -753,7 +780,7 @@ pub(crate) fn hang_the_part_menu(
         // this?" as well as offering to change it.
         let standing = kind
             .as_ref()
-            .is_some_and(|kind| deed.is_standing(kind, wearing));
+            .is_some_and(|kind| deed.is_standing(kind, wearing, material));
         let line = commands
             .spawn((
                 MenuLine { deed, part },
@@ -798,6 +825,8 @@ pub(crate) fn work_part_menu(
     selected: Res<crate::gizmo::Selected>,
     mut keeping: ResMut<PieceKept>,
     mut wants_naming: ResMut<PieceWantsAName>,
+    mut naming: ResMut<Naming>,
+    mut material_for: ResMut<MaterialFor>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut lines: Query<(Entity, &MenuLine, &Interaction, &mut BackgroundColor)>,
@@ -1086,6 +1115,25 @@ pub(crate) fn work_part_menu(
                 );
             }
         }
+        Some((Deed::BuiltOf(word), part)) => {
+            if let Ok((_, _, mut record)) = placed.get_mut(part) {
+                // NOTHING IS REBUILT. What a part is built of changes nothing a maker can
+                // see - it is a fact carried into the bake, and the mark beside the line is
+                // the whole of how it shows. Brett: "The color shouldn't have anything to
+                // do with that. That's just what you painted in the palette."
+                record.material = word.to_string();
+            }
+        }
+        Some((Deed::ANewMaterial, part)) => {
+            // The card the kinds use, for the reason the kinds use it: the word belongs to
+            // the game and nothing here can check it. The part waits in `MaterialFor`,
+            // since the card has one field and no room for which part asked.
+            material_for.0 = Some(part);
+            naming.0 = Some(String::new());
+            naming.1 = NamingFor::AMaterial;
+            raise_naming_card(&mut commands, &fonts, &palette, NamingFor::AMaterial, 0);
+            return;
+        }
         Some((
             Deed::StairsOf {
                 treads_stone,
@@ -1188,9 +1236,15 @@ pub(crate) fn work_part_menu(
                 commands.entity(drawer).despawn();
             }
             if let Some(line) = pressed_line {
-                let (wearing, kind) = placed
+                let (wearing, material, kind) = placed
                     .get(part)
-                    .map(|(_, _, record)| (record.stage.clone(), kind_from_name(&record.part)))
+                    .map(|(_, _, record)| {
+                        (
+                            record.stage.clone(),
+                            record.material.clone(),
+                            kind_from_name(&record.part),
+                        )
+                    })
                     .unwrap_or_default();
                 hang_a_drawer(
                     &mut commands,
@@ -1199,6 +1253,7 @@ pub(crate) fn work_part_menu(
                     line,
                     part,
                     &wearing,
+                    &material,
                     &kind,
                     deeds_in(group),
                 );
@@ -1285,6 +1340,7 @@ pub(crate) fn pieces_of(kind: &PartKind, record: &Placed) -> Vec<(PartKind, Plac
                 stage: record.stage.clone(),
                 flip: record.flip,
                 loose: false,
+                material: String::new(),
                 group: None,
             },
         ));
@@ -1305,6 +1361,7 @@ pub(crate) fn pieces_of(kind: &PartKind, record: &Placed) -> Vec<(PartKind, Plac
                 stage: record.stage.clone(),
                 flip: record.flip,
                 loose: false,
+                material: String::new(),
                 group: None,
             },
         ));

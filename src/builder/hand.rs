@@ -542,6 +542,7 @@ pub(crate) fn move_ghost(
             stage: hand.stage.clone(),
             flip: hand.flip,
             loose: false,
+            material: String::new(),
             group: None,
         };
         // A whole roof draws as a flat plane while it is being sized -

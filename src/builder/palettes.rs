@@ -406,6 +406,7 @@ mod tests {
             flip: false,
             group: None,
             loose: false,
+            material: String::new(),
         }
     }
 

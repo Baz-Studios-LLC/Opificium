@@ -14,6 +14,7 @@ fn a_part(at: [f32; 3], stage: &str) -> Placed {
         flip: false,
         group: None,
         loose: false,
+        material: String::new(),
     }
 }
 
@@ -172,6 +173,7 @@ mod the_kind_in_the_file {
                     flip: false,
                     group: None,
                     loose: false,
+                    material: String::new(),
                 }]],
             }],
         };

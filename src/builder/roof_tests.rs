@@ -1451,6 +1451,8 @@ fn naming_a_nature_leaves_the_body_alone() {
     app.init_resource::<PieceKept>();
     app.init_resource::<PieceWantsAName>();
     app.init_resource::<crate::look::Fonts>();
+    app.init_resource::<MaterialFor>();
+    app.init_resource::<Naming>();
     app.add_systems(Update, work_part_menu);
 
     let trimmed = "beam-6.375x0.375x0.375";
@@ -1468,6 +1470,7 @@ fn naming_a_nature_leaves_the_body_alone() {
                 flip: false,
                 group: None,
                 loose: false,
+                material: String::new(),
             },
             Transform::default(),
         ))
@@ -1557,6 +1560,7 @@ fn a_record(part: String, at: [f32; 3], yaw: f32) -> Placed {
         stage: "frame".to_string(),
         flip: false,
         loose: false,
+        material: String::new(),
         group: None,
     }
 }
@@ -1622,6 +1626,7 @@ fn a_beam_is_trimmed_by_a_real_gable_roof() {
         stage: "roof".to_string(),
         flip: false,
         loose: false,
+        material: String::new(),
         group: None,
     };
     let boxes = roof_boxes(&roof);
@@ -1857,6 +1862,7 @@ fn a_work_from_before_stages_becomes_the_steps_it_already_rose_in() {
         stage: stage.to_string(),
         flip: false,
         loose: false,
+        material: String::new(),
         group: None,
     })
     .collect();
@@ -1936,6 +1942,7 @@ fn a_roof_comes_apart_into_parts_that_exist() {
         flip: false,
         group: None,
         loose: false,
+        material: String::new(),
     };
     let pieces = pieces_of(&roof, &standing);
     assert_eq!(pieces.len(), 4, "a gable roof is two slopes and two gables");

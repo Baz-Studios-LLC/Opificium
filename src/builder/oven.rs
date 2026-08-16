@@ -152,6 +152,17 @@ pub(crate) fn bake_one_phase(
                 | PartKind::Chimney(..) => "roof",
                 _ => record.stage.as_str(),
             };
+            // WHAT IT IS BUILT OF, which is not what it is painted. `cloth` above is the
+            // ramp a maker painted with and says how the piece LOOKS; this says what the
+            // village quarries, fells or digs for it. Written only when a maker has said,
+            // because unsaid is not "wood" - a game hearing nothing may charge what it
+            // likes for a part nobody specified, and that is its decision to make rather
+            // than one the bench smuggles in behind a default.
+            let material = if record.material.is_empty() {
+                String::new()
+            } else {
+                format!(", \"material\": \"{}\"", record.material)
+            };
             // The cloth is named as well as resolved: the game
             // re-dyes a house's own walls and roof per building,
             // the way it always rolled its own, and leaves every
@@ -159,7 +170,7 @@ pub(crate) fn bake_one_phase(
             boxes.push(format!(
                 "    {{\"at\": {}, \"size\": {}, \"turn\": [{:.5}, {:.5}, {:.5}, {:.5}], \
                  \"rgb\": [{}, {}, {}], \"alpha\": {:.2}, \"form\": \"{form}\", \
-                 \"cloth\": \"{ramp}:{shade}\", \"stage\": \"{}\"}}",
+                 \"cloth\": \"{ramp}:{shade}\", \"stage\": \"{}\"{material}}}",
                 say(centre),
                 say(size),
                 turn.x,

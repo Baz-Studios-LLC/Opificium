@@ -41,6 +41,7 @@ pub(crate) fn raise_naming_card(
             NamingFor::AsAPiece => "KEEP IT AS A PIECE",
             NamingFor::Keeping => "NAME THE WORK",
             NamingFor::APalette => "NAME THESE COLOURS",
+            NamingFor::AMaterial => "WHAT IS IT MADE OF?",
             NamingFor::AKind => "NAME A KIND OF BUILDING",
         }),
         TextFont {
@@ -82,6 +83,11 @@ pub(crate) fn raise_naming_card(
             // which is the point and would otherwise look like a mistake.
             NamingFor::APalette => {
                 "every colour this building is painted with, all its steps - esc goes back"
+            }
+            // The same warning a kind carries, and for the same reason: it is the GAME'S
+            // word and nothing here can check it.
+            NamingFor::AMaterial => {
+                "the game must already know this word, or it builds out of nothing - esc goes back"
             }
             // The one warning worth printing on a card. Nothing here can check a
             // word against the game's own vocabulary - that lives in the other
@@ -212,6 +218,7 @@ pub(crate) fn raise_naming_card(
                 // word back to the card that asked for it.
                 NamingFor::AKind => "ADD IT",
                 NamingFor::APalette => "KEEP THEM",
+                NamingFor::AMaterial => "ADD IT",
             },
             true,
         ),
@@ -270,6 +277,7 @@ pub(crate) fn take_the_name(
         ResMut<PieceKept>,
         ResMut<PiecesStale>,
         ResMut<NameHeld>,
+        ResMut<MaterialFor>,
     ),
     fonts: Res<Fonts>,
     mut keystrokes: MessageReader<bevy::input::keyboard::KeyboardInput>,
@@ -277,14 +285,15 @@ pub(crate) fn take_the_name(
     time: Res<Time>,
     mut work_name: ResMut<WorkName>,
     mut palettes_stale: ResMut<PalettesStale>,
-    placed: Query<&Placed, Without<Ghost>>,
+
+    mut placed: Query<&mut Placed, Without<Ghost>>,
     cards: Query<Entity, With<NamingCard>>,
     saves_click: Query<&Interaction, (Changed<Interaction>, With<NamingSave>)>,
     cancels_click: Query<&Interaction, (Changed<Interaction>, With<NamingCancel>)>,
     mut shown: Query<&mut Text, With<NameText>>,
     mut save_labels: Query<(Entity, &mut Text), (With<SaveLabel>, Without<NameText>)>,
 ) {
-    let (mut kind, mut stale, mut kept, mut pieces_stale, mut held) = errands;
+    let (mut kind, mut stale, mut kept, mut pieces_stale, mut held, mut material_for) = errands;
     let what_for = naming.1;
     let Some(name) = naming.0.as_mut() else {
         return;
@@ -366,6 +375,32 @@ pub(crate) fn take_the_name(
             commands.entity(card).despawn();
         }
         raise_naming_card(&mut commands, &fonts, &palette, NamingFor::Carrying, kind.0);
+        return;
+    }
+    // A MATERIAL this project did not know. Added to the project and given to the part
+    // that asked for it, because a maker who typed a word meant that part to be made of it
+    // - the same reasoning as a kind, where naming one chooses it for the building being
+    // baked.
+    if what_for == NamingFor::AMaterial {
+        if saving && !name.is_empty() {
+            let word = name.trim().to_lowercase();
+            match crate::project::add_a_material(&word) {
+                Ok(()) => {
+                    if let Some(part) = material_for.0.take()
+                        && let Ok(mut record) = placed.get_mut(part)
+                    {
+                        record.material = word.clone();
+                    }
+                    info!("the project builds with {word} now");
+                }
+                Err(why) => warn!("could not add {word}: {why}"),
+            }
+        }
+        material_for.0 = None;
+        naming.0 = None;
+        for card in &cards {
+            commands.entity(card).despawn();
+        }
         return;
     }
     // KEEPING THE COLOURS, which ends the card like the others but writes nothing of the

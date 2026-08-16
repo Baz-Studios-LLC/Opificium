@@ -359,6 +359,7 @@ fn a_swept_bench_keeps_no_level_at_all() {
         flip: false,
         group: None,
         loose: false,
+        material: String::new(),
     };
     // A work well under way: two levels, several phases apiece, parts in all of them.
     let busy = Stages::of(vec![
@@ -540,6 +541,89 @@ mod framing {
                 "a wall was offered what it already is"
             );
         }
+    }
+}
+
+#[cfg(test)]
+mod materials {
+    use super::*;
+
+    /// What a part is BUILT of is not what it is painted.
+    ///
+    /// Brett: "The color shouldn't have anything to do with that. That's just what you
+    /// painted in the palette." A wall painted pale is a wall painted pale; a wall MADE of
+    /// stone is one the village quarries for. The bake already carried `cloth`, which is
+    /// the ramp - so a game reading that as the material would charge for whitewash.
+    #[test]
+    fn a_material_is_not_a_colour() {
+        let mut record = Placed {
+            part: part_name(&PartKind::wall(3.0)),
+            at: [0.0, 0.0, 0.0],
+            yaw: 0.0,
+            tilt: 0.0,
+            ramp: Some("bone".to_string()),
+            shade: 0.8,
+            stage: "walls".to_string(),
+            flip: false,
+            group: None,
+            loose: false,
+            material: String::new(),
+        };
+        // Painted pale and built of stone: two facts, and neither is the other.
+        record.material = "stone".to_string();
+        assert_eq!(record.ramp.as_deref(), Some("bone"), "the paint moved");
+        assert_eq!(record.material, "stone");
+
+        // A work carries both through a save and back.
+        let work = Workbench {
+            levels: vec![Level {
+                name: String::new(),
+                phases: vec![vec![record.clone()]],
+            }],
+            ..default()
+        };
+        let said = serde_json::to_string(&work).expect("written");
+        let back: Workbench = serde_json::from_str(&said).expect("read back");
+        let part = &back.levels[0].phases[0][0];
+        assert_eq!(part.material, "stone", "the material was lost in the file");
+        assert_eq!(part.ramp.as_deref(), Some("bone"));
+    }
+
+    /// UNSAID is not "wood".
+    ///
+    /// A part nobody has spoken for writes no material at all, so a game may charge what it
+    /// likes for it - which is the game's decision rather than a default the bench smuggles
+    /// in behind its back.
+    #[test]
+    fn unsaid_stays_unsaid() {
+        let plain = Placed {
+            part: part_name(&PartKind::wall(3.0)),
+            at: [0.0, 0.0, 0.0],
+            yaw: 0.0,
+            tilt: 0.0,
+            ramp: None,
+            shade: 0.5,
+            stage: "walls".to_string(),
+            flip: false,
+            group: None,
+            loose: false,
+            material: String::new(),
+        };
+        let said = serde_json::to_string(&plain).expect("written");
+        assert!(
+            !said.contains("wood"),
+            "a part nobody spoke for was given a material: {said}"
+        );
+    }
+
+    /// The bench knows three words, and a project may know its own.
+    #[test]
+    fn the_bench_has_a_starting_point() {
+        assert!(crate::project::BENCH_MATERIALS.contains(&"wood"));
+        assert!(crate::project::BENCH_MATERIALS.contains(&"stone"));
+        assert!(crate::project::BENCH_MATERIALS.contains(&"clay"));
+        // And they are the fallback, so a project that has said nothing still has words.
+        assert!(!crate::project::materials().is_empty());
     }
 }
 

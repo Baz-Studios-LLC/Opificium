@@ -249,7 +249,7 @@ its colour already looked up, plus the marks that say what the place is FOR.
   "half_w": 3.65, "half_d": 6.7, "high": 5.2,
   "boxes": [ { "at": [0,1.25,0], "size": [4,2.5,0.25], "turn": [0,0,0,1],
                "form": "box", "rgb": [110,92,70], "alpha": 1.0, "cloth": "wood",
-               "stage": "walls" } ],
+               "stage": "walls", "material": "oak" } ],
   "marks": [ { "mark": "door", "at": [3.65,0.375,0.0], "yaw": 0.0 } ],
   "levels": [
     { "name": "", "half_w": 3.65, "half_d": 6.7, "high": 5.2,
@@ -341,6 +341,18 @@ one a tag can imply.
 - `half_w`/`half_d` are the FINISHED building's footprint: the plot the village
   clears, the obstacle while it is being raised, and the walkable shell when it
   is done.
+- `material` says what the village BUILDS a box out of — `wood`, `stone`, `clay`,
+  or whatever else your game knows. It is the GAME'S word: the bench writes it
+  down and takes no other reading of it, so a material your game has never heard
+  of is a part it will build out of nothing. Only present when a maker has said,
+  and **absent is not `wood`** — a part nobody has spoken for leaves the decision
+  where it belongs, with you.
+
+  It has nothing to do with colour. `rgb` and `cloth` are what a maker PAINTED;
+  this is what the thing is made of, and only one of the two should cost a village
+  a quarry. The materials a project offers live in `data/materials.json`, and a
+  maker adds one from the part's own menu.
+
 - `cloth` names the ramp a box was painted from. The bench writes it and the
   game no longer reads it: villages used to re-dye a drawing's dominant wall and
   roof cloth so a street of one blueprint was a street of different houses,

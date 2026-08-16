@@ -118,6 +118,7 @@ pub(crate) fn heal_wall_at(
         stage: "walls".to_string(),
         flip: false,
         loose: false,
+        material: String::new(),
         group: None,
     };
     for piece in doomed {
@@ -415,6 +416,7 @@ pub(crate) fn punch_wall(
             stage: record.stage.clone(),
             flip: false,
             loose: false,
+            material: String::new(),
             group: None,
         };
         spawn_part(commands, meshes, materials, palette, &kind, &piece, false);
@@ -437,6 +439,7 @@ pub(crate) fn punch_wall(
         stage: "walls".to_string(),
         flip: hand.flip,
         loose: false,
+        material: String::new(),
         group: None,
     };
     // The frame prop IS a frame - jambs, sill, lintel and the bars across -
@@ -489,6 +492,7 @@ pub(crate) fn punch_wall(
                 stage: "widget".to_string(),
                 flip: false,
                 loose: false,
+                material: String::new(),
                 group: None,
             };
             spawn_part(commands, meshes, materials, palette, &widget, &mark, false);

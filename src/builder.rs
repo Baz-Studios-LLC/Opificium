@@ -85,6 +85,19 @@ pub struct Placed {
     /// of an L.
     #[serde(default)]
     pub flip: bool,
+    /// What the village BUILDS this out of: wood, stone, clay, or whatever else the
+    /// game knows.
+    ///
+    /// Not its colour, which is `ramp` and `shade` above and is only what a maker painted.
+    /// This is what the thing is made of, and it is the game's business what that costs -
+    /// a stone wall is quarried and hauled where a timber one is felled.
+    ///
+    /// Empty means UNSAID, and unsaid is not "wood": a game that hears nothing may charge
+    /// whatever it charges for a building whose parts were never specified, and that is a
+    /// decision for the game rather than a default the bench smuggles in.
+    #[serde(default)]
+    pub material: String,
+
     /// Which group this part belongs to, if any.
     ///
     /// A plain number, shared by everything grouped together, and that is the
@@ -244,6 +257,7 @@ impl Hand {
             stage: self.stage.clone(),
             flip: self.flip,
             loose: false,
+            material: String::new(),
             group: None,
         })
     }
@@ -344,6 +358,14 @@ pub(crate) struct PassingWord {
     until: f32,
 }
 
+/// The part waiting for a material this project has never heard of.
+///
+/// The naming card asks for the word and the part it belongs to is not on the card, so it
+/// waits here - the same shape as `NameHeld`, which holds a work's name while a kind is
+/// being typed on the same field.
+#[derive(Resource, Default)]
+pub struct MaterialFor(pub Option<Entity>);
+
 /// The name being typed for an export, while the naming card is up.
 /// While this is Some, every other key on the bench holds its tongue.
 #[derive(Resource, Default)]
@@ -366,6 +388,11 @@ pub enum NamingFor {
     /// Naming the colours the work on the bench is painted with, to paint another
     /// building the same way later.
     APalette,
+    /// Naming a material this project does not know yet.
+    ///
+    /// Raised from a part's own menu and ending there: the word is added to the project
+    /// and given to the part that asked for it.
+    AMaterial,
     /// Naming a kind of building this project does not know yet.
     ///
     /// Raised FROM the carrying card and returning to it, so the bake a maker was
@@ -467,6 +494,7 @@ impl Plugin for BuilderPlugin {
             .init_resource::<PieceInHand>()
             .init_resource::<PiecesStale>()
             .init_resource::<PalettesStale>()
+            .init_resource::<MaterialFor>()
             .init_resource::<Brush>()
             .init_resource::<Naming>()
             .init_resource::<NameHeld>()
@@ -1001,6 +1029,7 @@ pub fn seat_the_figures(
             stage: "widget".to_string(),
             flip: false,
             loose: false,
+            material: String::new(),
             group: None,
         };
         spawn_part(commands, meshes, materials, palette, &widget, &mark, false);
