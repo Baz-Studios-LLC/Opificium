@@ -3562,7 +3562,9 @@ fn a_knee_survives_being_saved() {
         }
     }
 
-    // A post too short to brace is not braced into the ground.
+    // A POST TOO SHORT TO HOUSE ONE CARRIES NONE. A brace is let a half-thickness
+    // into the timber at each end, so it reaches lower than its run by that much
+    // again - and a stub asked for knees used to be braced into the floor.
     let stub = body_of(
         &PartKind::Pole {
             high: ATOM * 2.0,
@@ -3570,12 +3572,11 @@ fn a_knee_survives_being_saved() {
         },
         None,
     );
-    for brace in stub.iter().filter(|piece| piece.cant != 0.0) {
-        assert!(
-            brace.at.y - brace.size.x * 0.5 > -1e-3,
-            "a knee on a stub post reaches below the ground"
-        );
-    }
+    assert!(
+        stub.iter()
+            .all(|piece| piece.cant == 0.0 && piece.lean == 0.0),
+        "a post with no room for a knee was braced anyway"
+    );
 }
 
 /// A MARKED VOLUME KEEPS THE ROOM IT WAS DRAGGED TO.
@@ -3731,5 +3732,87 @@ fn a_declared_size_is_what_makes_a_mark_a_volume() {
         // Either way it is a mark, so it is drawn see-through and bakes as no
         // boxes at all.
         assert!(is_a_mark(&made), "{} is not drawn as a mark", mark.word);
+    }
+}
+
+/// A KNEE CLOSES BOTH ITS JOINTS - no daylight at the beam, none at the post.
+///
+/// Brett, of the first ones: "Braces dont go all the way up?" They were cut
+/// exactly to the run, and a square end at forty-five touches the timber it meets
+/// with one CORNER only: the rest of that end face falls away below, leaving a
+/// triangle of daylight in the very joint the brace is there to make.
+///
+/// So this measures the joint rather than the piece. Every corner of the head has
+/// to reach the beam's underside, and every corner of the foot has to be inside
+/// the post - which is what "all the way up" means, and what counting pieces or
+/// checking an angle can never tell you.
+#[test]
+fn a_knee_closes_both_its_joints() {
+    for high in [1.0, 2.5, 4.0] {
+        let body = body_of(
+            &PartKind::Pole {
+                high,
+                knees: Knee::All,
+            },
+            None,
+        );
+        let post = POST_THICK * 0.5;
+        for brace in body
+            .iter()
+            .filter(|piece| piece.cant != 0.0 || piece.lean != 0.0)
+        {
+            // The eight corners of the brace, where they actually stand: the same
+            // turn `dress_part` builds a piece with.
+            let turn = Quat::from_rotation_z(brace.cant) * Quat::from_rotation_x(brace.lean);
+            let corners: Vec<Vec3> = [-0.5f32, 0.5]
+                .iter()
+                .flat_map(|x| {
+                    [-0.5f32, 0.5].iter().flat_map(move |y| {
+                        [-0.5f32, 0.5].iter().map(move |z| Vec3::new(*x, *y, *z))
+                    })
+                })
+                .map(|corner| brace.at + turn * (corner * brace.size))
+                .collect();
+
+            // THE HEAD. Its four corners are the ones out past the post, and every
+            // one of them has to reach the beam - the top of the post is where the
+            // beam it carries sits.
+            let out = |corner: Vec3| corner.x.abs().max(corner.z.abs());
+            let reach = corners
+                .iter()
+                .copied()
+                .fold(0.0f32, |far, c| far.max(out(c)));
+            let head: Vec<Vec3> = corners
+                .iter()
+                .copied()
+                .filter(|c| out(*c) > reach - KNEE_THICK)
+                .collect();
+            assert!(
+                head.len() >= 2,
+                "the brace has no head to speak of: {} corners",
+                head.len()
+            );
+            for corner in &head {
+                assert!(
+                    corner.y >= high - 1e-4,
+                    "daylight at the beam: a corner of the head stands {:.3} m short",
+                    high - corner.y
+                );
+            }
+            // THE FOOT, which is the other joint and fails the same way: its
+            // corners have to be inside the post, not butted on its face.
+            let foot: Vec<Vec3> = corners
+                .iter()
+                .copied()
+                .filter(|c| out(*c) < KNEE_THICK)
+                .collect();
+            assert!(!foot.is_empty(), "the brace never reaches the post at all");
+            for corner in &foot {
+                assert!(
+                    corner.x.abs() <= post + 1e-4 && corner.z.abs() <= post + 1e-4,
+                    "daylight at the post: the foot stands off its face"
+                );
+            }
+        }
     }
 }

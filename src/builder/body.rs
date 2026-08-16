@@ -131,10 +131,17 @@ pub(crate) const KNEE_THICK: f32 = 0.25;
 /// notch rather than a brace, too long and it is a strut across the whole bay. And
 /// never more than the post is tall, or the brace would come out below the ground.
 pub(crate) fn knee_run(high: f32) -> f32 {
-    let want = (high * 0.3).clamp(0.375, 0.875);
-    // On the lattice, and inside the post.
-    let atoms = (want.min(high - ATOM) / ATOM).floor().max(1.0);
-    atoms * ATOM
+    // What the post can carry, before what looks right. The brace is housed a
+    // half-thickness into the timber at each end, so it reaches lower than its run
+    // by that much again - and a post too short to hold one would otherwise be
+    // braced into the ground.
+    let room = high - KNEE_THICK * std::f32::consts::FRAC_1_SQRT_2;
+    if room < ATOM {
+        return 0.0;
+    }
+    let want = (high * 0.3).clamp(0.375, 0.875).min(room);
+    // On the lattice.
+    (want / ATOM).floor().max(1.0) * ATOM
 }
 
 /// How deep a barn door's rails and braces are, measured across the leaf.
@@ -1922,8 +1929,22 @@ fn shape_of(kind: &PartKind) -> Vec<Slab> {
             // face it stands in, which is where a brace lies. Leaning would take
             // it out sideways through the bay.
             let run = knee_run(*high);
-            let long = run * std::f32::consts::SQRT_2;
-            for (x, z) in knees.ways() {
+            // LONG ENOUGH TO CLOSE BOTH JOINTS, which a brace cut exactly to the
+            // run is not. Its ends are square, so at forty-five only the leading
+            // CORNER of the head touches the beam and the rest of that end face
+            // falls away below it - which is a triangle of daylight in the very
+            // joint the brace exists to make. Brett, of the first ones: "Braces
+            // dont go all the way up?"
+            //
+            // Half the timber's own thickness at each end carries that trailing
+            // corner exactly up to the beam, because at forty-five the run and the
+            // rise are the same number. The head then dies INTO the beam it holds
+            // and the foot into the post, which is where both belong: a brace is
+            // housed in the timber it braces, not butted against it.
+            let long = run * std::f32::consts::SQRT_2 + KNEE_THICK;
+            // A post with no room to house one carries none. Better a bare post
+            // than a brace driven into the floor.
+            for (x, z) in knees.ways().iter().filter(|_| run > 0.0) {
                 // TWO FAMILIES, because the two angles a slab has turn it about
                 // different axes: CANT swings a piece within the XY face, which is
                 // where a knee reaching along X lies, and LEAN swings it about X,
@@ -1935,10 +1956,6 @@ fn shape_of(kind: &PartKind) -> Vec<Slab> {
                 // will swing.
                 let laid = *x != 0.0;
                 body.push(Slab {
-                    // Its foot buried in the post and its head buried under the
-                    // beam, so neither joint shows a gap: a brace cut exactly to
-                    // length meets both at a corner, and a corner is where the
-                    // daylight gets in.
                     at: Vec3::new(x * run * 0.5, high - run * 0.5, z * run * 0.5),
                     size: if laid {
                         Vec3::new(long, KNEE_THICK, KNEE_THICK)
