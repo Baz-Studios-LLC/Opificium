@@ -145,15 +145,22 @@ pub(crate) fn heal_wall_at(
 /// frame, so what it needs is the CLEAR span the leaves must fit through, in atoms.
 /// Those are different numbers, and only one table should hold either.
 pub fn opening_of(kind: &PartKind) -> Option<Opens> {
-    let door = |wide: f32, clear: i32, widget: bool| {
+    // The hole a PLAIN wall parts for a door, worked out from the clear span its
+    // leaves need rather than from a number of its own: jambs either side and a
+    // lintel over, so a barn door's bigger opening carries the same frame.
+    let door = |leaf: Leaf, double: bool| {
+        let (clear, tall) = door_clear(leaf, double);
         Some(Opens {
             what: Opening::Door,
-            wide,
-            head: 2.125,
+            // The prop's own jambs and lintel: two atoms of timber each side, two
+            // more over. Read off the same numbers `shape_of` cuts them at, so the
+            // hole is exactly the frame that stands in it.
+            wide: (clear + DOOR_JAMB * 2) as f32 * ATOM,
+            head: (tall + DOOR_JAMB) as f32 * ATOM,
             sill: 0.0,
-            widget,
+            widget: leaf.hangs(),
             clear,
-            tall: DOOR_HIGH,
+            tall,
         })
     };
     match kind {
@@ -165,24 +172,11 @@ pub fn opening_of(kind: &PartKind) -> Option<Opens> {
         // A DOORWAY needs no widget: the gap itself is the portal, and a widget
         // would only say it twice. A door means an entrance, and the first one
         // defines the building's front.
-        PartKind::Door { double, leaf } => door(
-            if *double { 2.25 } else { 1.25 },
-            if *double { DOOR_WIDE * 2 } else { DOOR_WIDE },
-            *leaf,
-        ),
+        PartKind::Door { double, leaf } => door(*leaf, *double),
         // The three doors drawn before one part held all four.
-        PartKind::Prop("door") => opening_of(&PartKind::Door {
-            double: false,
-            leaf: true,
-        }),
-        PartKind::Prop("door-double") => opening_of(&PartKind::Door {
-            double: true,
-            leaf: true,
-        }),
-        PartKind::Prop("doorway") => opening_of(&PartKind::Door {
-            double: false,
-            leaf: false,
-        }),
+        PartKind::Prop("door") => door(Leaf::Plain, false),
+        PartKind::Prop("door-double") => door(Leaf::Plain, true),
+        PartKind::Prop("doorway") => door(Leaf::Gone, false),
         // A WINDOW SAYS ITS OWN SIZE. Everything above is a fixed thing - a door
         // is as tall as a door - and this one is whatever a maker set, which is
         // the whole of what "uncouple the window size from the wall height"
@@ -248,12 +242,51 @@ pub struct Opens {
 /// and two villagers meeting at a double door take one each instead of queueing
 /// through the same point. The part that knows it has two leaves is the part that
 /// should say where they are.
-pub fn door_lanes(kind: &PartKind) -> &'static [f32] {
+pub fn door_lanes(kind: &PartKind) -> Vec<f32> {
     match kind {
+        // A barn leaf is wider than a house one, so a pair of them meet further
+        // out - and the routing marks that stand in front of them go with them.
+        PartKind::Door {
+            double,
+            leaf: Leaf::Barn,
+        } => barn_lanes(*double),
+        PartKind::Prop("barn-leaf") => barn_lanes(false),
+        PartKind::Prop("barn-double-leaf") => barn_lanes(true),
         // One lane per leaf, each on its own leaf's centre.
-        PartKind::Door { double: true, .. } | PartKind::Prop("door-double") => &[-0.5, 0.5],
-        _ => &[0.0],
+        PartKind::Door { double: true, .. } | PartKind::Prop("door-double") => vec![-0.5, 0.5],
+        _ => vec![0.0],
     }
+}
+
+/// THE LEAF A FRAMED WALL HANGS in an opening it drew itself, if any.
+///
+/// A framed wall gathers its own jambs and lintel round a door, so the door prop
+/// - which is a frame AND a leaf - would draw a second frame inside the first.
+/// What is still wanted is the thing that swings. One table, because the menu
+/// hangs these, the punch hangs these, and both have to hang the same one.
+pub fn hung_leaf(leaf: Leaf, double: bool) -> Option<PartKind> {
+    match leaf {
+        Leaf::Gone => None,
+        Leaf::Plain => Some(PartKind::Prop(if double {
+            "door-double-leaf"
+        } else {
+            "door-leaf"
+        })),
+        Leaf::Barn => Some(PartKind::Prop(if double {
+            "barn-double-leaf"
+        } else {
+            "barn-leaf"
+        })),
+    }
+}
+
+/// Whether a part is one of those leaves - a thing swinging in somebody else's
+/// opening rather than an opening of its own.
+pub fn is_hung_leaf(kind: &PartKind) -> bool {
+    matches!(
+        kind,
+        PartKind::Prop("door-leaf" | "door-double-leaf" | "barn-leaf" | "barn-double-leaf")
+    )
 }
 
 /// Where along a wall an opening aimed at `point` actually lands: on the
@@ -492,11 +525,17 @@ pub(crate) fn punch_wall(
         // click with nothing aimed at.
         let tall = (high / ATOM).round().max((PLATE_TALL * 3 + 8) as f32) as i32;
         let usual = band_of(what, tall);
-        let rise = if what == Opening::Window {
-            opens.tall
-        } else {
-            usual.rise
-        };
+        // THE SIZE THE OPENING SAYS IT IS. A door used to take the wall's own
+        // answer here, which was a house door's height and nothing else - so a
+        // barn door punched a hole its leaves could not fit through. Every kind
+        // of opening carries its own height now, and this reads it.
+        //
+        // Up to what the wall can carry: a lintel over the hole and a head plate
+        // over that, both a plate deep. A barn door wants two and three quarter
+        // metres and an ordinary wall is two and a half, so one put in a wall too
+        // short for it takes as much as there is rather than cutting away the
+        // timber holding the roof up.
+        let rise = opens.tall.min(tall - PLATE_TALL * 2);
         let lift = aimed
             // The aim on THIS wall, not on whatever else the cursor found: the
             // wall may have been chosen by nearness after a blind click, and a
@@ -673,11 +712,7 @@ pub(crate) fn punch_wall(
     // nothing at all, because the wall has already drawn the whole of it.
     let hung = match (reframed, frame_kind) {
         (false, _) => Some(frame_kind),
-        (true, PartKind::Door { double, leaf: true }) => Some(PartKind::Prop(if double {
-            "door-double-leaf"
-        } else {
-            "door-leaf"
-        })),
+        (true, PartKind::Door { double, leaf }) => hung_leaf(leaf, double),
         (true, _) => None,
     };
     if let Some(hung) = hung {
@@ -701,7 +736,7 @@ pub(crate) fn punch_wall(
         // One per leaf: a double door gets two, so two people can use it at
         // once. See [`door_lanes`].
         for lane in door_lanes(&frame_kind) {
-            let stands = frame_at + along * *lane;
+            let stands = frame_at + along * lane;
             let mark = Placed {
                 part: part_name(&widget),
                 at: [stands.x, base.y, stands.z],

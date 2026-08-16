@@ -4,6 +4,118 @@ use super::*;
 
 /// The boxes a part is made of, in its own local space, resting on y = 0 - and
 /// wearing whatever a maker has painted it.
+/// Where the leaves of a barn door hang, in metres either side of the middle.
+///
+/// The same shape of answer as `door_lanes`, from its own width: a barn leaf is
+/// wider than a house one, so a pair of them meet further out.
+pub(crate) fn barn_lanes(double: bool) -> Vec<f32> {
+    let half = BARN_WIDE as f32 * ATOM * 0.5;
+    if double { vec![-half, half] } else { vec![0.0] }
+}
+
+/// THE Z-BRACED LEAF of a barn door, one or two of them.
+///
+/// A big leaf hangs off two hinges down one edge and would sag under its own
+/// weight on the far one, so a barn door is braced: a rail across the top, a rail
+/// across the bottom, and a diagonal between them that carries the far edge's
+/// weight back down onto the hinges. That Z is not decoration - it is why the
+/// door is still square in twenty years - and it is what a barn door looks like.
+///
+/// The brace is CANTED rather than leaned: canting swings a piece within the face
+/// it belongs to, which is where a brace lies. Leaning would take it out through
+/// the door.
+pub(crate) fn barn_leaves(double: bool) -> Vec<Slab> {
+    // Every piece of a leaf lies in the same face at one of three depths, so the
+    // one that varies is which LAYER it stands on.
+    let piece = |x: f32, y: f32, sx: f32, sy: f32, layer: i32, ramp: &str, shade: f32, cant| Slab {
+        at: Vec3::new(
+            x,
+            y,
+            if layer == 0 {
+                ATOM
+            } else {
+                (layer as f32 + 1.5) * ATOM
+            },
+        ),
+        size: Vec3::new(sx, sy, if layer == 0 { ATOM * 2.0 } else { ATOM }),
+        ramp: ramp.to_string(),
+        shade,
+        clarity: 1.0,
+        shape: Shape::Box,
+        lean: 0.0,
+        cant,
+        cut: Vec2::ZERO,
+    };
+    let (_, tall) = door_clear(Leaf::Barn, double);
+    let high = tall as f32 * ATOM;
+    let wide = BARN_WIDE as f32 * ATOM;
+    let rail = BARN_RAIL as f32 * ATOM;
+    let mut body = Vec::new();
+    for lane in barn_lanes(double) {
+        // The boards.
+        body.push(piece(lane, high * 0.5, wide, high, 0, "wood", 0.35, 0.0));
+        // A STILE DOWN EACH EDGE, which is what makes a pair read as a pair.
+        //
+        // Without them the two leaves' rails ran on into each other and the whole
+        // opening read as one enormous door with a chevron drawn on it. Brett:
+        // "Can we get some framing going down the middle so they sem like two
+        // seperate doors?" A stile on every edge means two of them meet where the
+        // leaves do, and the seam down the middle is a pair of posts.
+        for edge in [-1.0, 1.0] {
+            body.push(piece(
+                lane + edge * (wide - rail) * 0.5,
+                high * 0.5,
+                rail,
+                high,
+                1,
+                "wood",
+                0.5,
+                0.0,
+            ));
+        }
+        // The rails run BETWEEN the stiles, like the ledges of a real door.
+        let inner = wide - rail * 2.0;
+        for middle in [rail * 0.5, high - rail * 0.5] {
+            body.push(piece(lane, middle, inner, rail, 1, "wood", 0.5, 0.0));
+        }
+        // The diagonal, from the foot of the HINGE edge up to the head of the free
+        // one - the way the load wants to travel. A single leaf hinges on its left,
+        // like the plain door whose latch is on its right; a pair hinge on their
+        // outer edges and so lean their braces opposite ways.
+        let toward = if double { -lane.signum() } else { 1.0 };
+        let climb = high - rail * 2.0;
+        let brace = (inner * inner + climb * climb).sqrt();
+        body.push(piece(
+            lane,
+            high * 0.5,
+            brace,
+            rail,
+            1,
+            "wood",
+            0.5,
+            toward * climb.atan2(inner),
+        ));
+        // And the ironwork: a strap off each hinge, reaching a third of the way
+        // across the leaf so it bites into the boards rather than only the stile.
+        for middle in [rail * 0.5, high - rail * 0.5] {
+            body.push(piece(
+                lane - toward * (wide - inner / 3.0) * 0.5,
+                middle,
+                inner / 3.0,
+                rail * 0.5,
+                2,
+                "wood",
+                0.12,
+                0.0,
+            ));
+        }
+    }
+    body
+}
+
+/// How deep a barn door's rails and braces are, measured across the leaf.
+pub(crate) const BARN_RAIL: i32 = 3;
+
 pub(crate) fn body_of(kind: &PartKind, repaint: Option<(&str, f32)>) -> Vec<Slab> {
     let mut slabs = shape_of(kind);
     // A repainted part carries its choice into everything it is MADE of - and
@@ -1780,6 +1892,9 @@ fn shape_of(kind: &PartKind) -> Vec<Slab> {
         ],
         // A post drawn before one had a height of its own.
         PartKind::Prop("pole") => body_of(&PartKind::Pole(WALL_HIGH), None),
+        // A BARN LEAF on its own, for a wall that has framed its own opening.
+        PartKind::Prop("barn-leaf") => barn_leaves(false),
+        PartKind::Prop("barn-double-leaf") => barn_leaves(true),
         PartKind::Door { double, leaf } => {
             // ONE CONSTRUCTION, four doors. They were three hand-written lists and
             // the fourth was missing: jambs on the lattice, a lintel board across
@@ -1788,31 +1903,51 @@ fn shape_of(kind: &PartKind) -> Vec<Slab> {
             // A double is the single WIDENED rather than a different thing - each
             // leaf the same metre as the single's - so a hall door reads as two of
             // the doors already in the village.
-            let clear = if *double { 2.0 } else { 1.0 };
-            let jamb = clear * 0.5 + 0.0625;
+            // THE SIZE THIS SORT OF DOOR IS, from the table every other part of
+            // the bench asks. A barn door is bigger than a house door - Brett:
+            // "remember the barn doors are larger than normal doors" - and the
+            // frame here, the hole the wall parts and the leaves that swing in it
+            // all have to be the same bigger, so they all come from one answer.
+            let (span, tall) = door_clear(*leaf, *double);
+            let (clear, high) = (span as f32 * ATOM, tall as f32 * ATOM);
+            let post = DOOR_JAMB as f32 * ATOM;
+            let jamb = clear * 0.5 + post * 0.5;
             let mut body = vec![
-                slab(-jamb, 1.0, 0.0, 0.125, 2.0, 0.375, "wood", 0.45),
-                slab(jamb, 1.0, 0.0, 0.125, 2.0, 0.375, "wood", 0.45),
-                slab(0.0, 2.0625, 0.0, clear + 0.25, 0.125, 0.375, "wood", 0.45),
+                slab(-jamb, high * 0.5, 0.0, post, high, 0.375, "wood", 0.45),
+                slab(jamb, high * 0.5, 0.0, post, high, 0.375, "wood", 0.45),
+                slab(
+                    0.0,
+                    high + post * 0.5,
+                    0.0,
+                    clear + post * 2.0,
+                    post,
+                    0.375,
+                    "wood",
+                    0.45,
+                ),
             ];
             // And what hangs in it, on the lanes the opening's own leaves take -
             // one per leaf, from the one table that says where they are.
-            if *leaf {
-                for lane in door_lanes(kind) {
-                    // The latch on the leaf's FREE edge: the far side of a single,
-                    // and the middle where a pair meet.
-                    let toward = if *double { -lane.signum() } else { 1.0 };
-                    body.push(slab(*lane, 1.0, 0.0625, 1.0, 2.0, 0.125, "wood", 0.35));
-                    body.push(slab(
-                        lane + toward * 0.375,
-                        1.0,
-                        0.125,
-                        0.125,
-                        0.125,
-                        0.125,
-                        "cloth-gold",
-                        0.8,
-                    ));
+            match leaf {
+                Leaf::Gone => {}
+                Leaf::Barn => body.extend(barn_leaves(*double)),
+                Leaf::Plain => {
+                    for lane in door_lanes(kind) {
+                        // The latch on the leaf's FREE edge: the far side of a
+                        // single, and the middle where a pair meet.
+                        let toward = if *double { -lane.signum() } else { 1.0 };
+                        body.push(slab(lane, 1.0, 0.0625, 1.0, 2.0, 0.125, "wood", 0.35));
+                        body.push(slab(
+                            lane + toward * 0.375,
+                            1.0,
+                            0.125,
+                            0.125,
+                            0.125,
+                            0.125,
+                            "cloth-gold",
+                            0.8,
+                        ));
+                    }
                 }
             }
             body

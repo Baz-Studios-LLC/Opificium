@@ -159,6 +159,33 @@ pub(crate) const INFILL_SET: i32 = 1;
 pub(crate) const DOOR_WIDE: i32 = 16;
 pub(crate) const DOOR_HIGH: i32 = 32;
 
+/// How heavy the door PROP's own frame is: the jamb down each side and the
+/// lintel over. The prop is the frame a plain wall has not got.
+pub(crate) const DOOR_JAMB: i32 = 2;
+
+/// A BARN doorway's, which is bigger, because what goes through it is a cart and
+/// not a person. Brett: "remember the barn doors are larger than normal doors."
+///
+/// Half a metre wider each leaf and three quarters taller: a pair of them is a
+/// three-metre opening under a two-and-three-quarter-metre head, which is the
+/// front of the storehouse. Whole atoms, like every other size on the bench.
+pub(crate) const BARN_WIDE: i32 = 24;
+pub(crate) const BARN_HIGH: i32 = 44;
+
+/// The clear width and height of the opening a door of this sort wants.
+///
+/// ONE TABLE. The leaf's own boards, the hole a plain wall parts for it, the
+/// timber a framed wall gathers round it and the ghost that slides along before
+/// any of that is placed all read these two numbers from here - so a barn door
+/// that grew could never grow in only three of the four places.
+pub(crate) fn door_clear(leaf: Leaf, double: bool) -> (i32, i32) {
+    let (wide, high) = match leaf {
+        Leaf::Barn => (BARN_WIDE, BARN_HIGH),
+        Leaf::Gone | Leaf::Plain => (DOOR_WIDE, DOOR_HIGH),
+    };
+    (if double { wide * 2 } else { wide }, high)
+}
+
 /// A window's clear width. It takes its HEIGHT from the wall rather than from a
 /// number here: it fills the upper course, so the rail is its sill and the head
 /// plate is its lintel, and a window that is a fixed height would leave a

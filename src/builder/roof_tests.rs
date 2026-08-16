@@ -662,7 +662,7 @@ fn a_doorway_is_the_size_of_its_door() {
     let leaf = body_of(
         &PartKind::Door {
             double: false,
-            leaf: true,
+            leaf: Leaf::Plain,
         },
         None,
     );
@@ -1918,7 +1918,7 @@ fn a_roof_comes_apart_into_parts_that_exist() {
     assert!(
         !comes_apart(&PartKind::Door {
             double: false,
-            leaf: true
+            leaf: Leaf::Plain
         }),
         "a door is jambs and a leaf and the bench has a part for neither: \
              breaking one up would leave a hole where a door used to be"
@@ -2492,7 +2492,7 @@ fn right_clicking_a_door_changes_it() {
         MenuLine {
             deed: Deed::DoorAs {
                 double: true,
-                leaf: true,
+                leaf: Leaf::Plain,
             },
             part: leaf,
         },

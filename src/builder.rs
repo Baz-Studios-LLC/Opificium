@@ -697,10 +697,12 @@ pub fn part_name(kind: &PartKind) -> String {
         // The four corners of one square, each spelled as what it IS. The three
         // that existed as props keep reading under their old names as well.
         PartKind::Door { double, leaf } => match (double, leaf) {
-            (false, true) => "door".to_string(),
-            (true, true) => "door-double".to_string(),
-            (false, false) => "doorway".to_string(),
-            (true, false) => "doorway-double".to_string(),
+            (false, Leaf::Plain) => "door".to_string(),
+            (true, Leaf::Plain) => "door-double".to_string(),
+            (false, Leaf::Barn) => "door-barn".to_string(),
+            (true, Leaf::Barn) => "door-barn-double".to_string(),
+            (false, Leaf::Gone) => "doorway".to_string(),
+            (true, Leaf::Gone) => "doorway-double".to_string(),
         },
         PartKind::Beam(long, high, low) => format!("beam-{long}x{high}x{low}"),
         PartKind::Ridge(long) => format!("ridge-{long}"),
@@ -875,10 +877,12 @@ pub fn kind_from_name(name: &str) -> Option<PartKind> {
     // The doors, new spellings and old: `prop:door` and its two fellows were the
     // three parts this one replaced, and a saved work full of them opens unchanged.
     if let Some(door) = match name {
-        "door" | "prop:door" => Some((false, true)),
-        "door-double" | "prop:door-double" => Some((true, true)),
-        "doorway" | "prop:doorway" => Some((false, false)),
-        "doorway-double" => Some((true, false)),
+        "door" | "prop:door" => Some((false, Leaf::Plain)),
+        "door-double" | "prop:door-double" => Some((true, Leaf::Plain)),
+        "door-barn" => Some((false, Leaf::Barn)),
+        "door-barn-double" => Some((true, Leaf::Barn)),
+        "doorway" | "prop:doorway" => Some((false, Leaf::Gone)),
+        "doorway-double" => Some((true, Leaf::Gone)),
         _ => None,
     } {
         return Some(PartKind::Door {
@@ -1646,12 +1650,20 @@ pub(crate) fn place_grab_remove(
                             wide: hole.wide,
                             high: hole.high,
                         },
-                        // A DOOR comes back as the door it was - single or double,
-                        // with a leaf or without - read off the hole it left.
-                        Some(hole) => PartKind::Door {
-                            double: hole.wide > DOOR_WIDE,
-                            leaf: true,
-                        },
+                        // A DOOR comes back as the door it was, read off the hole
+                        // it left: how tall says whether it was a barn's, how wide
+                        // says whether it was a pair.
+                        Some(hole) => {
+                            let leaf = if hole.high >= BARN_HIGH {
+                                Leaf::Barn
+                            } else {
+                                Leaf::Plain
+                            };
+                            PartKind::Door {
+                                double: hole.wide > door_clear(leaf, false).0,
+                                leaf,
+                            }
+                        }
                         None => PartKind::Window {
                             wide: WINDOW_WIDE,
                             high: WINDOW_WIDE,

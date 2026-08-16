@@ -63,7 +63,7 @@ pub(crate) enum Deed {
     /// have a double doorway. Maybe doors and doorways could be a right click."
     /// Three shelf lines and a missing fourth become one line and a drawer, which
     /// is the rule that took the framed wall and the stone rail before it.
-    DoorAs { double: bool, leaf: bool },
+    DoorAs { double: bool, leaf: Leaf },
     /// Raise a roof over a ceiling, sized to it - and say WHICH in the same press.
     ///
     /// It was two lines: GENERATE ROOF, and a toggle beside it that read as a
@@ -185,19 +185,27 @@ impl Deed {
             // Short, because the drawer they hang in already says A DOOR.
             Deed::DoorAs {
                 double: false,
-                leaf: true,
+                leaf: Leaf::Plain,
             } => "ONE LEAF",
             Deed::DoorAs {
                 double: true,
-                leaf: true,
+                leaf: Leaf::Plain,
             } => "TWO LEAVES",
             Deed::DoorAs {
                 double: false,
-                leaf: false,
+                leaf: Leaf::Barn,
+            } => "A BARN LEAF",
+            Deed::DoorAs {
+                double: true,
+                leaf: Leaf::Barn,
+            } => "BARN DOORS",
+            Deed::DoorAs {
+                double: false,
+                leaf: Leaf::Gone,
             } => "AN OPENING",
             Deed::DoorAs {
                 double: true,
-                leaf: false,
+                leaf: Leaf::Gone,
             } => "A WIDE OPENING",
             Deed::Mirror => "MIRROR",
             Deed::Frame(true) => "ADD FRAMING",
@@ -566,10 +574,9 @@ pub(crate) fn deeds_for(kind: &PartKind) -> Vec<Deed> {
     // so a menu that only knew about the wall showed nothing at all when they
     // clicked the door itself. Brett: "When I place a door now and i right click on
     // it I dont see the options."
-    if matches!(
-        kind,
-        PartKind::Door { .. } | PartKind::Prop("door-leaf" | "door-double-leaf")
-    ) || matches!(kind, PartKind::Wall { openings, .. }
+    if matches!(kind, PartKind::Door { .. })
+        || is_hung_leaf(kind)
+        || matches!(kind, PartKind::Wall { openings, .. }
             if openings.iter().flatten().any(|hole| hole.what == Opening::Door))
     {
         deeds.push(Deed::More(A_DOOR));
@@ -636,10 +643,7 @@ fn wall_of(
     clicked: Entity,
 ) -> Option<Entity> {
     let (_, hung_at, hung) = placed.get(clicked).ok()?;
-    if !matches!(
-        kind_from_name(&hung.part),
-        Some(PartKind::Prop("door-leaf" | "door-double-leaf"))
-    ) {
+    if !kind_from_name(&hung.part).is_some_and(|hung| is_hung_leaf(&hung)) {
         return None;
     }
     let leaf = hung_at.translation;
@@ -696,10 +700,17 @@ pub(crate) const PART_OF: &str = "PART OF...";
 pub(crate) fn deeds_in(group: &str) -> Vec<Deed> {
     match group {
         PART_OF => NATURES.iter().map(|nature| Deed::Nature(nature)).collect(),
-        A_DOOR => [(false, true), (true, true), (false, false), (true, false)]
-            .into_iter()
-            .map(|(double, leaf)| Deed::DoorAs { double, leaf })
-            .collect(),
+        A_DOOR => [
+            (false, Leaf::Plain),
+            (true, Leaf::Plain),
+            (false, Leaf::Barn),
+            (true, Leaf::Barn),
+            (false, Leaf::Gone),
+            (true, Leaf::Gone),
+        ]
+        .into_iter()
+        .map(|(double, leaf)| Deed::DoorAs { double, leaf })
+        .collect(),
         ROOF_OVER => vec![
             Deed::RoofOf { hipped: false },
             Deed::RoofOf { hipped: true },
@@ -1264,10 +1275,7 @@ pub(crate) fn work_part_menu(
             // Remembered for the next one, the way a window's panes are: a maker
             // who has just put a double doorway in one wall is about to put one in
             // the other.
-            *doors = crate::builder::DoorAs {
-                double,
-                wayless: !leaf,
-            };
+            *doors = crate::builder::DoorAs { double, leaf };
             let made = PartKind::Door { double, leaf };
             // A DOOR STANDING ON ITS OWN - one set in a wall the punch had to cut,
             // rather than one a wall was told about. It is a part, so it is simply
@@ -1305,7 +1313,12 @@ pub(crate) fn work_part_menu(
                             if hole.what != Opening::Door {
                                 continue;
                             }
-                            hole.wide = if double { DOOR_WIDE * 2 } else { DOOR_WIDE };
+                            // The clear span AND the head, from the one table:
+                            // a barn door is bigger both ways, so a wall told to
+                            // wear one has to give up the timber over it too.
+                            let (span, tall) = door_clear(leaf, double);
+                            hole.wide = span;
+                            hole.high = tall;
                             spots.push(at.translation + along * hole.at);
                         }
                         (!spots.is_empty()).then(|| {
@@ -1351,11 +1364,9 @@ pub(crate) fn work_part_menu(
                 let hanging: Vec<Entity> = placed
                     .iter()
                     .filter(|(_, at, hung)| {
-                        matches!(
-                            kind_from_name(&hung.part),
-                            Some(PartKind::Prop("door-leaf" | "door-double-leaf"))
-                                | Some(PartKind::Widget("door"))
-                        ) && spots
+                        kind_from_name(&hung.part).is_some_and(|hung| {
+                            is_hung_leaf(&hung) || hung == PartKind::Widget("door")
+                        }) && spots
                             .iter()
                             .any(|spot| at.translation.distance(*spot) < 1.0)
                     })
@@ -1365,12 +1376,7 @@ pub(crate) fn work_part_menu(
                     commands.entity(gone).despawn();
                 }
                 for spot in spots {
-                    if leaf {
-                        let hung = PartKind::Prop(if double {
-                            "door-double-leaf"
-                        } else {
-                            "door-leaf"
-                        });
+                    if let Some(hung) = hung_leaf(leaf, double) {
                         let mut swings = record.clone();
                         swings.part = part_name(&hung);
                         swings.at = [spot.x, record.at[1], spot.z];
@@ -1389,7 +1395,7 @@ pub(crate) fn work_part_menu(
                         let widget = PartKind::Widget("door");
                         let along = Quat::from_rotation_y(yaw) * Vec3::X;
                         for lane in door_lanes(&made) {
-                            let stands = spot + along * *lane;
+                            let stands = spot + along * lane;
                             let mark = Placed {
                                 part: part_name(&widget),
                                 at: [stands.x, record.at[1], stands.z],

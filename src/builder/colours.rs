@@ -2527,7 +2527,7 @@ mod roofing {
 fn a_door_is_four_doors() {
     let mut seen: Vec<String> = Vec::new();
     for double in [false, true] {
-        for leaf in [false, true] {
+        for leaf in [Leaf::Gone, Leaf::Plain, Leaf::Barn] {
             let kind = PartKind::Door { double, leaf };
             let name = part_name(&kind);
             // Each one is its own part, spelled its own way, and comes back as itself.
@@ -2543,23 +2543,31 @@ fn a_door_is_four_doors() {
             let opens = opening_of(&kind).expect("a door opens a wall");
             assert_eq!(
                 opens.clear,
-                if double { DOOR_WIDE * 2 } else { DOOR_WIDE },
+                door_clear(leaf, double).0,
                 "{name} reserves the wrong span"
             );
             assert_eq!(
-                opens.widget, leaf,
+                opens.widget,
+                leaf.hangs(),
                 "{name} says the wrong thing about walking through"
             );
 
-            // And it is BUILT: jambs and a lintel always, leaves only where one hangs.
+            // And it is BUILT: jambs and a lintel always, leaves only where one
+            // hangs. Counted by the BOARDS - the piece that fills a leaf, one per
+            // lane - rather than by every wide piece, because a barn leaf is boards
+            // and a Z of bracing over them and all of it is wide.
             let body = body_of(&kind, None);
             let leaves = body
                 .iter()
-                .filter(|slab| slab.size.x > 0.5 && slab.size.z < WALL_THICK)
+                .filter(|slab| slab.size.x > 0.5 && slab.size.z < WALL_THICK && slab.size.y > 1.5)
                 .count();
             assert_eq!(
                 leaves,
-                if leaf { if double { 2 } else { 1 } } else { 0 },
+                if leaf.hangs() {
+                    door_lanes(&kind).len()
+                } else {
+                    0
+                },
                 "{name} hangs the wrong number of leaves"
             );
             assert!(
@@ -2572,9 +2580,9 @@ fn a_door_is_four_doors() {
     // The three that were shelf lines still open under their old names, and a work full
     // of them is not something to lose to a tidier shelf.
     for (was, double, leaf) in [
-        ("prop:door", false, true),
-        ("prop:door-double", true, true),
-        ("prop:doorway", false, false),
+        ("prop:door", false, Leaf::Plain),
+        ("prop:door-double", true, Leaf::Plain),
+        ("prop:doorway", false, Leaf::Gone),
     ] {
         assert!(
             kind_from_name(was) == Some(PartKind::Door { double, leaf }),
@@ -2590,10 +2598,21 @@ fn a_door_is_four_doors() {
         1,
         "the shelf carries more than one door"
     );
+    // The drawer holds every door there is: one line per corner of what a door
+    // can be, and no line that is not a door somebody could want.
     let offered = deeds_in(A_DOOR);
+    for double in [false, true] {
+        for leaf in [Leaf::Gone, Leaf::Plain, Leaf::Barn] {
+            assert!(
+                offered.contains(&Deed::DoorAs { double, leaf }),
+                "the door drawer does not offer {}",
+                part_name(&PartKind::Door { double, leaf })
+            );
+        }
+    }
     assert_eq!(
         offered.len(),
-        4,
+        6,
         "the door drawer offers {} lines",
         offered.len()
     );
@@ -2620,12 +2639,12 @@ fn a_door_is_four_doors() {
     assert!(
         Deed::DoorAs {
             double: true,
-            leaf: true
+            leaf: Leaf::Plain
         }
         .is_standing(
             &PartKind::Door {
                 double: true,
-                leaf: true
+                leaf: Leaf::Plain
             },
             "walls",
             ""
@@ -2718,7 +2737,7 @@ fn a_clock_face_is_an_octagon() {
 #[test]
 fn a_doorway_is_a_door_shaped_hole() {
     for double in [false, true] {
-        for leaf in [false, true] {
+        for leaf in [Leaf::Gone, Leaf::Plain, Leaf::Barn] {
             let kind = PartKind::Door { double, leaf };
             let opens = opening_of(&kind).expect("a door opens a wall");
             assert!(
@@ -2735,7 +2754,7 @@ fn a_doorway_is_a_door_shaped_hole() {
             // an entrance and a doorway is a way through.
             assert_eq!(
                 opens.widget,
-                leaf,
+                leaf.hangs(),
                 "{} says the wrong thing about a villager walking through",
                 part_name(&kind)
             );
@@ -3297,4 +3316,104 @@ fn a_mirror_is_offered_where_it_would_show() {
             part_name(&kind)
         );
     }
+}
+
+/// A BARN DOOR IS BIGGER than a house door, everywhere at once.
+///
+/// The size lives in one table, `door_clear`, and four things read it: the leaf's
+/// own boards, the frame the prop brings, the hole a plain wall parts, and the
+/// timber a framed wall gathers. A barn door that grew in three of the four is a
+/// door with daylight down one side, so this asks all four.
+#[test]
+fn a_barn_door_is_bigger_than_a_house_door() {
+    for double in [false, true] {
+        let (barn, barn_high) = door_clear(Leaf::Barn, double);
+        let (house, house_high) = door_clear(Leaf::Plain, double);
+        assert!(
+            barn > house && barn_high > house_high,
+            "a barn door is no bigger than a house door"
+        );
+        // The hole the wall parts, and the head over it.
+        let kind = PartKind::Door {
+            double,
+            leaf: Leaf::Barn,
+        };
+        let opens = opening_of(&kind).expect("a barn door opens a wall");
+        assert_eq!(opens.clear, barn, "the wall parts the wrong span for it");
+        assert_eq!(
+            opens.tall, barn_high,
+            "the wall carries it at the wrong head"
+        );
+        // And the leaf that swings in it fits the hole it was cut for: no wider
+        // than the clear span, no taller than the head.
+        let body = body_of(&kind, None);
+        let leaves: Vec<&Slab> = body
+            .iter()
+            .filter(|piece| piece.size.z < WALL_THICK)
+            .collect();
+        let widest = leaves
+            .iter()
+            .filter(|piece| piece.cant == 0.0)
+            .map(|piece| piece.at.x.abs() + piece.size.x * 0.5)
+            .fold(0.0f32, f32::max);
+        let highest = leaves
+            .iter()
+            .map(|piece| piece.at.y + piece.size.y * 0.5)
+            .fold(0.0f32, f32::max);
+        assert!(
+            widest <= barn as f32 * ATOM * 0.5 + 1e-4,
+            "the leaves are wider than the opening"
+        );
+        assert!(
+            highest <= barn_high as f32 * ATOM + 1e-4,
+            "the leaves are taller than the opening"
+        );
+    }
+}
+
+/// A PAIR OF BARN DOORS READS AS A PAIR.
+///
+/// Brett, of the first ones: "Can we get some framing going down the middle so
+/// they sem like two seperate doors?" - because each leaf carried its rails right
+/// out to its own edges, so the two leaves' rails ran into one another and the
+/// whole opening read as one enormous door with a chevron drawn across it.
+///
+/// A stile down every edge fixes it, and this is how you tell: two upright pieces
+/// standing shoulder to shoulder on the middle line.
+#[test]
+fn barn_doors_meet_at_a_seam() {
+    let pair = body_of(
+        &PartKind::Door {
+            double: true,
+            leaf: Leaf::Barn,
+        },
+        None,
+    );
+    let (_, tall) = door_clear(Leaf::Barn, true);
+    let high = tall as f32 * ATOM;
+    // The uprights: as tall as the leaf and no wider than the timber it is framed
+    // in, which is what a stile is.
+    let stiles: Vec<f32> = pair
+        .iter()
+        .filter(|piece| {
+            // Not the door's own JAMBS, which are as tall and as narrow but stand
+            // through the whole wall: a stile lies on the face of a leaf.
+            piece.cant == 0.0
+                && piece.size.z < WALL_THICK
+                && (piece.size.y - high).abs() < 1e-3
+                && piece.size.x < 0.5
+        })
+        .map(|piece| piece.at.x)
+        .collect();
+    assert_eq!(stiles.len(), 4, "a pair of leaves wants two stiles each");
+    // Two of them meet in the middle, one either side of it.
+    let meeting = stiles.iter().filter(|at| at.abs() < 0.25).count();
+    assert_eq!(
+        meeting, 2,
+        "nothing frames the middle, so the pair reads as one door"
+    );
+    assert!(
+        stiles.iter().any(|at| *at < -0.25) && stiles.iter().any(|at| *at > 0.25),
+        "the outer edges of the pair carry no stile"
+    );
 }

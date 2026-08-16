@@ -183,10 +183,20 @@ impl WindowPanes {
 /// just put a double doorway in one wall is about to put one in the other, and
 /// the shelf handing back a single door every time is a trip through the menu per
 /// opening.
-#[derive(Resource, Clone, Copy, Default)]
+#[derive(Resource, Clone, Copy)]
 pub struct DoorAs {
     pub double: bool,
-    pub wayless: bool,
+    pub leaf: Leaf,
+}
+
+impl Default for DoorAs {
+    /// A door, one leaf, until a maker says otherwise.
+    fn default() -> Self {
+        DoorAs {
+            double: false,
+            leaf: Leaf::Plain,
+        }
+    }
 }
 
 impl DoorAs {
@@ -194,7 +204,7 @@ impl DoorAs {
     pub fn door(self) -> PartKind {
         PartKind::Door {
             double: self.double,
-            leaf: !self.wayless,
+            leaf: self.leaf,
         }
     }
 }
@@ -223,6 +233,34 @@ pub const fn usual_width(what: Opening) -> i32 {
     match what {
         Opening::Door => DOOR_WIDE,
         Opening::Window => WINDOW_WIDE,
+    }
+}
+
+/// WHAT HANGS IN A DOORWAY, which is three things rather than two.
+///
+/// It was a `leaf: bool` beside the `double: bool`, and adding barn doors as a
+/// third flag would have made eight names for six doors, two of them meaning
+/// nothing - a barn doorway with no barn leaf in it is a doorway. An opening and
+/// what swings in it are ONE axis, so they are one field.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum Leaf {
+    /// Nothing hangs there. A doorway is the gap itself: the ways between rooms
+    /// that never wanted a door, and which carry no routing mark because a gap in
+    /// a wall run is a portal found by walking it.
+    Gone,
+    /// The boarded leaf of a house, a metre across and two metres tall.
+    Plain,
+    /// A BARN leaf: taller and wider than a house door, because what goes through
+    /// it is a cart. Braced with a Z - a rail top and bottom and a diagonal
+    /// between them - which is what stops a big leaf sagging on its hinges, and
+    /// so is what a barn door LOOKS like.
+    Barn,
+}
+
+impl Leaf {
+    /// Whether anything hangs there at all.
+    pub fn hangs(self) -> bool {
+        self != Leaf::Gone
     }
 }
 
@@ -307,10 +345,8 @@ pub enum PartKind {
         /// Two leaves, and twice the clear opening - a hall, a barn, a granary
         /// taking a cart.
         double: bool,
-        /// Whether anything hangs in it. A doorway is the gap itself: the ways
-        /// between rooms that never wanted a door, and which carry no routing mark
-        /// because a gap in a wall run is a portal found by walking it.
-        leaf: bool,
+        /// What hangs in it, which is three things and not two - see [`Leaf`].
+        leaf: Leaf,
     },
     /// A ROW OF BOOKS, and the SEED its colours are drawn from.
     ///
@@ -574,7 +610,7 @@ pub const STRUCTURE: &[CatalogEntry] = &[
         "DOOR",
         PartKind::Door {
             double: false,
-            leaf: true,
+            leaf: Leaf::Plain,
         },
         "walls",
     ),
