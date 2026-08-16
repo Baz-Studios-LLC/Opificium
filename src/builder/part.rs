@@ -201,6 +201,23 @@ pub enum PartKind {
     /// it will cover, with a gold line down the way the ridge will run.
     /// It is never placed - the record beneath it names the roof.
     RoofPlan(f32, f32),
+    /// A CEILING: the flat top of a room, and the roof it will raise.
+    ///
+    /// Its own part rather than a floor, though the slab is the same. Brett: "I think I
+    /// would prefer to have a ceiling part separate... it could hold the roof type
+    /// automatically and floors having generate roof is weird."
+    ///
+    /// Both halves of that are right. A ground floor being asked to raise a roof is a
+    /// question about a thing that has no roof over it - and, more than tidiness, a
+    /// ceiling REMEMBERS which roof it makes, which a floor has nowhere to put. So the
+    /// kind is chosen on the ceiling, while it is still a rectangle a maker can drag
+    /// about, and generating it is one press with nothing left to decide.
+    Ceiling {
+        long: f32,
+        deep: f32,
+        /// Hipped rather than gabled: slopes on all four sides.
+        hipped: bool,
+    },
     Floor(f32, f32),
     /// A stone pad: how wide, how deep, and how TALL.
     ///
@@ -309,6 +326,15 @@ pub(crate) const fn prop(label: &'static str, name: &'static str) -> CatalogEntr
 /// The shelf's drawers: each section opens and closes on its header.
 pub const STRUCTURE: &[CatalogEntry] = &[
     structure("BEAM, STRETCH", PartKind::BeamRun, "frame"),
+    structure(
+        "CEILING",
+        PartKind::Ceiling {
+            long: 4.0,
+            deep: 4.0,
+            hipped: false,
+        },
+        "roof",
+    ),
     structure("DOOR", PartKind::Prop("door"), "walls"),
     structure("DOOR, DOUBLE", PartKind::Prop("door-double"), "walls"),
     structure("DOORWAY", PartKind::Prop("doorway"), "walls"),

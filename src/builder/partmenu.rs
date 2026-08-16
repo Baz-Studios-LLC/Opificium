@@ -26,6 +26,10 @@ pub(crate) enum Deed {
     BarsIn(bool),
     /// Frame a wall, or take the framing off it again.
     Frame(bool),
+    /// Raise a roof over a ceiling, sized to it.
+    RoofOver,
+    /// Which roof this ceiling will raise: hipped, or gabled.
+    Hipped(bool),
     /// Open a drawer of the menu's own, alongside the line that names it.
     ///
     /// The menu answers several different questions about a part - what it IS, what it is
@@ -59,6 +63,9 @@ impl Deed {
             Deed::BarsIn(false) => "BARS IN TIMBER",
             Deed::Frame(true) => "ADD FRAMING",
             Deed::Frame(false) => "REMOVE FRAMING",
+            Deed::RoofOver => "GENERATE ROOF",
+            Deed::Hipped(true) => "A HIPPED ROOF",
+            Deed::Hipped(false) => "A GABLE ROOF",
             Deed::More(group) => group,
             Deed::KeepAsPiece => "KEEP AS A PIECE",
         }
@@ -268,6 +275,14 @@ pub(crate) fn length_of(kind: &PartKind) -> Option<(f32, Box<dyn Fn(f32) -> Part
         )),
         // The flat ones are sized in two, and it is their X a trim comes back
         // along - the same axis every other part is cut on.
+        PartKind::Ceiling { deep, hipped, .. } => Some((
+            0.0,
+            Box::new(move |n| PartKind::Ceiling {
+                long: n,
+                deep,
+                hipped,
+            }),
+        )),
         PartKind::Floor(_, deep) => Some((
             body_of(kind, None)
                 .iter()
@@ -371,6 +386,19 @@ pub(crate) fn deeds_for(kind: &PartKind) -> Vec<Deed> {
         PartKind::GableRoof(..) => vec![Deed::Ungroup],
         _ => Vec::new(),
     };
+    // A CEILING takes a roof of its own size. Brett: "placing a roof is a PIA. Lets make
+    // the way you place a roof the same as the way you place a floor... you right click it
+    // to generate roof" - and "they should keep their ceiling too", so the ceiling stays
+    // and the roof joins it.
+    //
+    // Offered on a floor, because a floor laid at the top of a wall IS the ceiling. One
+    // flat part, and a line that puts a roof over it.
+    if let PartKind::Ceiling { hipped, .. } = kind {
+        deeds.push(Deed::RoofOver);
+        // The KIND of roof, chosen while it is still a rectangle a maker can drag about -
+        // offered as the thing it would become, like everything else on this menu.
+        deeds.push(Deed::Hipped(!hipped));
+    }
     // A wall can be framed or plain, offered as the thing it would BECOME. Brett:
     // "Walls should just have a right click to add the framing." It goes first because it
     // changes what the wall IS, where everything under it only changes how it looks.
@@ -835,6 +863,66 @@ pub(crate) fn work_part_menu(
                     part,
                     false,
                 );
+            }
+        }
+        Some((Deed::Hipped(hipped), part)) => {
+            if let Ok((_, _, mut record)) = placed.get_mut(part)
+                && let Some(PartKind::Ceiling { long, deep, .. }) = kind_from_name(&record.part)
+            {
+                // Nothing is rebuilt: a ceiling looks the same either way, and what changes
+                // is only what it will RAISE. The line beside it says which.
+                record.part = part_name(&PartKind::Ceiling { long, deep, hipped });
+            }
+        }
+        Some((Deed::RoofOver, part)) => {
+            // The group is minted from every record before anything is touched, since the
+            // ceiling has to be read and then written and both cannot be borrowed at once.
+            let together = a_fresh_group(placed.iter().map(|(_, _, record)| record));
+            let ceiling = placed.get(part).ok().and_then(|(_, at, record)| {
+                match kind_from_name(&record.part) {
+                    Some(PartKind::Ceiling { long, deep, hipped }) => {
+                        Some((at.translation, record.clone(), long, deep, hipped))
+                    }
+                    _ => None,
+                }
+            });
+            if let Some((stands, ceiling, w, d, hipped)) = ceiling {
+                // The RIDGE RUNS THE LONG WAY, which is what a roof does and what a maker
+                // would otherwise turn it by hand to get. A square ceiling picks either.
+                let (long, span, turn) = if w >= d {
+                    (w, d, 0.0)
+                } else {
+                    (d, w, std::f32::consts::FRAC_PI_2)
+                };
+                // The kind the ceiling has been carrying since it was placed. Nothing is
+                // asked at this moment; the decision was made while it was a rectangle.
+                let made = if hipped {
+                    PartKind::HipRoof(long, span, ROOF_OVERHANG, ROOF_PITCH_DEGREES)
+                } else {
+                    PartKind::GableRoof(long, span, ROOF_OVERHANG, ROOF_PITCH_DEGREES)
+                };
+                let mut roof = ceiling.clone();
+                roof.part = part_name(&made);
+                // A roof's eaves rest at its own nought, so it seats on whatever it stands
+                // on: the ceiling's TOP, which is its own origin plus its thickness.
+                roof.at = [stands.x, stands.y + FLOOR_THICK, stands.z];
+                roof.yaw = ceiling.yaw + turn;
+                roof.stage = "roof".to_string();
+                roof.group = Some(together);
+                spawn_part(
+                    &mut commands,
+                    &mut meshes,
+                    &mut materials,
+                    &palette,
+                    &made,
+                    &roof,
+                    false,
+                );
+                // And the ceiling joins it, so the two travel as one thing - "they should
+                // keep their ceiling too". UNGROUP parts them again.
+                if let Ok((_, _, mut record)) = placed.get_mut(part) {
+                    record.group = Some(together);
+                }
             }
         }
         Some((Deed::Frame(framed), part)) => {

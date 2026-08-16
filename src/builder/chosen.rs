@@ -32,6 +32,10 @@ pub(crate) fn spoken_of(kind: &PartKind) -> String {
         }
         PartKind::RoofPlan(w, d) => format!("ROOF PLAN, {w:.2} X {d:.2}M"),
         PartKind::Floor(w, d) => format!("FLOOR, {w:.2} X {d:.2}M"),
+        PartKind::Ceiling { long, deep, hipped } => format!(
+            "CEILING, {long:.2} X {deep:.2}M, {} ROOF",
+            if *hipped { "HIPPED" } else { "GABLE" }
+        ),
         PartKind::Foundation(w, d, high) => {
             format!("FOUNDATION, {w:.2} X {d:.2}M, {high:.2} TALL")
         }

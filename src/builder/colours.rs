@@ -542,3 +542,120 @@ mod framing {
         }
     }
 }
+
+#[cfg(test)]
+mod roofing {
+    use super::*;
+
+    /// A ceiling remembers which roof it raises, through its name and back.
+    ///
+    /// The whole reason a ceiling is its own part rather than a floor: the choice is made
+    /// while it is still a rectangle, and it has to survive being saved and reopened - a
+    /// forgotten choice would raise a gable over a hall meant to be hipped, and look
+    /// deliberate.
+    #[test]
+    fn a_ceiling_remembers_its_roof() {
+        for hipped in [false, true] {
+            let ceiling = PartKind::Ceiling {
+                long: 6.0,
+                deep: 4.0,
+                hipped,
+            };
+            let name = part_name(&ceiling);
+            let Some(PartKind::Ceiling {
+                long,
+                deep,
+                hipped: back,
+            }) = kind_from_name(&name)
+            else {
+                panic!("a ceiling did not read back: {name}");
+            };
+            assert_eq!(back, hipped, "it forgot its roof: {name}");
+            assert!(
+                (long - 6.0).abs() < 1e-6 && (deep - 4.0).abs() < 1e-6,
+                "{name}"
+            );
+        }
+        // A gable ceiling writes no extra word, so the plain case stays the plain name.
+        assert_eq!(
+            part_name(&PartKind::Ceiling {
+                long: 4.0,
+                deep: 4.0,
+                hipped: false
+            }),
+            "ceiling-4x4"
+        );
+    }
+
+    /// A roof generated over a ceiling covers it, and rests ON it.
+    ///
+    /// The arithmetic the menu does, checked here rather than by eye: a roof whose eaves
+    /// sank into the ceiling or floated over it would look nearly right from the working
+    /// perch and be wrong in the game.
+    #[test]
+    fn a_generated_roof_fits_its_ceiling() {
+        // What the menu works out, in the same order it works it out.
+        let roof_for = |w: f32, d: f32| {
+            let (long, span, turn) = if w >= d {
+                (w, d, 0.0)
+            } else {
+                (d, w, std::f32::consts::FRAC_PI_2)
+            };
+            (
+                PartKind::GableRoof(long, span, ROOF_OVERHANG, ROOF_PITCH_DEGREES),
+                turn,
+            )
+        };
+
+        // A long ceiling: the ridge runs its length, and the roof is not turned.
+        let (made, turn) = roof_for(6.0, 4.0);
+        let PartKind::GableRoof(long, span, ..) = made else {
+            panic!("not a gable roof")
+        };
+        assert!(
+            (long - 6.0).abs() < 1e-6,
+            "the ridge does not run the long way"
+        );
+        assert!((span - 4.0).abs() < 1e-6);
+        assert!(turn.abs() < 1e-6, "a long ceiling turned its roof");
+
+        // A DEEP one: the same roof, turned a quarter, so the ridge still runs the long
+        // way rather than across the building.
+        let (made, turn) = roof_for(4.0, 6.0);
+        let PartKind::GableRoof(long, span, ..) = made else {
+            panic!("not a gable roof")
+        };
+        assert!(
+            (long - 6.0).abs() < 1e-6,
+            "the ridge ran across the building"
+        );
+        assert!((span - 4.0).abs() < 1e-6);
+        assert!(
+            (turn - std::f32::consts::FRAC_PI_2).abs() < 1e-6,
+            "a deep ceiling did not turn its roof"
+        );
+
+        // AND IT SEATS ON THE CEILING'S TOP. A gable roof's eaves rest at its own nought,
+        // and a floor spans nought to its thickness - so the lift is exactly that.
+        let ceiling = body_of(&PartKind::Floor(6.0, 4.0), None);
+        let top = ceiling
+            .iter()
+            .map(|Slab { at, size, .. }| at.y + size.y * 0.5)
+            .fold(f32::NEG_INFINITY, f32::max);
+        assert!(
+            (top - FLOOR_THICK).abs() < 1e-6,
+            "a ceiling's top is at {top}, so a roof lifted by {FLOOR_THICK} would not meet it"
+        );
+
+        // The roof itself starts at its own nought, which is what makes that lift right.
+        let lowest = body_of(&made, None)
+            .iter()
+            .map(|Slab { at, size, .. }| at.y - size.y * 0.5)
+            .fold(f32::INFINITY, f32::min);
+        assert!(
+            lowest > -0.2,
+            "a roof's lowest timber is at {lowest}, well under its own nought - it would \
+             sink into the ceiling"
+        );
+    }
+}

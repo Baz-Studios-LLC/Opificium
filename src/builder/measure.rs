@@ -37,6 +37,19 @@ const _: () = assert!(PITCH_LEAST <= ROOF_PITCH_DEGREES && ROOF_PITCH_DEGREES <=
 /// wall on a quarter-metre grid means centrelines always land on snaps.
 pub(crate) const WALL_THICK: f32 = 0.25;
 
+/// How thick a floor is, and so a ceiling.
+///
+/// Named because a roof generated over a ceiling has to seat on the ceiling's TOP, and a
+/// literal 0.125 at that one call site would be a number nobody could connect to the slab
+/// it came from.
+pub(crate) const FLOOR_THICK: f32 = 0.125;
+
+/// How far a generated roof reaches past what it covers.
+///
+/// A hand's breadth, the same as a roof drawn out by hand starts with - the gold handles
+/// pull it further without moving the gables.
+pub(crate) const ROOF_OVERHANG: f32 = 0.25;
+
 /// How far a piece that is MEANT to butt against another is drawn past its own
 /// measure, so the two lap instead of meeting exactly. A sixty-fourth at each
 /// end. See the wall segment in `body_of`.

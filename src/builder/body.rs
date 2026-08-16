@@ -433,6 +433,18 @@ pub(crate) fn body_of(kind: &PartKind, repaint: Option<(&str, f32)>) -> Vec<Slab
             )]
         }
         PartKind::Floor(w, d) => vec![slab(0.0, 0.0625, 0.0, *w, 0.125, *d, "wood", 0.5)],
+        // The same slab a floor is, because that is what a ceiling is - the difference
+        // between them is which side of it a villager stands on, and what it will raise.
+        PartKind::Ceiling { long, deep, .. } => vec![slab(
+            0.0,
+            FLOOR_THICK * 0.5,
+            0.0,
+            *long,
+            FLOOR_THICK,
+            *deep,
+            "wood",
+            0.5,
+        )],
         PartKind::Foundation(w, d, high) => {
             let high = on_the_lattice(*high).max(ATOM);
             vec![slab(0.0, high * 0.5, 0.0, *w, high, *d, "stone", 0.55)]

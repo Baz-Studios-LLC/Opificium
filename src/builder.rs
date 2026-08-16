@@ -647,6 +647,13 @@ pub fn part_name(kind: &PartKind) -> String {
         PartKind::HipRoofRun => "hiproofrun".to_string(),
         PartKind::RoofPlan(w, d) => format!("roofplan-{w}x{d}"),
         PartKind::Floor(w, d) => format!("floor-{w}x{d}"),
+        PartKind::Ceiling { long, deep, hipped } => {
+            if *hipped {
+                format!("ceiling-{long}x{deep}xh")
+            } else {
+                format!("ceiling-{long}x{deep}")
+            }
+        }
         PartKind::Foundation(w, d, high) => format!("foundation-{w}x{d}x{high}"),
         PartKind::Roof(w, d) => format!("roof-{w}x{d}"),
         PartKind::TrimRun { .. }
@@ -813,6 +820,11 @@ pub fn kind_from_name(name: &str) -> Option<PartKind> {
     }
     if let Some(rest) = name.strip_prefix("floor-") {
         return sides_of(rest).map(|(w, d)| PartKind::Floor(w, d));
+    }
+    if let Some(rest) = name.strip_prefix("ceiling-") {
+        let hipped = rest.ends_with("xh");
+        let rest = rest.strip_suffix("xh").unwrap_or(rest);
+        return sides_of(rest).map(|(long, deep)| PartKind::Ceiling { long, deep, hipped });
     }
     if let Some(rest) = name.strip_prefix("foundation-") {
         // Three numbers now. A pad from before it could be raised opens at the
