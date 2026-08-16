@@ -172,9 +172,7 @@ pub(crate) fn is_structure(kind: &PartKind) -> bool {
         PartKind::Wall { long: _, .. }
             | PartKind::Seg { .. }
             | PartKind::Floor(..)
-            | PartKind::FloorRun
             | PartKind::Foundation(..)
-            | PartKind::FoundationRun
             | PartKind::Roof(..)
             | PartKind::RoofRun
             | PartKind::Trim { .. }

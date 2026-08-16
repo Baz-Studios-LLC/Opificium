@@ -100,16 +100,6 @@ pub(crate) fn body_of(kind: &PartKind, repaint: Option<(&str, f32)>) -> Vec<Slab
         cut: Vec2::ZERO,
     };
     let mut slabs = match kind {
-        PartKind::WallRun => vec![slab(
-            0.0,
-            WALL_HIGH * 0.5,
-            0.0,
-            0.25,
-            WALL_HIGH,
-            WALL_THICK,
-            "wood",
-            0.7,
-        )],
         // The wall that frames itself. See `PartKind::Framed`.
         //
         // Everything is worked out in whole atoms from the left end and turned
@@ -443,13 +433,9 @@ pub(crate) fn body_of(kind: &PartKind, repaint: Option<(&str, f32)>) -> Vec<Slab
             )]
         }
         PartKind::Floor(w, d) => vec![slab(0.0, 0.0625, 0.0, *w, 0.125, *d, "wood", 0.5)],
-        PartKind::FloorRun => vec![slab(0.0, 0.0625, 0.0, 0.25, 0.125, 0.25, "wood", 0.5)],
         PartKind::Foundation(w, d, high) => {
             let high = on_the_lattice(*high).max(ATOM);
             vec![slab(0.0, high * 0.5, 0.0, *w, high, *d, "stone", 0.55)]
-        }
-        PartKind::FoundationRun => {
-            vec![slab(0.0, 0.1875, 0.0, 0.25, 0.375, 0.25, "stone", 0.55)]
         }
         PartKind::Roof(w, d) => vec![slab(0.0, 0.0625, 0.0, *w, 0.125, *d, "earth", 0.4)],
         PartKind::RoofRun => vec![slab(0.0, 0.0625, 0.0, 0.25, 0.125, 0.25, "earth", 0.4)],

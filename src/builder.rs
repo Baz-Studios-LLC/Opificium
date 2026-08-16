@@ -649,14 +649,11 @@ pub fn part_name(kind: &PartKind) -> String {
         PartKind::Floor(w, d) => format!("floor-{w}x{d}"),
         PartKind::Foundation(w, d, high) => format!("foundation-{w}x{d}x{high}"),
         PartKind::Roof(w, d) => format!("roof-{w}x{d}"),
-        PartKind::WallRun
-        | PartKind::TrimRun { .. }
+        PartKind::TrimRun { .. }
         | PartKind::SegRun { .. }
         | PartKind::GableRun
         | PartKind::RidgeRun
         | PartKind::GableRoofRun
-        | PartKind::FloorRun
-        | PartKind::FoundationRun
         | PartKind::RoofRun => "run".to_string(),
         PartKind::Prop(name) => format!("prop:{name}"),
         PartKind::Widget(name) => format!("widget:{name}"),

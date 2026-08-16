@@ -213,7 +213,6 @@ pub enum PartKind {
     /// The stretch tools: anchored with one click, drawn to size, set
     /// with the next. They exist only in the hand - what they place are
     /// the plain kinds above at the drawn size.
-    WallRun,
     TrimRun {
         stone: bool,
     },
@@ -233,8 +232,6 @@ pub enum PartKind {
     /// same roof with its ends hipped in rather than closed by a gable.
     HipRoof(f32, f32, f32, f32),
     HipRoofRun,
-    FloorRun,
-    FoundationRun,
     RoofRun,
     Prop(&'static str),
     Widget(&'static str),
@@ -244,18 +241,13 @@ impl PartKind {
     /// The runs stretch along one axis; the rect runs stretch two.
     pub fn run_axes(&self) -> Option<u8> {
         match self {
-            PartKind::WallRun
-            | PartKind::TrimRun { .. }
+            PartKind::TrimRun { .. }
             | PartKind::RailRun { .. }
             | PartKind::SegRun { .. }
             | PartKind::GableRun
             | PartKind::RidgeRun
             | PartKind::BeamRun => Some(1),
-            PartKind::FloorRun
-            | PartKind::FoundationRun
-            | PartKind::RoofRun
-            | PartKind::GableRoofRun
-            | PartKind::HipRoofRun => Some(2),
+            PartKind::RoofRun | PartKind::GableRoofRun | PartKind::HipRoofRun => Some(2),
             _ => None,
         }
     }
@@ -263,7 +255,6 @@ impl PartKind {
     /// What a run becomes at the drawn size.
     pub fn run_made(&self, w: f32, d: f32) -> PartKind {
         match self {
-            PartKind::WallRun => PartKind::wall(w),
             PartKind::TrimRun { stone } => PartKind::Trim {
                 long: w,
                 stone: *stone,
@@ -285,8 +276,6 @@ impl PartKind {
                 high: *high,
                 lift: *lift,
             },
-            PartKind::FloorRun => PartKind::Floor(w, d),
-            PartKind::FoundationRun => PartKind::Foundation(w, d, STEP_UP),
             PartKind::RoofRun => PartKind::Roof(w, d),
             other => *other,
         }
@@ -323,14 +312,12 @@ pub const STRUCTURE: &[CatalogEntry] = &[
     structure("DOOR", PartKind::Prop("door"), "walls"),
     structure("DOOR, DOUBLE", PartKind::Prop("door-double"), "walls"),
     structure("DOORWAY", PartKind::Prop("doorway"), "walls"),
-    structure("FLOOR, 2M", PartKind::Floor(2.0, 2.0), "footing"),
-    structure("FLOOR, STRETCH", PartKind::FloorRun, "footing"),
+    structure("FLOOR", PartKind::Floor(2.0, 2.0), "footing"),
     structure(
-        "FOUNDATION, 2M",
+        "FOUNDATION",
         PartKind::Foundation(2.0, 2.0, STEP_UP),
         "footing",
     ),
-    structure("FOUNDATION, STRETCH", PartKind::FoundationRun, "footing"),
     structure("GABLE, STRETCH", PartKind::GableRun, "roof"),
     structure(
         "HEADER, STRETCH",
@@ -392,7 +379,7 @@ pub const STRUCTURE: &[CatalogEntry] = &[
     ),
     structure("TRIM, STRETCH", PartKind::TrimRun { stone: false }, "walls"),
     structure(
-        "WALL, 2M",
+        "WALL",
         PartKind::Wall {
             long: 2.0,
             high: WALL_HIGH,
@@ -431,7 +418,6 @@ pub const STRUCTURE: &[CatalogEntry] = &[
         },
         "walls",
     ),
-    structure("WALL, STRETCH", PartKind::WallRun, "walls"),
     structure("WINDOW", PartKind::Prop("window"), "walls"),
 ];
 

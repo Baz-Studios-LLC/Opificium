@@ -154,7 +154,7 @@ fn a_footing_and_a_flight_meet_off_the_shelf() {
     };
     let footing = STRUCTURE
         .iter()
-        .find(|entry| entry.label == "FOUNDATION, 2M")
+        .find(|entry| entry.label == "FOUNDATION")
         .map(|entry| high_of(&entry.kind))
         .expect("the shelf has a footing");
     // A flight's treads, which is what a footing has to match - not its
@@ -173,12 +173,6 @@ fn a_footing_and_a_flight_meet_off_the_shelf() {
     assert!(
         (footing - flight).abs() < 1e-5,
         "a footing stands {footing} and a flight climbs {flight}"
-    );
-    // And a drawn-out footing agrees with the one that comes ready-made.
-    let drawn = high_of(&PartKind::FoundationRun.run_made(2.0, 2.0));
-    assert!(
-        (drawn - footing).abs() < 1e-5,
-        "the stretch one stands {drawn}"
     );
 }
 
