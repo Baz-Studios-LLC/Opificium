@@ -1691,6 +1691,104 @@ mod gables {
         }
     }
 
+    /// Every stud's head meets the rake it stands under, both shoulders.
+    ///
+    /// Brett, with a picture of the gap: "the vert pieces don't go all the way up, we can
+    /// make angles now so we should be able to seam it perfectly." They stopped square at
+    /// whatever the rake's underside measured over their middle, which leaves a wedge of
+    /// plaster above every stud in the gable - and the fix is the same saw the rakes are
+    /// mitred with.
+    ///
+    /// Measured off the RAKE, not off the arithmetic that made it: the underside is read
+    /// from the board that is actually there, so the two cannot drift apart.
+    #[test]
+    fn a_studs_head_meets_the_rake() {
+        for long in [6.0f32, 9.0, 12.0] {
+            for degrees in [25.0f32, ROOF_PITCH_DEGREES, 50.0] {
+                let body = body_of(
+                    &PartKind::Gable {
+                        long,
+                        pitch: degrees,
+                        framed: true,
+                    },
+                    None,
+                );
+                let upright = std::f32::consts::FRAC_PI_2;
+                // The rakes: laid at the slope's own angle, which is neither flat nor
+                // upright. One each side.
+                let rakes: Vec<&Slab> = body
+                    .iter()
+                    .filter(|slab| {
+                        slab.cant.abs() > 1e-3 && (slab.cant.abs() - upright).abs() > 1e-3
+                    })
+                    .collect();
+                assert_eq!(rakes.len(), 2, "a framed gable has two rakes");
+                // Where a rake's underside stands at a given x, off the board itself.
+                let underside = |x: f32| {
+                    let rake = rakes
+                        .iter()
+                        .find(|slab| (slab.at.x < 0.0) == (x < 0.0))
+                        .expect("a rake on this side");
+                    let turn = Mat2::from_angle(rake.cant);
+                    let inner =
+                        Vec2::new(rake.at.x, rake.at.y) + turn * Vec2::new(0.0, -rake.size.y * 0.5);
+                    let along = turn * Vec2::new(1.0, 0.0);
+                    inner.y + (x - inner.x) * along.y / along.x
+                };
+                // The studs: upright pieces, and the king post, which is square.
+                let studs = body.iter().filter(|slab| {
+                    slab.ramp == "wood"
+                        && ((slab.cant - upright).abs() < 1e-3
+                            || (slab.cant.abs() < 1e-3 && slab.size.y > slab.size.x))
+                });
+                let (mut seen, mut mitred) = (0, 0);
+                for stud in studs {
+                    seen += 1;
+                    if stud.cut.y.abs() > 1e-4 {
+                        mitred += 1;
+                    }
+                    // ITS HEAD: the two highest corners of the piece, whichever way it
+                    // was laid and whatever the saw took. Asking for "the top two" rather
+                    // than for a named pair is what lets the square king post and the
+                    // mitred studs be checked by one question.
+                    let turn = Mat2::from_angle(stud.cant);
+                    let half = Vec2::new(stud.size.x, stud.size.y) * 0.5;
+                    let mut corners: Vec<Vec2> = Vec::new();
+                    for sx in [-1.0f32, 1.0] {
+                        for sy in [-1.0f32, 1.0] {
+                            let run = if sx < 0.0 { stud.cut.x } else { stud.cut.y };
+                            let sawn = if (sy > 0.0 && run > 0.0) || (sy < 0.0 && run < 0.0) {
+                                run.abs()
+                            } else {
+                                0.0
+                            };
+                            corners.push(
+                                Vec2::new(stud.at.x, stud.at.y)
+                                    + turn * Vec2::new(sx * half.x - sx * sawn, sy * half.y),
+                            );
+                        }
+                    }
+                    corners.sort_by(|a, b| b.y.partial_cmp(&a.y).unwrap());
+                    for corner in &corners[..2] {
+                        let gap = underside(corner.x) - corner.y;
+                        assert!(
+                            gap.abs() < 1e-3,
+                            "a stud at x={} in a {long}m gable at {degrees} degrees leaves \
+                             {gap} between its head and the rake",
+                            stud.at.x
+                        );
+                    }
+                }
+                assert!(seen >= 3, "only {seen} studs to check in a {long}m gable");
+                assert!(
+                    mitred >= 2,
+                    "only {mitred} of the {seen} studs in a {long}m gable are cut at all - \
+                     the seam is being checked on square heads"
+                );
+            }
+        }
+    }
+
     /// The framing is the wall's framing: plaster set back, timber proud of it.
     ///
     /// Which is what makes a framed gable read as the same building as the framed wall it

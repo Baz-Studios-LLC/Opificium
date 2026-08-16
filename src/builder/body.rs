@@ -840,25 +840,68 @@ pub(crate) fn body_of(kind: &PartKind, repaint: Option<(&str, f32)>) -> Vec<Slab
                 if edge >= span {
                     break;
                 }
-                // The gable's own surface at this stud, less what the rake takes.
+                // A STUD IS CUT TO THE RAKE, both corners of its head landing on the
+                // board's underside. It used to stop square at whatever the underside
+                // measured at its middle, which leaves a wedge of plaster over every
+                // stud in the gable - Brett: "the vert pieces don't go all the way up,
+                // we can make angles now so we should be able to seam it perfectly."
+                //
+                // NOT snapped to the lattice, and it is the one thing here that is not:
+                // a rake's underside is a diagonal and lands between atoms nearly
+                // everywhere, so a stud rounded onto the lattice is a stud that has
+                // stopped meeting it. A mitre follows the timber it meets.
                 let at = (edge as f32 - span as f32 * 0.5) * ATOM;
-                let surface = high * (1.0 - (at.abs() / half).min(1.0));
-                let top = on_the_lattice(surface - under);
+                let wide = STUD_WIDE as f32 * ATOM;
+                let underside = |from_middle: f32| {
+                    high * (1.0 - (from_middle.max(0.0) / half).min(1.0)) - under
+                };
+                // Its two head corners: the one nearer the peak stands taller.
+                let tall = underside(at.abs() - wide * 0.5);
+                let short = underside(at.abs() + wide * 0.5);
                 // Nothing shorter than a stub of timber nobody would cut: out at the
                 // eaves the triangle runs out of height, and a stud an atom tall reads
                 // as a mistake rather than as framing.
-                if top - plate < ATOM * 4.0 {
+                if short - plate < ATOM * 4.0 {
                     continue;
                 }
-                body.push(slab(
+                // THE KING POST straddles the middle, where the two undersides meet
+                // over it in a V. It gets a square head just under the peak: a saw can
+                // only cut one of its shoulders here, and a post pointed on one side is
+                // a post that looks broken.
+                if at.abs() < wide * 0.5 {
+                    body.push(slab(
+                        at,
+                        (plate + short) * 0.5,
+                        0.0,
+                        wide,
+                        short - plate,
+                        WALL_THICK,
+                        "wood",
+                        0.62,
+                    ));
+                    continue;
+                }
+                // Laid along its own length and stood upright, so the saw runs across
+                // its head rather than down its side: a cut takes the END of a piece,
+                // and a stud's end is its head only once the piece is turned.
+                let mitre = tall - short;
+                body.push(canted(
                     at,
-                    (plate + top) * 0.5,
+                    (plate + tall) * 0.5,
                     0.0,
-                    STUD_WIDE as f32 * ATOM,
-                    top - plate,
+                    tall - plate,
+                    wide,
                     WALL_THICK,
                     "wood",
                     0.62,
+                    std::f32::consts::FRAC_PI_2,
+                    // Whichever shoulder is the low one: turned upright, the piece's
+                    // own top face is the shoulder facing the near eave.
+                    if at < 0.0 {
+                        Vec2::new(0.0, mitre)
+                    } else {
+                        Vec2::new(0.0, -mitre)
+                    },
                 ));
             }
             body
