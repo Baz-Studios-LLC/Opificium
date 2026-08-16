@@ -1916,20 +1916,35 @@ fn shape_of(kind: &PartKind) -> Vec<Slab> {
             // face it stands in, which is where a brace lies. Leaning would take
             // it out sideways through the bay.
             let run = knee_run(*high);
-            for way in knees.ways() {
+            let long = run * std::f32::consts::SQRT_2;
+            for (x, z) in knees.ways() {
+                // TWO FAMILIES, because the two angles a slab has turn it about
+                // different axes: CANT swings a piece within the XY face, which is
+                // where a knee reaching along X lies, and LEAN swings it about X,
+                // which is where one reaching along Z lies. A post has four sides
+                // and needs both - Brett: "Poles can have 4 sides."
+                //
+                // A canted piece is laid along its own X and a leaned one stood up
+                // along its own Y, so each is cut to length on the axis its angle
+                // will swing.
+                let laid = *x != 0.0;
                 body.push(Slab {
                     // Its foot buried in the post and its head buried under the
                     // beam, so neither joint shows a gap: a brace cut exactly to
                     // length meets both at a corner, and a corner is where the
                     // daylight gets in.
-                    at: Vec3::new(way * run * 0.5, high - run * 0.5, 0.0),
-                    size: Vec3::new(run * std::f32::consts::SQRT_2, KNEE_THICK, KNEE_THICK),
+                    at: Vec3::new(x * run * 0.5, high - run * 0.5, z * run * 0.5),
+                    size: if laid {
+                        Vec3::new(long, KNEE_THICK, KNEE_THICK)
+                    } else {
+                        Vec3::new(KNEE_THICK, long, KNEE_THICK)
+                    },
                     ramp: "wood".to_string(),
                     shade: 0.45,
                     clarity: 1.0,
                     shape: Shape::Box,
-                    lean: 0.0,
-                    cant: way * std::f32::consts::FRAC_PI_4,
+                    lean: z * std::f32::consts::FRAC_PI_4,
+                    cant: x * std::f32::consts::FRAC_PI_4,
                     cut: Vec2::ZERO,
                 });
             }

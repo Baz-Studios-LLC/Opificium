@@ -3451,20 +3451,24 @@ fn a_post_offers_and_answers_its_knees() {
         "a post is not offered its braces"
     );
     let offered = deeds_in(BRACES);
-    for knees in [Knee::Bare, Knee::One, Knee::Both] {
+    for knees in Knee::EVERY {
         assert!(
             offered.contains(&Deed::Knees(knees)),
             "the braces drawer is missing a line"
         );
     }
-    assert_eq!(offered.len(), 3, "the braces drawer offers a fourth thing");
+    assert_eq!(
+        offered.len(),
+        Knee::EVERY.len(),
+        "the braces drawer offers something that is not a way to brace a post"
+    );
     // ANSWERED: the line marks the post standing there, and no other.
-    for standing in [Knee::Bare, Knee::One, Knee::Both] {
+    for standing in Knee::EVERY {
         let post = PartKind::Pole {
             high: 2.5,
             knees: standing,
         };
-        for line in [Knee::Bare, Knee::One, Knee::Both] {
+        for line in Knee::EVERY {
             assert_eq!(
                 Deed::Knees(line).is_standing(&post, "frame", ""),
                 line == standing,
@@ -3478,7 +3482,7 @@ fn a_post_offers_and_answers_its_knees() {
 /// its height when a maker asks for a knee.
 #[test]
 fn a_knee_survives_being_saved() {
-    for knees in [Knee::Bare, Knee::One, Knee::Both] {
+    for knees in Knee::EVERY {
         let post = PartKind::Pole { high: 3.25, knees };
         let name = part_name(&post);
         assert!(
@@ -3498,24 +3502,35 @@ fn a_knee_survives_being_saved() {
     );
     // And the knees are drawn where they were asked for: one reaching the post's
     // own +X, two reaching both ways, none at all when none were wanted.
-    for (knees, wanted) in [(Knee::Bare, 0), (Knee::One, 1), (Knee::Both, 2)] {
+    for knees in Knee::EVERY {
         let body = body_of(&PartKind::Pole { high: 2.5, knees }, None);
-        let braces: Vec<&Slab> = body.iter().filter(|piece| piece.cant != 0.0).collect();
+        // BOTH FAMILIES. A knee reaching along X is CANTED within that face; one
+        // reaching along Z is LEANED into its own. Counting only the canted ones
+        // is how a post with four sides can pass a test written for two.
+        let braces: Vec<&Slab> = body
+            .iter()
+            .filter(|piece| piece.cant != 0.0 || piece.lean != 0.0)
+            .collect();
         assert_eq!(
             braces.len(),
-            wanted,
+            knees.ways().len(),
             "a post wears the wrong number of knees"
         );
-        for brace in braces {
-            // Forty-five, and reaching the way it is drawn.
+        for brace in &braces {
+            // Forty-five, on whichever axis it swings - and only one of them, or
+            // it is a brace turned two ways at once.
+            let angle = if brace.cant != 0.0 {
+                brace.cant
+            } else {
+                brace.lean
+            };
             assert!(
-                (brace.cant.abs() - std::f32::consts::FRAC_PI_4).abs() < 1e-4,
-                "a knee is not cut at forty-five"
+                brace.cant == 0.0 || brace.lean == 0.0,
+                "a knee is turned two ways at once"
             );
-            assert_eq!(
-                brace.cant.signum(),
-                brace.at.x.signum(),
-                "a knee leans away from the corner it braces"
+            assert!(
+                (angle.abs() - std::f32::consts::FRAC_PI_4).abs() < 1e-4,
+                "a knee is not cut at forty-five"
             );
             // Its head is up under the beam, not out in the middle of the post.
             assert!(
@@ -3523,7 +3538,30 @@ fn a_knee_survives_being_saved() {
                 "a knee has slid down to the foot of the post"
             );
         }
+        // AND IT REACHES THE WAY IT SAYS IT DOES. Every way the post claims to
+        // brace has exactly one knee standing out along it, leaning away from the
+        // post rather than back into it - a sign inverted on either axis puts the
+        // timber on the wrong side of the joint and nothing else notices.
+        for (x, z) in knees.ways() {
+            let found = braces
+                .iter()
+                .filter(|brace| {
+                    let (out, angle) = if *x != 0.0 {
+                        (brace.at.x, brace.cant)
+                    } else {
+                        (brace.at.z, brace.lean)
+                    };
+                    let way = if *x != 0.0 { *x } else { *z };
+                    out.signum() == way
+                        && angle.signum() == way
+                        && out.abs() > 1e-4
+                        && (if *x != 0.0 { brace.at.z } else { brace.at.x }).abs() < 1e-4
+                })
+                .count();
+            assert_eq!(found, 1, "a post is not braced the way it says it is");
+        }
     }
+
     // A post too short to brace is not braced into the ground.
     let stub = body_of(
         &PartKind::Pole {

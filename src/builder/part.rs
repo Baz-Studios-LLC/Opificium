@@ -243,25 +243,52 @@ pub const fn usual_width(what: Opening) -> i32 {
 /// wall to stop it either. The knee is what does, and it is the shape you see
 /// under every barn eave in the world.
 ///
-/// One or two, because a post at the end of a run braces the way the run goes and
-/// a post in the middle of one braces both. The single knee reaches along the
-/// post's own +X, and `flip` turns it round - the same mirror a gable's far half
-/// has always used.
+/// A post has FOUR sides and can brace on any of them: one at the end of a run,
+/// both ends in the middle of one, two adjacent where two runs meet at a corner,
+/// and all four under a crossing. Brett: "Poles can have 4 sides."
+///
+/// Six lines rather than sixteen, because a post TURNS. R swings it a quarter and
+/// `flip` mirrors it, so every one of the sixteen ways to brace a post is one of
+/// these six pointed some way round - and a drawer of sixteen lines, fifteen of
+/// which are the same six, is a drawer nobody can read.
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Knee {
     /// A bare post.
     Bare,
     One,
+    /// Both ends of a run: a post standing in the middle of one.
     Both,
+    /// Two adjacent, where two runs meet.
+    Corner,
+    Three,
+    All,
 }
 
 impl Knee {
-    /// Which ways the knees reach, along the post's own X.
-    pub fn ways(self) -> &'static [f32] {
+    /// Every way there is to brace a post. The drawer offers these and the tests
+    /// walk them, so a seventh could never be added in one place and forgotten in
+    /// the other.
+    pub const EVERY: [Knee; 6] = [
+        Knee::Bare,
+        Knee::One,
+        Knee::Both,
+        Knee::Corner,
+        Knee::Three,
+        Knee::All,
+    ];
+
+    /// Which ways the knees reach, as unit steps along the post's own X and Z.
+    ///
+    /// The single knee reaches +X, and everything else is built out from it, so a
+    /// maker who turns a post turns its bracing with it.
+    pub fn ways(self) -> &'static [(f32, f32)] {
         match self {
             Knee::Bare => &[],
-            Knee::One => &[1.0],
-            Knee::Both => &[-1.0, 1.0],
+            Knee::One => &[(1.0, 0.0)],
+            Knee::Both => &[(-1.0, 0.0), (1.0, 0.0)],
+            Knee::Corner => &[(1.0, 0.0), (0.0, 1.0)],
+            Knee::Three => &[(-1.0, 0.0), (1.0, 0.0), (0.0, 1.0)],
+            Knee::All => &[(-1.0, 0.0), (1.0, 0.0), (0.0, -1.0), (0.0, 1.0)],
         }
     }
 }

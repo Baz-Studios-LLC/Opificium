@@ -222,7 +222,10 @@ impl Deed {
             // Short, because the drawer they hang in already says BRACES.
             Deed::Knees(Knee::Bare) => "NONE",
             Deed::Knees(Knee::One) => "ONE",
-            Deed::Knees(Knee::Both) => "BOTH SIDES",
+            Deed::Knees(Knee::Both) => "BOTH ENDS",
+            Deed::Knees(Knee::Corner) => "A CORNER",
+            Deed::Knees(Knee::Three) => "THREE SIDES",
+            Deed::Knees(Knee::All) => "ALL FOUR",
             Deed::Mirror => "MIRROR",
             Deed::Frame(true) => "ADD FRAMING",
             Deed::Frame(false) => "REMOVE FRAMING",
@@ -734,10 +737,7 @@ pub(crate) fn deeds_in(group: &str) -> Vec<Deed> {
         .into_iter()
         .map(|(double, leaf)| Deed::DoorAs { double, leaf })
         .collect(),
-        BRACES => [Knee::Bare, Knee::One, Knee::Both]
-            .into_iter()
-            .map(Deed::Knees)
-            .collect(),
+        BRACES => Knee::EVERY.into_iter().map(Deed::Knees).collect(),
         ROOF_OVER => vec![
             Deed::RoofOf { hipped: false },
             Deed::RoofOf { hipped: true },

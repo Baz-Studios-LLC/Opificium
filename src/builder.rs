@@ -696,6 +696,9 @@ pub fn part_name(kind: &PartKind) -> String {
             Knee::Bare => format!("pole-{high}"),
             Knee::One => format!("pole-{high}+brace"),
             Knee::Both => format!("pole-{high}+braces"),
+            Knee::Corner => format!("pole-{high}+corner"),
+            Knee::Three => format!("pole-{high}+braces3"),
+            Knee::All => format!("pole-{high}+braces4"),
         },
         PartKind::Clock(wide) => format!("clock-{wide}"),
         PartKind::Table(long, deep) => format!("table-{long}x{deep}"),
@@ -915,13 +918,19 @@ pub fn kind_from_name(name: &str) -> Option<PartKind> {
         return rest.parse::<f32>().ok().map(PartKind::Clock);
     }
     if let Some(rest) = name.strip_prefix("pole-") {
-        let (high, knees) = match rest.strip_suffix("+braces") {
-            Some(high) => (high, Knee::Both),
-            None => match rest.strip_suffix("+brace") {
-                Some(high) => (high, Knee::One),
-                None => (rest, Knee::Bare),
-            },
-        };
+        // Longest first, or `+braces` would swallow nothing and `+brace` would
+        // never be reached. A BARE post still spells itself the way it always
+        // did, so every work already drawn opens unchanged.
+        let (high, knees) = [
+            ("+braces4", Knee::All),
+            ("+braces3", Knee::Three),
+            ("+corner", Knee::Corner),
+            ("+braces", Knee::Both),
+            ("+brace", Knee::One),
+        ]
+        .into_iter()
+        .find_map(|(said, knees)| rest.strip_suffix(said).map(|high| (high, knees)))
+        .unwrap_or((rest, Knee::Bare));
         return high
             .parse::<f32>()
             .ok()

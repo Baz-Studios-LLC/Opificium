@@ -2666,7 +2666,14 @@ fn pressing_a_brace_line_braces_the_post() {
         ))
         .id();
 
-    for knees in [Knee::Both, Knee::One, Knee::Bare] {
+    for knees in [
+        Knee::All,
+        Knee::Corner,
+        Knee::Three,
+        Knee::Both,
+        Knee::One,
+        Knee::Bare,
+    ] {
         let menu = app.world_mut().spawn(PartMenu).id();
         app.world_mut().spawn((
             MenuLine {
