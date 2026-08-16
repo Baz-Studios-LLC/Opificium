@@ -445,13 +445,33 @@ pub(crate) fn body_of(kind: &PartKind, repaint: Option<(&str, f32)>) -> Vec<Slab
             hipped,
             across,
         } => {
+            // WHICH WAY THE RIDGE RUNS decides the whole part, so it is settled first: the
+            // long side by default, the other one once a maker has pressed R.
+            let along_x = (long >= deep) != *across;
+            // THE CEILING GIVES WAY TO THE GABLES. Brett: "there's z fighting from the
+            // ceiling and the gable... The ceiling should actually shrink and give way to
+            // the gable."
+            //
+            // Both share the wall plate now, so the ceiling's last quarter-metre at each
+            // end of the ridge stood in the same atoms as the gable that lands there - two
+            // surfaces at one depth, which is what a renderer flickers over. The ceiling
+            // stops short instead, by exactly the thickness the gable will be.
+            //
+            // Only where a gable actually lands: a hipped roof has none, and slopes down
+            // all four sides onto a ceiling that should reach the walls.
+            let yield_to_gables = if *hipped { 0.0 } else { GABLE_THICK * 2.0 };
+            let (slab_x, slab_z) = if along_x {
+                ((*long - yield_to_gables).max(ATOM), *deep)
+            } else {
+                (*long, (*deep - yield_to_gables).max(ATOM))
+            };
             let mut body = vec![slab(
                 0.0,
                 FLOOR_THICK * 0.5,
                 0.0,
-                *long,
+                slab_x,
                 FLOOR_THICK,
-                *deep,
+                slab_z,
                 "bone",
                 0.8,
             )];
@@ -464,8 +484,6 @@ pub(crate) fn body_of(kind: &PartKind, repaint: Option<(&str, f32)>) -> Vec<Slab
             // AND WHICH KIND - a gable's ridge runs the whole length, a hip's stops
             // short at both ends where the slopes come in, so the two look different
             // before either is raised.
-            // The long side by default, and the other one when a maker has pressed R.
-            let along_x = (long >= deep) != *across;
             let (side, across) = if along_x {
                 (*long, *deep)
             } else {
@@ -572,7 +590,7 @@ pub(crate) fn body_of(kind: &PartKind, repaint: Option<(&str, f32)>) -> Vec<Slab
             }
             // And the two ends closed: a gable apiece, standing just
             // inside the slopes so the roof laps over them.
-            let end = 0.25;
+            let end = GABLE_THICK;
             for way in [-1.0_f32, 1.0] {
                 sides.push(ridge(
                     way * (long * 0.5 - end * 0.5),

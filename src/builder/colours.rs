@@ -707,6 +707,69 @@ mod roofing {
         assert_eq!(raised_long(6.0, 4.0, true), (4.0, 6.0));
     }
 
+    /// The ceiling stops exactly where its gables begin.
+    ///
+    /// Both sit on the wall plate, so a ceiling reaching the full length would share its
+    /// last quarter-metre with the gable that lands there - two surfaces at one depth,
+    /// which a renderer flickers over. The two measurements have to agree exactly, and
+    /// this is what says so: an overlap flickers, a gap shows daylight.
+    #[test]
+    fn a_ceiling_stops_where_its_gable_starts() {
+        let (long, deep) = (6.0, 4.0);
+        let ceiling = body_of(
+            &PartKind::Ceiling {
+                long,
+                deep,
+                hipped: false,
+                across: false,
+            },
+            None,
+        );
+        // The slab, which is the bone one - the wood is its ridge beam.
+        let slab = ceiling
+            .iter()
+            .find(|Slab { ramp, .. }| ramp == "bone")
+            .expect("its slab");
+        let ceiling_end = slab.at.x + slab.size.x * 0.5;
+
+        // Where the roof's gable will stand, read off the roof itself.
+        let roof = body_of(
+            &PartKind::GableRoof(long, deep, ROOF_OVERHANG, ROOF_PITCH_DEGREES),
+            None,
+        );
+        let gable_inner = roof
+            .iter()
+            .filter(|Slab { size, .. }| size.x <= GABLE_THICK + 1e-4)
+            .map(|Slab { at, size, .. }| at.x - size.x * 0.5)
+            .fold(f32::NEG_INFINITY, f32::max);
+
+        assert!(
+            (ceiling_end - gable_inner).abs() < 1e-4,
+            "the ceiling ends at {ceiling_end} and its gable begins at {gable_inner}: \
+             an overlap flickers, a gap shows daylight"
+        );
+
+        // A HIPPED ceiling keeps its full reach: there are no gables to give way to, and
+        // the slopes come down on all four sides onto a ceiling that should meet the walls.
+        let hipped = body_of(
+            &PartKind::Ceiling {
+                long,
+                deep,
+                hipped: true,
+                across: false,
+            },
+            None,
+        );
+        let full = hipped
+            .iter()
+            .find(|Slab { ramp, .. }| ramp == "bone")
+            .expect("its slab");
+        assert!(
+            (full.size.x - long).abs() < 1e-4,
+            "a hipped ceiling gave way to gables it will never have"
+        );
+    }
+
     /// A roof generated over a ceiling covers it, and rests ON it.
     ///
     /// The arithmetic the menu does, checked here rather than by eye: a roof whose eaves

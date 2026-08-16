@@ -44,6 +44,14 @@ pub(crate) const WALL_THICK: f32 = 0.25;
 /// it came from.
 pub(crate) const FLOOR_THICK: f32 = 0.125;
 
+/// How thick a gable end is, standing at the end of a roof.
+///
+/// A wall's thickness, because that is what a gable IS - the wall carried on up to the
+/// ridge. Named rather than written twice: the roof draws its gables this thick and the
+/// ceiling shrinks by exactly this much to make room for them, and two 0.25s that have to
+/// agree are two that will not.
+pub(crate) const GABLE_THICK: f32 = WALL_THICK;
+
 /// How far a generated roof reaches past what it covers.
 ///
 /// A hand's breadth, the same as a roof drawn out by hand starts with - the gold handles
