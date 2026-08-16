@@ -450,6 +450,99 @@ fn a_group_is_carried_as_one_thing() {
     );
 }
 
+/// Everything on the shelf takes the brush somewhere.
+///
+/// Brett: "Walls and foundations can't be painted?" Two faults under one sentence, and
+/// this test catches both.
+///
+/// A plain wall and a plain gable RETURN early out of the middle of the match, and the
+/// repaint sat at the tail of it - so they never reached the paint at all, however the
+/// brush was armed. A part that leaves by another door does not get dressed.
+///
+/// And a foundation is stone, which was simply not in the list of ramps the brush reached.
+/// Nor was a plinth, a stone rail or a stone trim.
+#[test]
+fn every_part_takes_the_brush() {
+    let mut deaf: Vec<String> = Vec::new();
+    for entry in STRUCTURE.iter().chain(FURNITURE).chain(DECOR) {
+        let kind = match entry.kind.run_axes() {
+            Some(_) => entry.kind.run_made(2.0, 2.0),
+            None => entry.kind,
+        };
+        let bare = body_of(&kind, None);
+        let painted = body_of(&kind, Some(("cloth-blue", 0.5)));
+        let took = bare
+            .iter()
+            .zip(painted.iter())
+            .filter(|(was, now)| was.ramp != now.ramp)
+            .count();
+        if took == 0 {
+            let mut wearing: Vec<String> = bare.iter().map(|slab| slab.ramp.clone()).collect();
+            wearing.sort();
+            wearing.dedup();
+            deaf.push(format!("{} - authored in {wearing:?}", part_name(&kind)));
+        }
+    }
+    assert!(
+        deaf.is_empty(),
+        "the brush cannot reach these at all:\n  {}",
+        deaf.join("\n  ")
+    );
+}
+
+/// And a part of two materials keeps the second one.
+///
+/// Which is the whole reason the brush reaches a LIST of ramps rather than everything: a
+/// half-timbered wall is timber and plaster, and the contrast between them is its entire
+/// look. Painting one a single colour is not what a maker means by painting a wall.
+#[test]
+fn a_two_toned_part_keeps_its_second_tone() {
+    for kind in [
+        PartKind::Wall {
+            long: 4.0,
+            high: WALL_HIGH,
+            framed: true,
+            openings: [None; MOST_OPENINGS],
+        },
+        PartKind::Gable {
+            long: 6.0,
+            pitch: ROOF_PITCH_DEGREES,
+            framed: true,
+        },
+        PartKind::Clock(1.0),
+    ] {
+        let painted = body_of(&kind, Some(("cloth-blue", 0.5)));
+        let (took, kept): (Vec<&Slab>, Vec<&Slab>) =
+            painted.iter().partition(|slab| slab.ramp == "cloth-blue");
+        assert!(
+            !took.is_empty() && !kept.is_empty(),
+            "{} came out all one colour: {} pieces painted, {} kept",
+            part_name(&kind),
+            took.len(),
+            kept.len()
+        );
+        assert!(
+            kept.iter().all(|slab| slab.ramp == "bone"),
+            "{} kept something that is not its plaster",
+            part_name(&kind)
+        );
+    }
+    // And a CEILING is plaster and nothing else, so the brush has to reach the one ramp
+    // it is otherwise told to leave alone.
+    let ceiling = PartKind::Ceiling {
+        long: 4.0,
+        deep: 4.0,
+        hipped: false,
+        across: false,
+    };
+    assert!(
+        body_of(&ceiling, Some(("cloth-blue", 0.5)))
+            .iter()
+            .any(|slab| slab.ramp == "cloth-blue"),
+        "a ceiling is all plaster and cannot be painted"
+    );
+}
+
 /// A post is a beam stood up: placed at a height, and pulled to another.
 ///
 /// Brett: "pole should be exactly like the beam only verticle", and then "pole, corner is

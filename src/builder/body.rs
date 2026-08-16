@@ -2,8 +2,60 @@
 
 use super::*;
 
-/// The boxes a part is made of, in its own local space, resting on y = 0.
+/// The boxes a part is made of, in its own local space, resting on y = 0 - and
+/// wearing whatever a maker has painted it.
 pub(crate) fn body_of(kind: &PartKind, repaint: Option<(&str, f32)>) -> Vec<Slab> {
+    let mut slabs = shape_of(kind);
+    // A repainted part carries its choice into everything it is MADE of - and
+    // leaves its plaster standing where the plaster is the field between something
+    // else.
+    //
+    // Applied out here, where no arm can slip past it. It used to sit at the tail
+    // of the match, and two arms return early out of the middle of it: a plain
+    // wall and a plain gable never reached the paint at all, so neither could be
+    // painted however the brush was armed. A part that leaves by another door does
+    // not get dressed. Brett: "Walls and foundations can't be painted?"
+    if let Some((ramp, shade)) = repaint {
+        let field = leaves_its_plaster(kind, &slabs);
+        for piece in &mut slabs {
+            if field && piece.ramp == PLASTER {
+                continue;
+            }
+            piece.ramp = ramp.to_string();
+            piece.shade = shade;
+        }
+    }
+    slabs
+}
+
+/// What a wall's panels, a gable's field and a clock's dial are drawn in.
+pub(crate) const PLASTER: &str = "bone";
+
+/// Whether the brush should leave this part's plaster where it is.
+///
+/// It was a LIST of ramps the brush was allowed to touch, and a list is the wrong
+/// shape for the question. Stone was missing from it, so a foundation could not be
+/// painted at all - nor a plinth, a stone rail or a stone trim - and sand was
+/// missing, so a basket could not either, and every prop drawn in plaster alone
+/// could not be painted while plaster was on the forbidden list for a reason that
+/// had nothing to do with baskets.
+///
+/// The reason is CONTRAST. A half-timbered wall is timber and plaster, a clock is
+/// a case and a dial, and painting either one a single colour is not what anybody
+/// means by painting it. So plaster stands only where there is something else for
+/// it to stand against; a part made of nothing but plaster is a part made of
+/// plaster, and the brush paints it.
+pub(crate) fn leaves_its_plaster(kind: &PartKind, slabs: &[Slab]) -> bool {
+    match kind {
+        // A ceiling is plaster seen from below and that is the whole of it. Its
+        // ridge beam is a promise about the roof it will raise rather than a
+        // material in the room, so it does not make the plaster a field.
+        PartKind::Ceiling { .. } => false,
+        _ => slabs.iter().any(|piece| piece.ramp != PLASTER),
+    }
+}
+
+fn shape_of(kind: &PartKind) -> Vec<Slab> {
     let slab = |x: f32, y: f32, z: f32, sx: f32, sy: f32, sz: f32, ramp: &str, shade: f32| Slab {
         at: Vec3::new(x, y, z),
         size: Vec3::new(sx, sy, sz),
@@ -1496,15 +1548,10 @@ pub(crate) fn body_of(kind: &PartKind, repaint: Option<(&str, f32)>) -> Vec<Slab
         // A window drawn before one had a size of its own. Read as the size it
         // was, rather than as nothing at all - a name that reads back as nothing
         // is a part that vanishes at the next respawn and never reaches a game.
-        PartKind::Prop("window") => body_of(
-            &PartKind::Window {
-                wide: WINDOW_WIDE,
-                high: ghost_band().rise,
-            },
-            // The repaint is applied once, at the tail of this function, to
-            // whatever comes back - so this asks for the shape and nothing else.
-            None,
-        ),
+        PartKind::Prop("window") => shape_of(&PartKind::Window {
+            wide: WINDOW_WIDE,
+            high: ghost_band().rise,
+        }),
         PartKind::Window { wide, high } => {
             // WHAT IT WILL BECOME, drawn from the numbers that will make it. Brett: "right
             // now the window only slides at one size, can we make it more representative of
@@ -2161,14 +2208,5 @@ pub(crate) fn body_of(kind: &PartKind, repaint: Option<(&str, f32)>) -> Vec<Slab
             ]
         }
     };
-    // A repainted part carries its choice into every structural slab.
-    if let Some((ramp, shade)) = repaint {
-        for piece in &mut slabs {
-            if piece.ramp == "wood" || piece.ramp == "earth" || piece.ramp.starts_with("cloth") {
-                piece.ramp = ramp.to_string();
-                piece.shade = shade;
-            }
-        }
-    }
     slabs
 }
