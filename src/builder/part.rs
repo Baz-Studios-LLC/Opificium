@@ -28,7 +28,17 @@ pub enum Opening {
 /// - a phase change, a save and reopen - and never reached the game, because the
 /// bake skips a name it cannot read. Every framed-wall door in every drawing was
 /// losing its leaf in silence.
-pub(crate) const PUNCHED: [&str; 3] = ["door-leaf", "door-double-leaf", "window"];
+pub(crate) const PUNCHED: [&str; 5] = [
+    "door-leaf",
+    "door-double-leaf",
+    // The barn leaves, added to the punch afterwards and not to this list - so
+    // every one in a work vanished the moment anything rebuilt from records, which
+    // undo does on every press. Brett: "there are problems when placing doors and
+    // ctrl z - even other doors disappear when undoing."
+    "barn-leaf",
+    "barn-double-leaf",
+    "window",
+];
 
 /// One opening in a framed wall: what kind, where along it, and how wide.
 ///

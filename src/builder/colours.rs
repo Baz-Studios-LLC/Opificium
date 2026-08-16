@@ -3916,3 +3916,81 @@ fn a_seat_is_the_same_on_both_sides() {
         }
     }
 }
+
+/// A BARN LEAF SURVIVES BEING REBUILT, which is what undo does.
+///
+/// Brett: "there are problems when placing doors and ctrl z - even other doors
+/// disappear when undoing." Undo despawns the whole bench and raises it again from
+/// the records, and a record whose name reads back as nothing is skipped in
+/// silence - so every barn leaf in the work went, not only the one being undone.
+///
+/// The same fault `what_the_bench_makes_it_can_also_read` was written for, on
+/// leaves added to the punch afterwards without being added to the list it guards.
+#[test]
+fn a_punched_leaf_of_every_kind_is_readable() {
+    // ASKED OF THE PUNCH ITSELF, rather than of a list somebody has to remember to
+    // extend. Every leaf `hung_leaf` can hang has to be a name the bench can read
+    // back, or it vanishes the first time anything rebuilds from records.
+    for leaf in [Leaf::Gone, Leaf::Plain, Leaf::Barn] {
+        for double in [false, true] {
+            let Some(hung) = hung_leaf(leaf, double) else {
+                continue;
+            };
+            let name = part_name(&hung);
+            assert!(
+                kind_from_name(&name) == Some(hung),
+                "{name} reads back as nothing, so every one in the work vanishes \
+                 the moment anything rebuilds from records - undo, a phase change, \
+                 a save and reopen"
+            );
+            assert!(
+                !body_of(&hung, None).is_empty(),
+                "{name} draws nothing at all"
+            );
+        }
+    }
+}
+
+/// AND SO DOES THE WALL A BARN DOOR IS PUNCHED INTO.
+///
+/// The leaf was not the only new name a barn door made. A wall spells its openings
+/// out, and writes a hole's band only when it is not the one that wall would have
+/// given it - which is exactly the case for a barn door, because a barn door is
+/// taller than a house one. If that spelling did not read back, the whole WALL
+/// would vanish on undo rather than merely its leaf.
+#[test]
+fn a_wall_holding_a_barn_door_reads_back() {
+    for double in [false, true] {
+        for framed in [false, true] {
+            let (span, tall) = door_clear(Leaf::Barn, double);
+            let mut openings = [None; MOST_OPENINGS];
+            openings[0] = Some(Hole {
+                what: Opening::Door,
+                at: 0.0,
+                wide: span,
+                dark: false,
+                high: tall,
+                lift: 0,
+            });
+            let wall = PartKind::Wall {
+                long: 6.0,
+                high: 3.0,
+                framed,
+                openings,
+            };
+            let name = part_name(&wall);
+            let read = kind_from_name(&name);
+            assert!(
+                read == Some(wall),
+                "{name} does not read back as the wall it names, so it vanishes \
+                 whenever the bench rebuilds from records"
+            );
+            // And it draws something. A wall whose solver could not fit an opening
+            // that size would be a readable name with nothing in it.
+            assert!(
+                !body_of(&wall, None).is_empty(),
+                "{name} draws nothing at all"
+            );
+        }
+    }
+}
