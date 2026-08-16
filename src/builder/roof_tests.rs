@@ -161,7 +161,7 @@ fn a_footing_and_a_flight_meet_off_the_shelf() {
     // newels, which stand a rail's height above that.
     let flight = STRUCTURE
         .iter()
-        .find(|entry| entry.label == "STAIRS, WOOD")
+        .find(|entry| entry.label == "STAIRS")
         .map(|entry| {
             body_of(&entry.kind, None)
                 .iter()

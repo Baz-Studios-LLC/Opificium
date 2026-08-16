@@ -20,8 +20,18 @@ pub(crate) enum Deed {
     TrimToRoof,
     /// Make one thing of everything chosen.
     Group,
-    /// Put the rail of a flight in the other material.
-    RailIn(bool),
+    /// What a flight is made of: its treads, and its rail.
+    ///
+    /// One deed for the pair rather than a toggle each. "Stone treads with a timber rail"
+    /// is a thing a maker pictures whole - asking them to reach it by flipping two
+    /// switches is asking them to hold the other one in their head while they press this
+    /// one.
+    StairsOf {
+        treads_stone: bool,
+        rail_stone: bool,
+    },
+    /// A rail or a trim in the other material.
+    MadeOfStone(bool),
     /// Paint the bars of this wall's windows dark, or leave them as timber.
     BarsIn(bool),
     /// Frame a wall, or take the framing off it again.
@@ -46,6 +56,26 @@ pub(crate) enum Deed {
 }
 
 impl Deed {
+    /// Whether this line describes what the part already IS, so the menu can mark it.
+    ///
+    /// One place for the question, because two menus ask it - the menu itself and every
+    /// drawer - and a drawer that marked nothing would leave a maker guessing which of
+    /// four looks their stairs are wearing.
+    fn is_standing(self, kind: &PartKind, wearing: &str) -> bool {
+        match self {
+            Deed::Nature(nature) => nature == wearing,
+            Deed::StairsOf {
+                treads_stone,
+                rail_stone,
+            } => matches!(
+                kind,
+                PartKind::Stairs { stone, rail_stone: rail, .. }
+                    if *stone == treads_stone && *rail == rail_stone
+            ),
+            _ => false,
+        }
+    }
+
     fn label(self) -> &'static str {
         match self {
             Deed::Ungroup => "UNGROUP",
@@ -57,8 +87,25 @@ impl Deed {
             Deed::Nature(_) => "FURNISHING",
             Deed::TrimToRoof => "TRIM TO THE ROOF",
             Deed::Group => "GROUP",
-            Deed::RailIn(true) => "RAIL IN STONE",
-            Deed::RailIn(false) => "RAIL IN TIMBER",
+            // Short, because the drawer they hang in already says MADE OF.
+            Deed::StairsOf {
+                treads_stone: false,
+                rail_stone: false,
+            } => "TIMBER",
+            Deed::StairsOf {
+                treads_stone: true,
+                rail_stone: true,
+            } => "STONE",
+            Deed::StairsOf {
+                treads_stone: true,
+                rail_stone: false,
+            } => "STONE, TIMBER RAIL",
+            Deed::StairsOf {
+                treads_stone: false,
+                rail_stone: true,
+            } => "TIMBER, STONE RAIL",
+            Deed::MadeOfStone(true) => "IN STONE",
+            Deed::MadeOfStone(false) => "IN TIMBER",
             Deed::BarsIn(true) => "BARS IN BLACK",
             Deed::BarsIn(false) => "BARS IN TIMBER",
             Deed::Frame(true) => "ADD FRAMING",
@@ -411,10 +458,14 @@ pub(crate) fn deeds_for(kind: &PartKind) -> Vec<Deed> {
     if let PartKind::Wall { framed, .. } = kind {
         deeds.push(Deed::Frame(!framed));
     }
-    // A flight's rail can be the other material: offered as the thing it would
-    // BECOME, so the line says what pressing it does.
-    if let PartKind::Stairs { rail_stone, .. } = kind {
-        deeds.push(Deed::RailIn(!rail_stone));
+    // A flight's materials, in a drawer of their own: four looks rather than two toggles.
+    if matches!(kind, PartKind::Stairs { .. }) {
+        deeds.push(Deed::More(MADE_OF));
+    }
+    // And the parts that are simply one material or the other, offered as the thing they
+    // would BECOME.
+    if let PartKind::Rail { stone, .. } | PartKind::Trim { stone, .. } = kind {
+        deeds.push(Deed::MadeOfStone(!stone));
     }
     // A framed wall's window bars, the same way - and only when the wall HAS a window,
     // since a line that would do nothing is worse than no line at all: it has to be tried
@@ -437,12 +488,22 @@ pub(crate) fn deeds_for(kind: &PartKind) -> Vec<Deed> {
     deeds
 }
 
+/// The drawer a flight's materials hang in.
+pub(crate) const MADE_OF: &str = "STONE OR TIMBER...";
+
 /// What the PART OF drawer holds.
 pub(crate) const PART_OF: &str = "PART OF...";
 
 pub(crate) fn deeds_in(group: &str) -> Vec<Deed> {
     match group {
         PART_OF => NATURES.iter().map(|nature| Deed::Nature(nature)).collect(),
+        MADE_OF => [(false, false), (true, true), (true, false), (false, true)]
+            .into_iter()
+            .map(|(treads_stone, rail_stone)| Deed::StairsOf {
+                treads_stone,
+                rail_stone,
+            })
+            .collect(),
         _ => Vec::new(),
     }
 }
@@ -575,6 +636,7 @@ pub(crate) fn raise_part_menu(
         at,
         part,
         &record.stage,
+        &Some(kind),
         deeds,
     );
 }
@@ -592,6 +654,7 @@ pub(crate) fn hang_a_drawer(
     line: Entity,
     part: Entity,
     wearing: &str,
+    kind: &Option<PartKind>,
     deeds: Vec<Deed>,
 ) {
     let drawer = commands
@@ -616,7 +679,9 @@ pub(crate) fn hang_a_drawer(
         ))
         .id();
     for deed in deeds {
-        let standing = matches!(deed, Deed::Nature(nature) if nature == wearing);
+        let standing = kind
+            .as_ref()
+            .is_some_and(|kind| deed.is_standing(kind, wearing));
         let row = commands
             .spawn((
                 MenuLine { deed, part },
@@ -663,6 +728,7 @@ pub(crate) fn hang_the_part_menu(
     at: Vec2,
     part: Entity,
     wearing: &str,
+    kind: &Option<PartKind>,
     deeds: Vec<Deed>,
 ) {
     let menu = commands
@@ -685,7 +751,9 @@ pub(crate) fn hang_the_part_menu(
     for deed in deeds {
         // The nature it already has is marked, so the menu answers "what is
         // this?" as well as offering to change it.
-        let standing = matches!(deed, Deed::Nature(nature) if nature == wearing);
+        let standing = kind
+            .as_ref()
+            .is_some_and(|kind| deed.is_standing(kind, wearing));
         let line = commands
             .spawn((
                 MenuLine { deed, part },
@@ -1018,21 +1086,23 @@ pub(crate) fn work_part_menu(
                 );
             }
         }
-        Some((Deed::RailIn(stone), part)) => {
+        Some((
+            Deed::StairsOf {
+                treads_stone,
+                rail_stone,
+            },
+            part,
+        )) => {
             if let Ok((_, _, mut record)) = placed.get_mut(part)
                 && let Some(PartKind::Stairs {
-                    rise,
-                    wide,
-                    stone: treads,
-                    hand,
-                    ..
+                    rise, wide, hand, ..
                 }) = kind_from_name(&record.part)
             {
                 let made = PartKind::Stairs {
                     rise,
                     wide,
-                    stone: treads,
-                    rail_stone: stone,
+                    stone: treads_stone,
+                    rail_stone,
                     hand,
                 };
                 record.part = part_name(&made);
@@ -1048,6 +1118,34 @@ pub(crate) fn work_part_menu(
                     part,
                     false,
                 );
+            }
+        }
+        // A RAIL or a TRIM is one material or the other, so it takes a line rather than a
+        // drawer: two states is a toggle, and only a flight's four looks earned a drawer.
+        Some((Deed::MadeOfStone(stone), part)) => {
+            if let Ok((_, _, mut record)) = placed.get_mut(part) {
+                let made = match kind_from_name(&record.part) {
+                    Some(PartKind::Rail { long, hand, .. }) => {
+                        Some(PartKind::Rail { long, hand, stone })
+                    }
+                    Some(PartKind::Trim { long, .. }) => Some(PartKind::Trim { long, stone }),
+                    _ => None,
+                };
+                if let Some(made) = made {
+                    record.part = part_name(&made);
+                    let copy = record.clone();
+                    commands.entity(part).despawn_related::<Children>();
+                    dress_part(
+                        &mut commands,
+                        &mut meshes,
+                        &mut materials,
+                        &palette,
+                        &made,
+                        &copy,
+                        part,
+                        false,
+                    );
+                }
             }
         }
         Some((Deed::KeepAsPiece, _)) => {
@@ -1090,9 +1188,9 @@ pub(crate) fn work_part_menu(
                 commands.entity(drawer).despawn();
             }
             if let Some(line) = pressed_line {
-                let wearing = placed
+                let (wearing, kind) = placed
                     .get(part)
-                    .map(|(_, _, record)| record.stage.clone())
+                    .map(|(_, _, record)| (record.stage.clone(), kind_from_name(&record.part)))
                     .unwrap_or_default();
                 hang_a_drawer(
                     &mut commands,
@@ -1101,6 +1199,7 @@ pub(crate) fn work_part_menu(
                     line,
                     part,
                     &wearing,
+                    &kind,
                     deeds_in(group),
                 );
             }

@@ -370,7 +370,6 @@ pub const STRUCTURE: &[CatalogEntry] = &[
     ),
     structure("POLE, CORNER", PartKind::Prop("pole"), "frame"),
     structure("RAIL", PartKind::RailRun { stone: false }, "frame"),
-    structure("RAIL, STONE", PartKind::RailRun { stone: true }, "frame"),
     structure("RIDGE", PartKind::RidgeRun, "roof"),
     structure("ROOF", PartKind::Roof(2.2, 2.2), "roof"),
     structure(
@@ -382,18 +381,7 @@ pub const STRUCTURE: &[CatalogEntry] = &[
         "walls",
     ),
     structure(
-        "STAIRS, STONE",
-        PartKind::Stairs {
-            rise: STEP_UP,
-            wide: 1.25,
-            stone: true,
-            rail_stone: true,
-            hand: RAIL_HIGH,
-        },
-        "footing",
-    ),
-    structure(
-        "STAIRS, WOOD",
+        "STAIRS",
         PartKind::Stairs {
             rise: STEP_UP,
             wide: 1.25,
@@ -404,7 +392,6 @@ pub const STRUCTURE: &[CatalogEntry] = &[
         "footing",
     ),
     structure("TRIM", PartKind::TrimRun { stone: false }, "walls"),
-    structure("TRIM, STONE", PartKind::TrimRun { stone: true }, "walls"),
     structure(
         "WALL",
         PartKind::Wall {
