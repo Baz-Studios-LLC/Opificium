@@ -224,15 +224,18 @@ pub(crate) fn body_of(kind: &PartKind, repaint: Option<(&str, f32)>) -> Vec<Slab
                     // they are the same colour.
                     let mut from = POST_WIDE;
                     for (what, hx, hw, hy, hh, _) in &holes {
-                        if *what != Opening::Window {
-                            continue;
-                        }
-                        // Only where the sill would actually reach this course.
-                        if hy - PLATE_TALL >= rail_foot + PLATE_TALL || *hy <= rail_foot {
+                        // It breaks for ANY opening it runs into - a door reaches the
+                        // ground, so a rail carried across one would lie over the doorway -
+                        // and additionally where a window's SILL lands, which is a band the
+                        // rail does not cross but must still leave to it.
+                        let crosses = rail_foot + PLATE_TALL > *hy && rail_foot < hy + hh;
+                        let sill_lands = *what == Opening::Window
+                            && hy - PLATE_TALL < rail_foot + PLATE_TALL
+                            && *hy > rail_foot;
+                        if !crosses && !sill_lands {
                             continue;
                         }
                         let jamb = jamb_of(*what);
-                        let _ = hh;
                         timber(&mut body, from, hx - jamb - from, rail_foot, PLATE_TALL);
                         from = hx + hw + jamb;
                     }

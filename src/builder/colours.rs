@@ -797,6 +797,57 @@ mod windows {
         );
     }
 
+    /// No timber crosses a doorway.
+    ///
+    /// A door reaches the ground, so every course the wall lays has to break for it - and
+    /// when the rail learned to give way to a window's SILL it stopped giving way to
+    /// anything else, and carried straight across the doorway. A double door showed it
+    /// first, being wide enough that the rail had somewhere to be seen.
+    #[test]
+    fn nothing_is_laid_across_a_doorway() {
+        for wide in [DOOR_WIDE, DOOR_WIDE * 2] {
+            let wall = PartKind::Wall {
+                long: 5.0,
+                high: WALL_HIGH,
+                framed: true,
+                openings: [
+                    Some(Hole {
+                        what: Opening::Door,
+                        at: 0.0,
+                        wide,
+                        dark: false,
+                    }),
+                    None,
+                    None,
+                    None,
+                ],
+            };
+            // The doorway's own clear span, in metres either side of the middle.
+            let half = wide as f32 * ATOM * 0.5;
+            for Slab { at, size, .. } in body_of(&wall, None) {
+                // A leaf and its furniture belong in the opening; the WALL's timbers do
+                // not. Everything the wall lays is full thickness.
+                if size.z < WALL_THICK - 1e-4 {
+                    continue;
+                }
+                let (low, high) = (at.x - size.x * 0.5, at.x + size.x * 0.5);
+                // A whole atom in, not a whisker: a brace is a rotated slab whose upright
+                // bounding box clips the jamb by a hundredth of a metre while its timber
+                // does not. A rail carried across a doorway intrudes by the whole width.
+                let bite = ATOM;
+                let inside = low < half - bite && high > -half + bite;
+                let above = at.y - size.y * 0.5 >= DOOR_HIGH as f32 * ATOM - 1e-3;
+                assert!(
+                    !inside || above,
+                    "a timber lies across a {}-atom doorway: at {:?} size {:?}",
+                    wide,
+                    at,
+                    size
+                );
+            }
+        }
+    }
+
     /// And a wall with no opening is still one plain box.
     ///
     /// The cheapest thing a wall can be, and the commonest - drawing it in pieces because
