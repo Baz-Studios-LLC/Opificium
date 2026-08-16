@@ -26,6 +26,14 @@ pub(crate) enum Deed {
     BarsIn(bool),
     /// Frame a wall, or take the framing off it again.
     Frame(bool),
+    /// Open a drawer of the menu's own, and go back out of one.
+    ///
+    /// The menu answers several different questions about a part - what it IS, what it is
+    /// made of, what may be done to it - and asking all of them at once made a list eleven
+    /// lines long where five were the same question. Brett: "the right click menu could
+    /// use sub catagories too. Like for the Part Of stuff."
+    More(&'static str),
+    Back,
     /// Keep everything chosen as a PIECE, to bring into other works.
     ///
     /// Brett: "if I could save groups that I could bring into other builds."
@@ -38,10 +46,11 @@ impl Deed {
     fn label(self) -> &'static str {
         match self {
             Deed::Ungroup => "UNGROUP",
-            Deed::Nature("roof") => "PART OF THE ROOF",
-            Deed::Nature("walls") => "PART OF THE WALLS",
-            Deed::Nature("frame") => "PART OF THE FRAME",
-            Deed::Nature("footing") => "PART OF THE FOOTING",
+            // Short, because the drawer they hang in is already called PART OF.
+            Deed::Nature("roof") => "THE ROOF",
+            Deed::Nature("walls") => "THE WALLS",
+            Deed::Nature("frame") => "THE FRAME",
+            Deed::Nature("footing") => "THE FOOTING",
             Deed::Nature(_) => "FURNISHING",
             Deed::TrimToRoof => "TRIM TO THE ROOF",
             Deed::Group => "GROUP",
@@ -51,6 +60,8 @@ impl Deed {
             Deed::BarsIn(false) => "BARS IN TIMBER",
             Deed::Frame(true) => "ADD FRAMING",
             Deed::Frame(false) => "REMOVE FRAMING",
+            Deed::More(group) => group,
+            Deed::Back => "  BACK",
             Deed::KeepAsPiece => "KEEP AS A PIECE",
         }
     }
@@ -388,8 +399,21 @@ pub(crate) fn deeds_for(kind: &PartKind) -> Vec<Deed> {
     {
         deeds.push(Deed::BarsIn(!window.dark));
     }
-    // Every part can be told what it is; only some can be broken up.
-    deeds.extend(NATURES.iter().map(|nature| Deed::Nature(nature)));
+    // Every part can be told what it is - behind one line, since it is one question with
+    // five answers and it was taking five of the menu's lines to ask it.
+    deeds.push(Deed::More(PART_OF));
+    deeds
+}
+
+/// What the PART OF drawer holds: the natures, and the way back out.
+pub(crate) const PART_OF: &str = "PART OF...";
+
+pub(crate) fn deeds_in(group: &str) -> Vec<Deed> {
+    let mut deeds: Vec<Deed> = match group {
+        PART_OF => NATURES.iter().map(|nature| Deed::Nature(nature)).collect(),
+        _ => Vec::new(),
+    };
+    deeds.push(Deed::Back);
     deeds
 }
 
@@ -397,7 +421,7 @@ pub(crate) fn deeds_for(kind: &PartKind) -> Vec<Deed> {
 /// where it is read - keeping a second copy up here only invited the two to
 /// disagree.
 #[derive(Component)]
-pub(crate) struct PartMenu;
+pub(crate) struct PartMenu(pub(crate) Vec2);
 
 /// One line of it.
 #[derive(Component)]
@@ -506,9 +530,35 @@ pub(crate) fn raise_part_menu(
         return;
     };
 
+    hang_the_part_menu(
+        &mut commands,
+        &fonts,
+        &palette,
+        at,
+        part,
+        &record.stage,
+        deeds,
+    );
+}
+
+/// Hangs the menu at a point, with these lines on it.
+///
+/// Its own function because the menu is hung TWICE: once when a maker right-clicks a
+/// part, and again when they open one of its drawers - and a drawer that drew itself a
+/// second way would be a second menu that happened to look similar.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn hang_the_part_menu(
+    commands: &mut Commands,
+    fonts: &Fonts,
+    palette: &Palette,
+    at: Vec2,
+    part: Entity,
+    wearing: &str,
+    deeds: Vec<Deed>,
+) {
     let menu = commands
         .spawn((
-            PartMenu,
+            PartMenu(at),
             Node {
                 position_type: PositionType::Absolute,
                 left: Val::Px(at.x),
@@ -523,7 +573,6 @@ pub(crate) fn raise_part_menu(
             GlobalZIndex(60),
         ))
         .id();
-    let wearing = record.stage.clone();
     for deed in deeds {
         // The nature it already has is marked, so the menu answers "what is
         // this?" as well as offering to change it.
@@ -565,6 +614,7 @@ pub(crate) fn raise_part_menu(
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn work_part_menu(
     mut commands: Commands,
+    fonts: Res<Fonts>,
     keys: Res<ButtonInput<KeyCode>>,
     buttons: Res<ButtonInput<MouseButton>>,
     palette: Res<Palette>,
@@ -574,7 +624,7 @@ pub(crate) fn work_part_menu(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut lines: Query<(&MenuLine, &Interaction, &mut BackgroundColor)>,
-    menus: Query<Entity, With<PartMenu>>,
+    menus: Query<(Entity, &PartMenu)>,
     mut placed: Query<(Entity, &mut Transform, &mut Placed), Without<Ghost>>,
 ) {
     if menus.is_empty() {
@@ -840,11 +890,66 @@ pub(crate) fn work_part_menu(
                 record.stage = nature.to_string();
             }
         }
+        // A DRAWER is not a deed done to the part: it re-hangs the menu where it stands
+        // showing that drawer's lines, and the part is untouched. Both arms return rather
+        // than falling through to the teardown below, which closes the menu on anything
+        // that WAS done.
+        Some((Deed::More(group), part)) => {
+            rehang(
+                &mut commands,
+                &fonts,
+                &palette,
+                &menus,
+                &placed,
+                part,
+                deeds_in(group),
+            );
+            return;
+        }
+        Some((Deed::Back, part)) => {
+            let out = placed
+                .get(part)
+                .ok()
+                .and_then(|(_, _, record)| kind_from_name(&record.part))
+                .map(|kind| deeds_for(&kind))
+                .unwrap_or_default();
+            rehang(&mut commands, &fonts, &palette, &menus, &placed, part, out);
+            return;
+        }
         None => {}
     }
-    for menu in &menus {
+    for (menu, _) in &menus {
         commands.entity(menu).despawn();
     }
+}
+
+/// Puts the menu up again where it already stands, with different lines on it.
+///
+/// The corner comes from the menu itself rather than from the cursor, so opening a drawer
+/// does not walk the menu across the screen a few pixels at a time.
+#[allow(clippy::too_many_arguments)]
+fn rehang(
+    commands: &mut Commands,
+    fonts: &Fonts,
+    palette: &Palette,
+    menus: &Query<(Entity, &PartMenu)>,
+    placed: &Query<(Entity, &mut Transform, &mut Placed), Without<Ghost>>,
+    part: Entity,
+    lines: Vec<Deed>,
+) {
+    let at = menus
+        .iter()
+        .next()
+        .map(|(_, menu)| menu.0)
+        .unwrap_or(Vec2::ZERO);
+    let wearing = placed
+        .get(part)
+        .map(|(_, _, record)| record.stage.clone())
+        .unwrap_or_default();
+    for (menu, _) in menus {
+        commands.entity(menu).despawn();
+    }
+    hang_the_part_menu(commands, fonts, palette, at, part, &wearing, lines);
 }
 
 /// Breaks a made part into the parts it is made of, standing exactly where its

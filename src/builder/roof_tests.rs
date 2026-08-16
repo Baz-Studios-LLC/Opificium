@@ -1462,6 +1462,7 @@ fn naming_a_nature_leaves_the_body_alone() {
     // The menu can keep a piece now, and a piece needs somewhere to wait.
     app.init_resource::<PieceKept>();
     app.init_resource::<PieceWantsAName>();
+    app.init_resource::<crate::look::Fonts>();
     app.add_systems(Update, work_part_menu);
 
     let trimmed = "beam-6.375x0.375x0.375";
@@ -1483,7 +1484,7 @@ fn naming_a_nature_leaves_the_body_alone() {
             Transform::default(),
         ))
         .id();
-    let menu = app.world_mut().spawn(PartMenu).id();
+    let menu = app.world_mut().spawn(PartMenu(Vec2::ZERO)).id();
     app.world_mut().spawn((
         MenuLine {
             deed: Deed::Nature("roof"),
@@ -1977,12 +1978,20 @@ fn a_roof_comes_apart_into_parts_that_exist() {
         },
         PartKind::GableRoof(6.0, 4.0, 0.25, 30.0),
     ] {
+        // Every part can still be told what it is - one drawer deeper now, since five
+        // lines asking one question were five of the menu's eleven.
+        assert!(
+            deeds_for(&kind).contains(&Deed::More(PART_OF)),
+            "a part was not offered the PART OF drawer at all"
+        );
         for nature in NATURES {
             assert!(
-                deeds_for(&kind).contains(&Deed::Nature(nature)),
-                "{nature} is not on offer for every part"
+                deeds_in(PART_OF).contains(&Deed::Nature(nature)),
+                "{nature} is not on offer inside the drawer"
             );
         }
+        // And the way back out, or the drawer is a room with no door.
+        assert!(deeds_in(PART_OF).contains(&Deed::Back));
     }
 }
 

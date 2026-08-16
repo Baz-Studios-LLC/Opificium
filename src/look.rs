@@ -245,7 +245,11 @@ pub fn scroll_panes(
 pub struct OverPane(pub bool);
 
 /// Display and body faces, the game's own.
-#[derive(Resource)]
+///
+/// `Default` is two handles to nothing, which is meaningless on a bench and exactly right
+/// in a headless test: a system that hangs a menu wants the resource to EXIST, and a test
+/// that never draws a glyph does not care which face it would have used.
+#[derive(Resource, Default)]
 pub struct Fonts {
     pub display: Handle<Font>,
     pub text: Handle<Font>,
