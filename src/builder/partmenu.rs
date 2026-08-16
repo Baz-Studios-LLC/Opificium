@@ -477,11 +477,7 @@ pub(crate) fn deeds_for(kind: &PartKind) -> Vec<Deed> {
     // A framed wall's window bars, the same way - and only when the wall HAS a window,
     // since a line that would do nothing is worse than no line at all: it has to be tried
     // before a maker learns it is nothing.
-    if let PartKind::Wall {
-        framed: true,
-        openings,
-        ..
-    } = kind
+    if let PartKind::Wall { openings, .. } = kind
         && let Some(window) = openings
             .iter()
             .flatten()
@@ -1081,7 +1077,7 @@ pub(crate) fn work_part_menu(
         Some((Deed::BarsIn(dark), part)) => {
             if let Ok((_, _, mut record)) = placed.get_mut(part)
                 && let Some(PartKind::Wall {
-                    framed: true,
+                    framed,
                     long,
                     high,
                     mut openings,
@@ -1097,7 +1093,7 @@ pub(crate) fn work_part_menu(
                 let made = PartKind::Wall {
                     long,
                     high,
-                    framed: true,
+                    framed,
                     openings,
                 };
                 record.part = part_name(&made);

@@ -202,7 +202,11 @@ pub(crate) fn body_of(kind: &PartKind, repaint: Option<(&str, f32)>) -> Vec<Slab
                     // Over the opening, and under it - a door reaches the ground and has
                     // no apron, a window has both.
                     plaster(&mut body, hx - jamb, hw + jamb * 2, hy + hh, tall - hy - hh);
-                    plaster(&mut body, hx - jamb, hw + jamb * 2, 0, *hy);
+                    // Stopping a plate's depth short, where the sill will stand.
+                    plaster(&mut body, hx - jamb, hw + jamb * 2, 0, hy - PLATE_TALL);
+                    // And the jambs' own columns beside the sill, which it does not cover.
+                    plaster(&mut body, hx - jamb, jamb, hy - PLATE_TALL, PLATE_TALL);
+                    plaster(&mut body, hx + hw, jamb, hy - PLATE_TALL, PLATE_TALL);
                     from = hx + hw + jamb;
                 }
                 plaster(&mut body, from, span - from, 0, tall);
@@ -249,14 +253,20 @@ pub(crate) fn body_of(kind: &PartKind, repaint: Option<(&str, f32)>) -> Vec<Slab
                 // leaving a strip of nothing over it. Where the opening reaches
                 // the plate there is nothing left to fill and no lintel: a
                 // window has the plate itself over it.
+                // ONLY IN A FRAMED WALL. A lintel fills between the opening's head and
+                // the head PLATE, and a plain wall has no plate - so what it filled there
+                // was ordinary wall, drawn a second time in the same atoms the plaster
+                // already occupies. That is the z-fighting over a plain wall's window.
                 let over = (tall - PLATE_TALL) - (hy + hh);
-                if over > 0 {
+                if *framed && over > 0 {
                     timber(&mut body, *hx, *hw, hy + hh, over);
                 }
                 if *what == Opening::Window {
                     // A sill only where the rail is not already under it, for
-                    // the same reason as the lintel above.
-                    if *hy > high_foot {
+                    // the same reason as the lintel above - and in a plain wall the
+                    // plaster stops short to leave room for it, so it is the one timber
+                    // under a plain window rather than a second skin over the first.
+                    if !*framed || *hy > high_foot {
                         timber(&mut body, *hx, *hw, hy - PLATE_TALL, PLATE_TALL);
                     }
 
