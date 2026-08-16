@@ -439,16 +439,60 @@ pub(crate) fn body_of(kind: &PartKind, repaint: Option<(&str, f32)>) -> Vec<Slab
         // In LIGHT BONE rather than the floor's wood: it is plaster seen from underneath,
         // and on the bench it is the one thing that tells a ceiling from a floor at a
         // glance when both are lying flat in a half-built room.
-        PartKind::Ceiling { long, deep, .. } => vec![slab(
-            0.0,
-            FLOOR_THICK * 0.5,
-            0.0,
-            *long,
-            FLOOR_THICK,
-            *deep,
-            "bone",
-            0.8,
-        )],
+        PartKind::Ceiling { long, deep, hipped } => {
+            let mut body = vec![slab(
+                0.0,
+                FLOOR_THICK * 0.5,
+                0.0,
+                *long,
+                FLOOR_THICK,
+                *deep,
+                "bone",
+                0.8,
+            )];
+            // THE RIDGE IT WILL RAISE, laid on top where a maker can see it. Brett: "A
+            // ceiling should have a ridge beam so you know how the roof will generate."
+            //
+            // It answers both questions a ceiling cannot otherwise be asked. WHICH WAY -
+            // the ridge runs the long side, and on a ceiling dragged deeper than it is
+            // long the beam swings a quarter, which is exactly what the roof will do.
+            // AND WHICH KIND - a gable's ridge runs the whole length, a hip's stops
+            // short at both ends where the slopes come in, so the two look different
+            // before either is raised.
+            let along_x = long >= deep;
+            let (side, across) = if along_x {
+                (*long, *deep)
+            } else {
+                (*deep, *long)
+            };
+            // Worked out the way `HipRoof` works it out, so the beam is a promise rather
+            // than an impression.
+            let ridge = if *hipped {
+                let half_side = side * 0.5 + ROOF_OVERHANG;
+                let half_across = across * 0.5 + ROOF_OVERHANG;
+                let run = on_the_lattice(half_side.min(half_across) * 0.5).max(ATOM);
+                ((half_side - run) * 2.0).max(ATOM)
+            } else {
+                side
+            };
+            let thick = ATOM * 2.0;
+            let (sx, sz) = if along_x {
+                (ridge, thick)
+            } else {
+                (thick, ridge)
+            };
+            body.push(slab(
+                0.0,
+                FLOOR_THICK + thick * 0.5,
+                0.0,
+                sx,
+                thick,
+                sz,
+                "wood",
+                0.45,
+            ));
+            body
+        }
         PartKind::Foundation(w, d, high) => {
             let high = on_the_lattice(*high).max(ATOM);
             vec![slab(0.0, high * 0.5, 0.0, *w, high, *d, "stone", 0.55)]

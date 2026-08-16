@@ -609,6 +609,49 @@ mod roofing {
         assert!(crate::builder::is_structure(&PartKind::Floor(2.0, 2.0)));
     }
 
+    /// The ridge drawn on a ceiling says which way, and which kind.
+    ///
+    /// It is the only thing telling a maker what GENERATE ROOF will do before they press
+    /// it, so a beam pointing the wrong way would be worse than none - they would trust it.
+    #[test]
+    fn a_ceilings_ridge_shows_what_it_will_raise() {
+        // The beam is whatever the ceiling draws that is not the slab itself.
+        let ridge_of = |long: f32, deep: f32, hipped: bool| {
+            let body = body_of(&PartKind::Ceiling { long, deep, hipped }, None);
+            let beam = body
+                .iter()
+                .find(|Slab { ramp, .. }| ramp == "wood")
+                .expect("a ceiling draws its ridge");
+            (beam.size.x, beam.size.z)
+        };
+
+        // A long ceiling: the ridge runs its length, along X.
+        let (x, z) = ridge_of(6.0, 4.0, false);
+        assert!(
+            (x - 6.0).abs() < 1e-4,
+            "a gable ridge is not the full length"
+        );
+        assert!(z < x, "the ridge is drawn across the building");
+
+        // A DEEP one: the same beam, swung a quarter, exactly as the roof will be.
+        let (x, z) = ridge_of(4.0, 6.0, false);
+        assert!(
+            (z - 6.0).abs() < 1e-4,
+            "the ridge did not swing with the shape"
+        );
+        assert!(x < z);
+
+        // HIPPED: shorter than the building, because the slopes come in at both ends.
+        let (gable, _) = ridge_of(6.0, 4.0, false);
+        let (hip, _) = ridge_of(6.0, 4.0, true);
+        assert!(
+            hip < gable,
+            "a hipped ridge {hip} is not shorter than a gable's {gable}, so the two \
+             ceilings look the same"
+        );
+        assert!(hip > 0.0, "a hipped ridge vanished");
+    }
+
     /// A roof generated over a ceiling covers it, and rests ON it.
     ///
     /// The arithmetic the menu does, checked here rather than by eye: a roof whose eaves
