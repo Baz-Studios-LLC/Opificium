@@ -272,6 +272,7 @@ file described here.
 | `data/palette.json` | the game      | the colour ramps the bench paints with            |
 | `data/kinds.json`   | either        | what a finished drawing may be baked AS           |
 | `data/widgets.json` | either        | the marks the bench may place, and their colours  |
+| `data/materials.json` | either      | what parts may be BUILT of - wood, stone, clay    |
 | `templates/`        | you           | starting shapes to draw from                      |
 | `out/buildings/`    | the bench     | saved drawings, `.baz` - **the source of truth**  |
 | `out/baked/`        | the bench     | baked output, only if `install` is set empty      |
@@ -295,6 +296,22 @@ offers only what is listed, and a word it is given is passed through untouched:
 {{ "format": 1, "kinds": [ {{ "word": "house" }}, {{ "word": "townhall", "label": "TOWN HALL" }} ] }}
 {{ "format": 1, "marks": [ {{ "mark": "door", "ramp": "cloth-green", "shade": 0.6 }} ] }}
 ```
+
+`materials.json` is the same kind of vocabulary, for what a part is BUILT of:
+
+```json
+{{ "format": 1, "materials": ["wood", "stone", "clay", "thatch"] }}
+```
+
+A maker sets it on a part from that part's own right-click menu, under MADE OF, and
+adds words this file does not have with `+ ANOTHER`. Leave the file out and the bench
+offers wood, stone and clay; write one and it offers exactly what you wrote.
+
+**A MATERIAL IS NOT A COLOUR.** `rgb` and `cloth` on a baked box are what a maker
+PAINTED. `material` is what the thing is BUILT of, and only one of those two should
+cost your game anything to gather. A box with no `material` is one nobody has spoken
+for - absent is not `wood`, and what an unspoken part costs is your decision rather
+than one this bench made quietly on your behalf.
 
 **These are contracts, not data.** The game matches these words against its own
 code. A word the game does not understand costs whatever it was attached to, and
@@ -371,6 +388,13 @@ running the bake first, and committing it means reviewing generated JSON.
 "#
     );
     let path = root.join("README.md");
+    // ONLY WHEN IT HAS CHANGED. This runs on every open, so the note keeps up with a bench
+    // that has learned to write new files - Brett: "it could be updated with updates too."
+    // Rewriting it unconditionally would touch a file in the game's repository every single
+    // launch, and a maker would find their working tree dirty for nothing.
+    if std::fs::read_to_string(&path).is_ok_and(|had| had == word) {
+        return Ok(());
+    }
     std::fs::write(&path, word).map_err(|why| format!("{}: {why}", path.display()))
 }
 
@@ -685,6 +709,13 @@ pub fn a_kept_word(word: &str) -> &'static str {
 pub fn open(root: &Path) -> Result<Project, String> {
     let project = Project::read(root)?;
     project.prepare();
+    // THE NOTE, brought up to date. It used to be written once when the folder was made
+    // and never again, so a project started six versions ago described a bench that no
+    // longer existed - no models, no materials, no word about either. It is generated,
+    // says so at the top, and is worth exactly as much as it is current.
+    if let Err(why) = write_the_word(&project.root) {
+        warn!("could not bring {}'s note up to date: {why}", project.name);
+    }
     remember(&project.root);
     *CURRENT.write().unwrap() = Some(project.clone());
     Ok(project)
