@@ -1,51 +1,50 @@
-## A terrain bench: ground, brought to the bench and shaped
+## One wall, and a menu with drawers
 
-A fourth bench, for shaping the ground a game's world is made of. **THE TERRAIN**,
-in the rail under the rig.
+**⚠ SAVED BUILDINGS LOSE THEIR WALLS.** A wall is spelled differently now, and the
+bench skips a part it cannot read — so a `.baz` from before this opens with
+everything but its walls. Nothing crashes and nothing else is lost, but a building
+you care about is worth rebuilding rather than reopening. The bench is pre-alpha and
+this was the moment to take the cost.
 
-**A world is not a project.** The other benches work on one game's authored content
-and are pointed at it when the app opens. This one is a tool you bring ground to,
-the way the kiln takes an image — so it opens a world from its own shelf, with
-**OPEN A WORLD…**, and any folder holding a `heightmap.png` will do, whoever's it is.
-The last one is remembered. A project may *name* its world in `opificium.json` under
-`"world"`, which saves a walk across the disk and nothing more.
+**A wall is one part now, framed or not.** A half-timbered wall used to be a
+different *kind of thing* from a plain one, which is why a window in one was not the
+same window as in the other. Right-click any wall for **ADD FRAMING** or **REMOVE
+FRAMING**; its length, its height and its doors all stay where they are.
 
-**Eight tools**, on the number row:
+**Every wall has a height you can pull.** Only framed ones did. It matters more than
+it sounds — see the windows.
 
-| | | |
-| --- | --- | --- |
-| `1` Raise | `2` Lower | push the ground up, pull it down |
-| `3` Smooth | `4` Flatten | average out what is there, level to where you pressed |
-| `5` Path | `6` Roughen | a flat-bottomed cut for roads, fractal detail |
-| `7` Erode | `8` Ramp | let steep ground slump, a graded run between two points |
+**Windows glaze themselves.** A pane is a SIZE, the way a bay is: one mullion makes
+two lights, two make three, and the same across. So a window gains a row of panes
+rather than three taller ones, and every window in a village is glazed alike. An
+ordinary 2.5 m cottage wall comes out two panes by two; a hall's three-metre wall
+comes out two by three, which is what a townhall's windows look like.
 
-**Erode** is thermal erosion: ground steeper than material can hold — about
-thirty-four degrees, where sand and scree settle — sheds downhill and piles at the
-foot. Nothing is created or destroyed, so a hill does not shrink, it *settles*.
-**Ramp** is clicked rather than dragged: a start, a far end, and a steady climb
-between them that can be walked and carted. A preview shows the grade against the
-ground it would cut through before any of it is cut.
+**BARS IN BLACK**, on a right-click, for the dark joinery that reads against pale
+plaster. **BARS IN TIMBER** puts them back.
 
-Undo and redo group **per stroke**, so a drag lasting two hundred frames comes back
-in one press. Ground re-meshes live under the brush, with the old mesh left standing
-until the new one lands, so nothing blinks out from underfoot. `Ctrl+S` keeps it.
+**The part menu has drawers.** Eleven lines, five of them the same question asked
+five ways. **PART OF…** is one line now, and the natures pop out to the right of it
+with the menu still standing beside them.
 
-**Shift is the camera at this bench.** Both mouse buttons are tools — the left lays
-the brush down and the right takes it back off — so the eye turns on `Shift`+drag,
-and the drafting angles move to `Shift`+`1`–`6`. Middle-drag pans and the wheel
-zooms, exactly as everywhere else.
+**One part per pick.** Setting a foundation down used to leave another stuck to the
+cursor, so the next click somewhere harmless put down a second one. The tool is put
+down when the part is — **hold shift while placing** to keep it in hand and set down
+another. A run of wall still chains while shift is held.
 
-**The whole world stands at once.** A bench is for judging the shape of one coastline
-against the one across the water, and a disc of ground following the eye about
-answers none of that.
+**The modifiers mean one thing each**, and each is what the key means in other
+programs:
 
-It paints in the open game's own ramps — water, sand, grass, foliage, stone, snow —
-by height and slope, and lays a moving sea over it with a tide, so a coastline can be
-read against the waterline it will actually have.
+| | |
+| --- | --- |
+| **shift** | more of the same — gather, paint the whole, keep placing |
+| **alt** | the other way — the dropper, and the fine 1/16 m snap |
+| **cmd** | the commands — undo, redo, copy, paste |
 
-Three files pass between a game and this bench, and `FORMATS.md` describes each:
-`heightmap.png` and `world.json` in, `edits.bin` out. Edits are stored as **signed
-height offsets** on top of generated ground, so re-rolling a game's noise or
-redrawing its map never moves hand-placed geography.
+The fine snap moved off shift to make room, since shift is read at the very moment a
+part is set down. Shift-click still gathers, but only with an empty hand: somebody
+holding a wall is placing walls, not choosing them.
 
-Nothing about the builder, the kiln or the rig changes.
+Nothing about the terrain bench, the kiln or the rig changes.
+
+See `FORMATS.md` for every file that passes between a game and the bench.
