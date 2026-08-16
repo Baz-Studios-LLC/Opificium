@@ -2780,3 +2780,76 @@ fn a_doorway_is_a_door_shaped_hole() {
         "a doorway has bars across it"
     );
 }
+
+/// The townhall's own furniture stands on the floor and holds together.
+///
+/// Brett: "Can I hve some ton hall furniture. Maybe a desk and some props, shelves with
+/// books." A desk is not a table - a table is four legs and a top, a desk is a carcase with
+/// drawers and a back - and a row of books is what tells a room where a village keeps its
+/// word from a room where it eats.
+#[test]
+fn the_townhalls_furniture_stands_where_it_is_put() {
+    for word in ["desk", "lectern", "books"] {
+        let kind = PartKind::Prop(word);
+        let body = body_of(&kind, None);
+        assert!(body.len() >= 4, "{word} is {} pieces", body.len());
+        // ON ITS OWN NOUGHT, like everything else: a thing set on a shelf is lifted
+        // onto it, not sunk halfway through it.
+        let foot = body
+            .iter()
+            .map(|Slab { at, size, .. }| at.y - size.y * 0.5)
+            .fold(f32::INFINITY, f32::min);
+        assert!(
+            foot.abs() < 1e-3,
+            "{word} rests at {foot} rather than on the floor"
+        );
+        // And it fits the village it is for: nothing wider than a wall's bay.
+        let across = body
+            .iter()
+            .map(|Slab { at, size, .. }| at.x.abs() + size.x * 0.5)
+            .fold(0.0f32, f32::max);
+        assert!(
+            across < 1.5,
+            "{word} is {}m across - wider than the room it goes in",
+            across * 2.0
+        );
+    }
+    // A DESK is a WORK place, which is the whole of what the village needs to know
+    // about it - the same word an anvil and a loom carry.
+    let palette = crate::look::bench_palette();
+    let desk = Placed {
+        part: part_name(&PartKind::Prop("desk")),
+        at: [0.0, 0.0, 0.0],
+        yaw: 0.0,
+        tilt: 0.0,
+        ramp: None,
+        shade: 0.5,
+        stage: "furnishing".to_string(),
+        flip: false,
+        loose: false,
+        material: String::new(),
+        group: None,
+    };
+    let (_, marks) =
+        crate::builder::bake_one_phase(std::slice::from_ref(&desk), &palette, Vec3::ZERO);
+    assert!(
+        marks.iter().any(|line| line.contains("\"mark\": \"work\"")),
+        "a desk says nothing about what it is for: {marks:?}"
+    );
+    // Books say nothing: they are what a room looks like, not what it does.
+    let books = Placed {
+        part: part_name(&PartKind::Prop("books")),
+        ..desk.clone()
+    };
+    let (boxes, quiet) =
+        crate::builder::bake_one_phase(std::slice::from_ref(&books), &palette, Vec3::ZERO);
+    assert!(
+        quiet.is_empty(),
+        "a row of books claims to be a place: {quiet:?}"
+    );
+    assert!(
+        boxes.len() >= 5,
+        "a row of books baked {} boxes",
+        boxes.len()
+    );
+}

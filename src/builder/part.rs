@@ -641,7 +641,9 @@ pub const FURNITURE: &[CatalogEntry] = &[
     prop("COUCH", "couch"),
     prop("CRADLE", "cradle"),
     prop("CUPBOARD", "cupboard"),
+    prop("DESK", "desk"),
     prop("HEARTH", "hearth"),
+    prop("LECTERN", "lectern"),
     prop("SHELVES", "shelves"),
     prop("STOOL", "stool"),
     prop("TABLE", "table"),
@@ -654,6 +656,7 @@ pub const DECOR: &[CatalogEntry] = &[
     prop("BARREL", "barrel"),
     prop("BASKET", "basket"),
     prop("BELL", "bell"),
+    prop("BOOKS", "books"),
     // Not a prop: a clock is drawn to a size, and the game is told that size so it
     // can hang hands of its own on the face.
     structure("CLOCK", PartKind::Clock(1.0), "furnishing"),

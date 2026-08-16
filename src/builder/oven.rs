@@ -130,7 +130,11 @@ pub(crate) fn bake_one_phase(
             PartKind::Prop("chest" | "cupboard" | "wardrobe" | "shelves") => {
                 marks.push(mark("store", anchor, record.yaw))
             }
-            PartKind::Prop("anvil" | "loom") => marks.push(mark("work", anchor, record.yaw)),
+            // A DESK is a work place too - the clerk's bench, where a village keeps
+            // its word - and a lectern is where somebody stands to read it out.
+            PartKind::Prop("anvil" | "loom" | "desk" | "lectern") => {
+                marks.push(mark("work", anchor, record.yaw))
+            }
             PartKind::Prop("candle") => marks.push(mark("light", anchor, record.yaw)),
             _ => {}
         }

@@ -1392,6 +1392,154 @@ fn shape_of(kind: &PartKind) -> Vec<Slab> {
             // The lid rests on the crate rather than sinking into its top face.
             slab(0.0, 0.65625, 0.0, 0.5, 0.0625, 0.5, "wood", 0.4),
         ],
+        PartKind::Prop("desk") => {
+            // THE CLERK'S DESK, for the room where a village keeps its word. A table
+            // is four legs and a top; a desk is a carcase - panelled ends, a drawer
+            // course under the lid and a back to it - which is what tells the two
+            // apart across a hall.
+            //
+            // At the table's own height, because a village has one height for the
+            // things people sit at.
+            let a = ATOM;
+            let mut body = vec![
+                // The lid, overhanging its carcase by an atom all round.
+                slab(
+                    0.0,
+                    a * 12.0,
+                    0.0,
+                    a * 24.0,
+                    a * 2.0,
+                    a * 12.0,
+                    "wood",
+                    0.65,
+                ),
+                // The back, which is what stops it being a table.
+                slab(
+                    0.0,
+                    a * 5.5,
+                    -a * 4.5,
+                    a * 20.0,
+                    a * 11.0,
+                    a * 1.0,
+                    "wood",
+                    0.5,
+                ),
+            ];
+            for side in [-1.0f32, 1.0] {
+                // Panelled ends, standing to the floor.
+                body.push(slab(
+                    side * a * 10.0,
+                    a * 5.5,
+                    0.0,
+                    a * 2.0,
+                    a * 11.0,
+                    a * 10.0,
+                    "wood",
+                    0.5,
+                ));
+                // Two drawers under the lid, each with a knob in the middle.
+                body.push(slab(
+                    side * a * 5.0,
+                    a * 9.5,
+                    a * 5.5,
+                    a * 8.0,
+                    a * 3.0,
+                    a * 1.0,
+                    "wood",
+                    0.65,
+                ));
+                body.push(slab(
+                    side * a * 5.0,
+                    a * 10.0,
+                    a * 6.5,
+                    a * 2.0,
+                    a * 2.0,
+                    a * 1.0,
+                    "cloth-gold",
+                    0.8,
+                ));
+            }
+            body
+        }
+        PartKind::Prop("lectern") => {
+            // A STAND TO SPEAK FROM: a splayed foot, a post, and a board leaning
+            // back at a reading angle with a lip to stop the book sliding off it.
+            let a = ATOM;
+            let lean = 20f32.to_radians();
+            vec![
+                slab(0.0, a * 1.0, 0.0, a * 10.0, a * 2.0, a * 8.0, "wood", 0.45),
+                slab(0.0, a * 9.0, 0.0, a * 4.0, a * 14.0, a * 4.0, "wood", 0.5),
+                leaning(
+                    0.0,
+                    a * 17.0,
+                    0.0,
+                    a * 14.0,
+                    a * 1.0,
+                    a * 10.0,
+                    "wood",
+                    0.6,
+                    lean,
+                ),
+                leaning(
+                    0.0,
+                    a * 15.5,
+                    a * 4.5,
+                    a * 14.0,
+                    a * 1.0,
+                    a * 1.0,
+                    "wood",
+                    0.45,
+                    lean,
+                ),
+            ]
+        }
+        PartKind::Prop("books") => {
+            // A ROW OF BOOKS, for a shelf or a desk or the arm of a chair. Standing
+            // on its own nought like everything else, so it is set on a shelf and
+            // lifted to it rather than sunk through it.
+            //
+            // Each a different height and a different cloth, because a row of
+            // identical books is a pattern rather than a shelf - and the last one
+            // leaning on its neighbours, which is what a shelf nobody has tidied
+            // looks like.
+            let a = ATOM;
+            let spines = [
+                (-a * 5.0, 7.0, "cloth-wine", 0.45),
+                (-a * 3.0, 8.0, "cloth-blue", 0.4),
+                (-a * 1.0, 6.0, "cloth-green", 0.45),
+                (a * 1.0, 8.0, "cloth-sable", 0.5),
+                (a * 3.0, 7.0, "cloth-rust", 0.5),
+            ];
+            let mut body: Vec<Slab> = spines
+                .into_iter()
+                .map(|(x, tall, cloth, shade)| {
+                    slab(
+                        x,
+                        a * tall * 0.5,
+                        0.0,
+                        a * 2.0,
+                        a * tall,
+                        a * 4.0,
+                        cloth,
+                        shade,
+                    )
+                })
+                .collect();
+            // The one that has been put back in a hurry.
+            body.push(canted(
+                a * 5.5,
+                a * 3.5,
+                0.0,
+                a * 2.0,
+                a * 7.0,
+                a * 4.0,
+                "cloth-red",
+                0.45,
+                -12f32.to_radians(),
+                Vec2::ZERO,
+            ));
+            body
+        }
         PartKind::Prop("shelves") => vec![
             slab(
                 -0.40625, 0.8125, 0.03125, 0.0625, 1.625, 0.3125, "wood", 0.5,
