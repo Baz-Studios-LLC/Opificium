@@ -545,6 +545,80 @@ mod framing {
 }
 
 #[cfg(test)]
+mod windows {
+    use super::*;
+
+    fn a_wall_with_a_window(framed: bool) -> Vec<Slab> {
+        body_of(
+            &PartKind::Wall {
+                long: 4.0,
+                high: WALL_HIGH,
+                framed,
+                openings: [Some(Hole::plain(Opening::Window, 0.0)), None, None, None],
+            },
+            None,
+        )
+    }
+
+    /// A window is the same window in a plain wall as in a framed one.
+    ///
+    /// Brett: "the windows that go on normal walls and the windows that punch into framed
+    /// walls are totally different. They should work the same and basically be the same
+    /// window." They were two systems: a framed wall was TOLD about an opening and solved
+    /// around it, while a plain wall was cut into `Seg` leftovers - at a different width,
+    /// and with no glazing at all.
+    #[test]
+    fn a_window_is_the_same_window_in_either_wall() {
+        let plain = a_wall_with_a_window(false);
+        let framed = a_wall_with_a_window(true);
+
+        // THE PANES. The bars are the thinnest timber in a wall, and a plain wall used to
+        // have none of them - a hole with daylight through it.
+        let bars = |body: &Vec<Slab>| {
+            body.iter()
+                .filter(|Slab { size, .. }| size.x < WALL_THICK && size.z < WALL_THICK)
+                .count()
+        };
+        assert!(bars(&plain) > 0, "a plain wall's window has no bars in it");
+        assert_eq!(
+            bars(&plain),
+            bars(&framed),
+            "the two walls glaze their windows differently"
+        );
+
+        // THE HOLE ITSELF, in the same place and of the same size. Read as the gap in the
+        // wall's own substance rather than from the numbers that made it.
+        let clear = |body: &Vec<Slab>| {
+            let widest = body
+                .iter()
+                .filter(|Slab { size, .. }| size.z >= WALL_THICK - 1e-4)
+                .map(|Slab { at, size, .. }| (at.y - size.y * 0.5, at.y + size.y * 0.5))
+                .fold((f32::INFINITY, f32::NEG_INFINITY), |had, (low, high)| {
+                    (had.0.min(low), had.1.max(high))
+                });
+            widest
+        };
+        let (plain_low, plain_high) = clear(&plain);
+        let (framed_low, framed_high) = clear(&framed);
+        assert!(
+            (plain_low - framed_low).abs() < 1e-4 && (plain_high - framed_high).abs() < 1e-4,
+            "the walls do not even stand the same height: {plain_low}..{plain_high} \
+             against {framed_low}..{framed_high}"
+        );
+    }
+
+    /// And a wall with no opening is still one plain box.
+    ///
+    /// The cheapest thing a wall can be, and the commonest - drawing it in pieces because
+    /// the code now knows how would be paying for openings nobody asked for.
+    #[test]
+    fn an_unpunched_plain_wall_is_one_slab() {
+        let body = body_of(&PartKind::wall(4.0), None);
+        assert_eq!(body.len(), 1, "a plain wall came apart for no reason");
+    }
+}
+
+#[cfg(test)]
 mod materials {
     use super::*;
 

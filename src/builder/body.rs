@@ -115,18 +115,6 @@ pub(crate) fn body_of(kind: &PartKind, repaint: Option<(&str, f32)>) -> Vec<Slab
             // Both are the same part now, so a right-click can turn one into the other -
             // and an opening will mean the same thing in either, which is what makes a
             // window one window instead of two different things.
-            if !framed {
-                return vec![slab(
-                    0.0,
-                    high * 0.5,
-                    0.0,
-                    *long,
-                    *high,
-                    WALL_THICK,
-                    "wood",
-                    0.7,
-                )];
-            }
             let span = (long / ATOM).round().max(POST_WIDE as f32 * 2.0) as i32;
             let tall = (high / ATOM).round().max((PLATE_TALL * 3 + 8) as f32) as i32;
             let mut body = Vec::new();
@@ -182,20 +170,58 @@ pub(crate) fn body_of(kind: &PartKind, repaint: Option<(&str, f32)>) -> Vec<Slab
                 timber(body, from, span - from, foot, rise);
             };
 
-            course(&mut body, 0, PLATE_TALL);
-            course(&mut body, tall - PLATE_TALL, PLATE_TALL);
-            course(&mut body, rail_foot, PLATE_TALL);
+            // WHAT FILLS THE WALL is the only thing framing decides. Everything below -
+            // the jambs, the lintel, the sill, the panes - belongs to the OPENING and is
+            // the same either way. Brett: "we need to unify the two window systems."
+            if !framed {
+                // Plaster: the wall drawn AROUND its openings rather than cut into pieces
+                // after the fact. A column between each pair, a head over each, an apron
+                // under it. "A plain wall is a single box and a box cannot have a hole in
+                // it" was true while a plain wall was its own species; it is one part now,
+                // and a box that cannot have a hole is a box drawn in more than one piece.
+                let plaster = |body: &mut Vec<Slab>, from: i32, wide: i32, foot: i32, rise: i32| {
+                    if wide <= 0 || rise <= 0 {
+                        return;
+                    }
+                    let (x, w) = across(from, wide);
+                    body.push(slab(
+                        x,
+                        (foot as f32 + rise as f32 * 0.5) * ATOM,
+                        0.0,
+                        w,
+                        rise as f32 * ATOM,
+                        WALL_THICK,
+                        "wood",
+                        0.7,
+                    ));
+                };
+                let mut from = 0;
+                for (what, hx, hw, hy, hh, _) in &holes {
+                    let jamb = jamb_of(*what);
+                    plaster(&mut body, from, hx - jamb - from, 0, tall);
+                    // Over the opening, and under it - a door reaches the ground and has
+                    // no apron, a window has both.
+                    plaster(&mut body, hx - jamb, hw + jamb * 2, hy + hh, tall - hy - hh);
+                    plaster(&mut body, hx - jamb, hw + jamb * 2, 0, *hy);
+                    from = hx + hw + jamb;
+                }
+                plaster(&mut body, from, span - from, 0, tall);
+            } else {
+                course(&mut body, 0, PLATE_TALL);
+                course(&mut body, tall - PLATE_TALL, PLATE_TALL);
+                course(&mut body, rail_foot, PLATE_TALL);
 
-            // A post at each end, running the whole clear height behind the
-            // rail - a corner post is one timber, not two stacked.
-            timber(&mut body, 0, POST_WIDE, inner_foot, inner_tall);
-            timber(
-                &mut body,
-                span - POST_WIDE,
-                POST_WIDE,
-                inner_foot,
-                inner_tall,
-            );
+                // A post at each end, running the whole clear height behind the
+                // rail - a corner post is one timber, not two stacked.
+                timber(&mut body, 0, POST_WIDE, inner_foot, inner_tall);
+                timber(
+                    &mut body,
+                    span - POST_WIDE,
+                    POST_WIDE,
+                    inner_foot,
+                    inner_tall,
+                );
+            }
 
             // The opening's own frame: a jamb on each side running the full
             // clear height, a lintel over it, and a sill under a window. This
@@ -264,6 +290,12 @@ pub(crate) fn body_of(kind: &PartKind, repaint: Option<(&str, f32)>) -> Vec<Slab
                         bar(&mut body, *hx, *hw, y, BAR_WIDE);
                     }
                 }
+            }
+
+            // A plain wall is done: it has its plaster and its openings are framed. What
+            // follows lays bays and studs, which is the whole of what framing means.
+            if !framed {
+                return body;
             }
 
             // The framing, course by course - and the spans worked out FOR EACH

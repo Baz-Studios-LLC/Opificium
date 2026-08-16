@@ -282,16 +282,17 @@ pub(crate) fn punch_wall(
         .unwrap_or(at);
     let middle = opening_seat(wall_at, along, length, wide, wall_at + along * t, grid);
 
-    // A FRAMED wall is not cut. It is told.
+    // A WALL IS NOT CUT. It is told - framed or plain, now that they are one part.
     //
-    // Everything below this parts a plain wall into the pieces an opening
-    // leaves - a jamb strip either side, a header over, a sill under - because
-    // a plain wall is a single box and a box cannot have a hole in it. A framed
-    // wall already knows what an opening is: it frames one, declines to panel
-    // it, and divides the bays either side of it. So the wall simply gains the
-    // opening where it was aimed, and re-solves.
+    // Everything below this parts a wall into the pieces an opening leaves: a jamb strip
+    // either side, a header over, a sill under. That was the only way while a plain wall
+    // was a single box, and it made a window in a plain wall a different thing from a
+    // window in a framed one - a different width, and no glass in it. A wall knows what an
+    // opening is now, whichever it is: it frames one, declines to fill it, and draws what
+    // is left either side. So the wall gains the opening where it was aimed and re-solves,
+    // and what is below is left for the parts that are genuinely not walls.
     let reframed = if let Some(PartKind::Wall {
-        framed: true,
+        framed,
         long,
         high,
         mut openings,
@@ -327,10 +328,12 @@ pub(crate) fn punch_wall(
                 }
             }
         }
+        // It keeps the framing it had. A plain wall punched for a door is a plain wall
+        // with a door in it, not a wall that quietly framed itself.
         let made = PartKind::Wall {
             long,
             high,
-            framed: true,
+            framed,
             openings,
         };
         commands.entity(wall).despawn_related::<Children>();
