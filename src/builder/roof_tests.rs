@@ -2128,3 +2128,110 @@ fn the_pitch_a_handle_can_reach_is_the_pitch_a_roof_can_hold() {
              cannot be reached by stepping from the shallowest"
     );
 }
+
+/// Choosing a hipped roof on a ceiling changes the ceiling, and then raises a hip.
+///
+/// Brett: "Right clicking a ceiling and choosing to generate a hipped roof doesnt work."
+///
+/// The name took and the roof came out a hip - it was the ceiling that never changed. A
+/// ceiling is not the same shape in the two states: it WEARS the ridge it will raise, and
+/// a gabled one stops short at each end to leave room for its gables. So the line moved a
+/// slab from 5.5m to 6m and a beam from 6m to 4.25m, and drew none of it, because this was
+/// the one line on the menu that edited the record without building the part again.
+#[test]
+fn choosing_a_hip_changes_the_ceiling_and_raises_one() {
+    use bevy::asset::AssetPlugin;
+    let mut app = App::new();
+    app.add_plugins((MinimalPlugins, AssetPlugin::default()));
+    app.init_asset::<Mesh>().init_asset::<StandardMaterial>();
+    app.insert_resource(crate::look::load_palette_for_bake());
+    app.init_resource::<ButtonInput<KeyCode>>();
+    app.init_resource::<ButtonInput<MouseButton>>();
+    app.init_resource::<crate::gizmo::Selected>();
+    app.init_resource::<PieceKept>();
+    app.init_resource::<PieceWantsAName>();
+    app.init_resource::<crate::look::Fonts>();
+    app.init_resource::<MaterialFor>();
+    app.init_resource::<WindowPanes>();
+    app.init_resource::<Naming>();
+    app.add_systems(Update, work_part_menu);
+
+    let ceiling = app
+        .world_mut()
+        .spawn((
+            Placed {
+                part: "ceiling-6x4".to_string(),
+                at: [0.0, 2.5, 0.0],
+                yaw: 0.0,
+                tilt: 0.0,
+                ramp: None,
+                shade: 0.5,
+                stage: "roof".to_string(),
+                flip: false,
+                group: None,
+                loose: false,
+                material: String::new(),
+            },
+            Transform::from_xyz(0.0, 2.5, 0.0),
+        ))
+        .id();
+
+    let press = |app: &mut App, deed: Deed| {
+        let menu = app.world_mut().spawn(PartMenu).id();
+        app.world_mut().spawn((
+            MenuLine {
+                deed,
+                part: ceiling,
+            },
+            Interaction::Pressed,
+            BackgroundColor(Color::NONE),
+            ChildOf(menu),
+        ));
+        app.update();
+    };
+
+    press(&mut app, Deed::Hipped(true));
+    let said = app
+        .world()
+        .get::<Placed>(ceiling)
+        .expect("the ceiling stands")
+        .part
+        .clone();
+    let Some(kind @ PartKind::Ceiling { hipped: true, .. }) = kind_from_name(&said) else {
+        panic!("{said} is not a hipped ceiling: the choice did not take")
+    };
+    // AND IT WAS DRAWN AGAIN. The record saying one thing while the screen shows another
+    // is the whole of what "doesnt work" looked like: nothing moved when the line was
+    // pressed.
+    let drawn = app
+        .world()
+        .entity(ceiling)
+        .get::<Children>()
+        .map(|kids| kids.len())
+        .unwrap_or(0);
+    assert_eq!(
+        drawn,
+        body_of(&kind, None).len(),
+        "the ceiling still wears the body it had: {drawn} pieces where a hipped one has {}",
+        body_of(&kind, None).len()
+    );
+
+    press(&mut app, Deed::RoofOver);
+    let raised: Vec<String> = app
+        .world_mut()
+        .query::<&Placed>()
+        .iter(app.world())
+        .map(|record| record.part.clone())
+        .collect();
+    assert!(
+        raised
+            .iter()
+            .any(|name| matches!(kind_from_name(name), Some(PartKind::HipRoof(..)))),
+        "a hipped ceiling raised no hip roof: {raised:?}"
+    );
+    // And the ceiling is still there, which is what keeping it meant.
+    assert!(
+        raised.iter().any(|name| name == &said),
+        "the ceiling went with the roof it raised"
+    );
+}

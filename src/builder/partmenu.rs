@@ -1031,12 +1031,32 @@ pub(crate) fn work_part_menu(
                     long, deep, across, ..
                 }) = kind_from_name(&record.part)
             {
-                record.part = part_name(&PartKind::Ceiling {
+                let made = PartKind::Ceiling {
                     long,
                     deep,
                     hipped,
                     across,
-                });
+                };
+                record.part = part_name(&made);
+                // AND DRAWN AGAIN, which every other line on this menu does and this
+                // one did not. A ceiling is not the same shape in the two states - it
+                // WEARS the ridge it will raise, and a gabled one stops short at each
+                // end to leave room for its gables - so the line moves a slab from
+                // 5.5m to 6m and a beam from 6m to 4.25m, and drew none of it. Nothing
+                // whatever happened when it was pressed. Brett: "Right clicking a
+                // ceiling and choosing to generate a hipped roof doesnt work."
+                let copy = record.clone();
+                commands.entity(part).despawn_related::<Children>();
+                dress_part(
+                    &mut commands,
+                    &mut meshes,
+                    &mut materials,
+                    &palette,
+                    &made,
+                    &copy,
+                    part,
+                    false,
+                );
             }
         }
         Some((Deed::RoofOver, part)) => {
