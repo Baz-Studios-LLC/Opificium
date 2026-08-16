@@ -288,6 +288,49 @@ fn select_part(
 
 /// The handles a part deserves in the standing mode: direction, offset
 /// of the handle's FOOT from the part's origin, dye, grip.
+/// What a part becomes when the gold handle takes it to a new height.
+///
+/// The ANSWER to `stands_at` below, and a function so that the two can be asked
+/// the same question in a test. This pair is where the bench keeps hurting
+/// itself: the handle was once offered on every wall and answered only for
+/// framed ones, so it appeared on a plain wall and did nothing when pulled.
+pub(crate) fn risen(kind: PartKind, high: f32) -> Option<PartKind> {
+    match kind {
+        PartKind::Pole(_) => Some(PartKind::Pole(high)),
+        PartKind::Foundation(w, d, _) => Some(PartKind::Foundation(w, d, high)),
+        // ANY wall, framed or not: every wall has a height.
+        PartKind::Wall {
+            long,
+            framed,
+            openings,
+            ..
+        } => Some(PartKind::Wall {
+            long,
+            high,
+            framed,
+            openings,
+        }),
+        _ => None,
+    }
+}
+
+/// How tall a part stands, when that is a thing it can be told.
+///
+/// The OFFER: a gold handle appears exactly where this answers.
+pub(crate) fn stands_at(kind: &PartKind) -> Option<f32> {
+    match kind {
+        PartKind::Foundation(_, _, high) => Some(*high),
+        // A framed wall wants this more than a pad does: its length is one of the
+        // two numbers it solves from and its height is the other. Pulled taller it
+        // re-solves rather than stretching, so the plates stay plates.
+        PartKind::Wall { high, .. } => Some(*high),
+        // A POST wears this one alone. It is a beam stood up, and how tall it
+        // stands is the only number it has.
+        PartKind::Pole(high) => Some(*high),
+        _ => None,
+    }
+}
+
 fn handles_for(mode: ToolMode, record: &Placed) -> Vec<(Vec3, Vec3, &'static str, Grip)> {
     // The part's TRUE pose, tilt and mirror included: a pitched panel's
     // handles must run up its own slope, or dragging one swings the far
@@ -342,52 +385,48 @@ fn handles_for(mode: ToolMode, record: &Placed) -> Vec<(Vec3, Vec3, &'static str
                 PartKind::HipRoof(w, d, _, _) => Some((w, d, true)),
                 _ => None,
             });
-            let Some((w, d, both)) = sized else {
-                return Vec::new();
-            };
+            // A part sized along its own footprint wears the red pair, and a
+            // rectangle the blue one as well. A part that is only TALL wears
+            // neither - it is not sized flat at all - and used to leave here with
+            // no handles whatever, gold included, because this was the gate for
+            // the lot.
             let mut handles = Vec::new();
-            for end in [-1.0f32, 1.0] {
-                let dir = spin * (Vec3::X * end);
-                handles.push((
-                    dir,
-                    dir * (w * 0.5),
-                    "cloth-red",
-                    Grip::Size {
-                        on_x: true,
-                        w0: w,
-                        d0: d,
-                        was,
-                    },
-                ));
-            }
-            if both {
+            if let Some((w, d, both)) = sized {
                 for end in [-1.0f32, 1.0] {
-                    let dir = spin * (Vec3::Z * end);
+                    let dir = spin * (Vec3::X * end);
                     handles.push((
                         dir,
-                        dir * (d * 0.5),
-                        "cloth-blue",
+                        dir * (w * 0.5),
+                        "cloth-red",
                         Grip::Size {
-                            on_x: false,
+                            on_x: true,
                             w0: w,
                             d0: d,
                             was,
                         },
                     ));
                 }
+                if both {
+                    for end in [-1.0f32, 1.0] {
+                        let dir = spin * (Vec3::Z * end);
+                        handles.push((
+                            dir,
+                            dir * (d * 0.5),
+                            "cloth-blue",
+                            Grip::Size {
+                                on_x: false,
+                                w0: w,
+                                d0: d,
+                                was,
+                            },
+                        ));
+                    }
+                }
             }
             // A pad carries one more, in gold: how TALL it stands. Both of the
             // red-and-blue pair are spoken for by its footprint, and a footing
             // that cannot be raised cannot reach the ground on a slope.
-            let stands = match builder::kind_from_name(&record.part) {
-                Some(PartKind::Foundation(_, _, high)) => Some(high),
-                // A framed wall carries the same gold handle, and wants it more
-                // than a pad does: its length is one of the two numbers it
-                // solves from and its height is the other. Pulled taller it
-                // re-solves rather than stretching, so the plates stay plates.
-                Some(PartKind::Wall { high, .. }) => Some(high),
-                _ => None,
-            };
+            let stands = builder::kind_from_name(&record.part).and_then(|kind| stands_at(&kind));
             if let Some(high) = stands {
                 handles.push((
                     spin * Vec3::Y,
@@ -795,33 +834,11 @@ fn work_gizmo(
             // atom: a pad of no height is a pad nobody can see or click.
             let pull = step_of(t - state.t0);
             let high = (h0 + pull).clamp(0.0625, 8.0);
-            let made = match builder::kind_from_name(&record.part) {
-                Some(PartKind::Foundation(w, d, was)) => {
-                    if (high - was).abs() < 1e-4 {
-                        return;
-                    }
-                    PartKind::Foundation(w, d, high)
-                }
-                // ANY wall, framed or not. The gold handle is offered to every wall now
-                // that every wall has a height - and this arm only answered for framed
-                // ones, so a plain wall grew a handle that did nothing when pulled.
-                Some(PartKind::Wall {
-                    long,
-                    high: was,
-                    framed,
-                    openings,
-                }) => {
-                    if (high - was).abs() < 1e-4 {
-                        return;
-                    }
-                    PartKind::Wall {
-                        long,
-                        high,
-                        framed,
-                        openings,
-                    }
-                }
-                _ => return,
+            let Some(made) = builder::kind_from_name(&record.part)
+                .and_then(|kind| risen(kind, high))
+                .filter(|made| builder::part_name(made) != record.part)
+            else {
+                return;
             };
             record.part = builder::part_name(&made);
             // The part does NOT move. A pad's box is drawn from its origin

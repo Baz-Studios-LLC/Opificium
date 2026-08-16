@@ -1403,20 +1403,23 @@ pub(crate) fn body_of(kind: &PartKind, repaint: Option<(&str, f32)>) -> Vec<Slab
                 0.03125, 0.28125, 0.03125, 1.0625, 0.0625, 0.3125, "water", 0.7,
             ),
         ],
-        PartKind::Prop("pole") => vec![
+        PartKind::Pole(high) => vec![
             // The corner post: shoulders over both wall ends at a meeting,
-            // a shade darker so the frame reads against the panels.
+            // a shade darker so the frame reads against the panels. The beam's
+            // own section, stood on its foot.
             slab(
                 0.0,
-                WALL_HIGH * 0.5,
+                high * 0.5,
                 0.0,
                 0.375,
-                WALL_HIGH,
+                high.max(ATOM),
                 0.375,
                 "wood",
                 0.45,
             ),
         ],
+        // A post drawn before one had a height of its own.
+        PartKind::Prop("pole") => body_of(&PartKind::Pole(WALL_HIGH), None),
         PartKind::Prop("door") => vec![
             // Jambs, lintel board, and the leaf itself, all on the
             // lattice, with a gold latch.

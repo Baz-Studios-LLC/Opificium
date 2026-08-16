@@ -389,6 +389,88 @@ fn a_swept_bench_keeps_no_level_at_all() {
 }
 
 #[cfg(test)]
+/// A post is a beam stood up: placed at a height, and pulled to another.
+///
+/// Brett: "pole should be exactly like the beam only verticle", and then "pole, corner is
+/// obsolete once we make the new pole." It was a prop - one height, forever, with no handle
+/// on it - so the post for a cottage and the post for a tower were the same part and
+/// neither could be made.
+#[test]
+fn a_post_stands_as_tall_as_it_is_drawn() {
+    let entry = STRUCTURE
+        .iter()
+        .find(|entry| entry.label == "POLE")
+        .expect("the shelf has lost its post");
+    let PartKind::Pole(high) = entry.kind else {
+        panic!("the shelf's post is not a post")
+    };
+    assert!(high > 1.0, "the shelf's post is {high}m - a stub");
+
+    // Its body follows its height, which is the whole of what it is.
+    for want in [1.0f32, 2.5, 6.0] {
+        let tall = body_of(&PartKind::Pole(want), None)
+            .iter()
+            .map(|Slab { at, size, .. }| at.y + size.y * 0.5)
+            .fold(0.0f32, f32::max);
+        assert!(
+            (tall - want).abs() < 1e-4,
+            "a post asked for {want}m stands {tall}m"
+        );
+    }
+
+    // THE GOLD HANDLE, both halves: every part that is offered one answers when it is
+    // pulled. Offered and unanswered is the fault this bench keeps repeating - the handle
+    // appeared on every wall and moved only the framed ones - and it cannot be seen by
+    // looking at either side alone.
+    for kind in [
+        PartKind::Pole(2.5),
+        PartKind::Foundation(2.0, 2.0, 0.5),
+        PartKind::wall(4.0),
+        PartKind::Wall {
+            long: 4.0,
+            high: WALL_HIGH,
+            framed: true,
+            openings: [None; MOST_OPENINGS],
+        },
+    ] {
+        let Some(was) = crate::gizmo::stands_at(&kind) else {
+            panic!("{} is not offered a height at all", part_name(&kind))
+        };
+        let Some(made) = crate::gizmo::risen(kind, was + 0.5) else {
+            panic!(
+                "{} is offered a height and does not answer",
+                part_name(&kind)
+            )
+        };
+        assert_eq!(
+            crate::gizmo::stands_at(&made),
+            Some(was + 0.5),
+            "{} did not take the new height",
+            part_name(&kind)
+        );
+    }
+    // And nothing else is offered one, so the answer above is not answering for parts
+    // that never asked.
+    for kind in [PartKind::Beam(2.0, 0.0, 0.0), PartKind::Floor(2.0, 2.0)] {
+        assert!(
+            crate::gizmo::stands_at(&kind).is_none(),
+            "{} is offered a height it has no use for",
+            part_name(&kind)
+        );
+    }
+
+    // A post drawn before it had a height of its own still opens, at the height it had.
+    assert!(
+        matches!(kind_from_name("prop:pole"), Some(PartKind::Pole(high)) if (high - WALL_HIGH).abs() < 1e-4),
+        "the old corner posts no longer open"
+    );
+    let name = part_name(&PartKind::Pole(3.75));
+    assert!(
+        matches!(kind_from_name(&name), Some(PartKind::Pole(high)) if (high - 3.75).abs() < 1e-4),
+        "{name} did not come back"
+    );
+}
+
 /// The parts a maker PULLS are handed over whole, not as a stub to stretch.
 ///
 /// Brett, of the gable and then the beam: "I like how the wall works where you have say a

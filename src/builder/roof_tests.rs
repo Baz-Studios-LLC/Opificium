@@ -1795,7 +1795,9 @@ fn only_parts_with_a_length_can_be_trimmed() {
         .is_some()
     );
     assert!(length_of(&PartKind::Chimney(1.75)).is_none());
-    assert!(length_of(&PartKind::Prop("pole")).is_none());
+    // A POST has no length to come back along: what it measures is its height, and
+    // a saw brought along its X would take it off at the knee.
+    assert!(length_of(&PartKind::Pole(2.5)).is_none());
 }
 
 #[test]

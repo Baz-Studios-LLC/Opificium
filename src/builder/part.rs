@@ -270,6 +270,17 @@ pub enum PartKind {
         /// different infill, not another kind of thing.
         framed: bool,
     },
+    /// The same timber STOOD UP: a post on its own foot, as tall as it is drawn.
+    ///
+    /// Brett: "pole should be exactly like the beam only verticle" - and then, of
+    /// the fixed-height corner post it replaces, "pole, corner is obsolete once we
+    /// make the new pole." It was a prop: one height, forever, with no handle on
+    /// it, so a post for a two-metre wall and a post for a tower were the same
+    /// part and neither could be made.
+    ///
+    /// It grows from its FOOT, on the gold handle a foundation and a wall already
+    /// wear, because that is what standing on something means.
+    Pole(f32),
     /// A squared timber laid along its own length: the corner post's section,
     /// on its side and as long as it is drawn — and how far each end is cut
     /// back at an angle, nought for a square end.
@@ -500,7 +511,7 @@ pub const STRUCTURE: &[CatalogEntry] = &[
         },
         "walls",
     ),
-    structure("POLE, CORNER", PartKind::Prop("pole"), "frame"),
+    structure("POLE", PartKind::Pole(WALL_HIGH), "frame"),
     structure("RAIL", PartKind::RailRun { stone: false }, "frame"),
     structure("RIDGE", PartKind::RidgeRun, "roof"),
     structure("ROOF", PartKind::Roof(2.2, 2.2), "roof"),
