@@ -453,6 +453,69 @@ mod bars {
 mod framing {
     use super::*;
 
+    /// A brace meets the timber above and below it squarely, at any wall size.
+    ///
+    /// Both of a brace's ends land on horizontal timber - the sill under it, the rail over -
+    /// so both end faces are horizontal and the brace is a parallelogram. That is what the
+    /// saw runs are for, and getting one wrong shows as ends that lean too far and leave a
+    /// triangle of daylight in every corner. Brett, with a picture of a squat wall: "when
+    /// framed walls get short the lines dont stay clean."
+    ///
+    /// Read off the pieces themselves, corner by corner, because the fault is invisible in
+    /// the numbers that made them: a run measured in the wrong units is still a run.
+    #[test]
+    fn a_brace_meets_its_timber_squarely() {
+        for high in [1.25f32, 1.75, 2.5, 3.5] {
+            for long in [2.0f32, 4.0, 9.0] {
+                let body = body_of(
+                    &PartKind::Wall {
+                        long,
+                        high,
+                        framed: true,
+                        openings: [None; MOST_OPENINGS],
+                    },
+                    None,
+                );
+                let braces = body.iter().filter(|slab| slab.cant.abs() > 1e-3);
+                let mut seen = 0;
+                for brace in braces {
+                    seen += 1;
+                    let turn = Mat2::from_angle(brace.cant);
+                    let half = Vec2::new(brace.size.x, brace.size.y) * 0.5;
+                    // Each end of the piece, as its two corners stand in the world.
+                    for sx in [-1.0f32, 1.0] {
+                        let run = if sx < 0.0 { brace.cut.x } else { brace.cut.y };
+                        let mut ends = Vec::new();
+                        for sy in [-1.0f32, 1.0] {
+                            // A positive run cuts the top face back, a negative one the
+                            // foot - see `cut_mesh`.
+                            let sawn = if (sy > 0.0 && run > 0.0) || (sy < 0.0 && run < 0.0) {
+                                run.abs()
+                            } else {
+                                0.0
+                            };
+                            ends.push(
+                                Vec2::new(brace.at.x, brace.at.y)
+                                    + turn * Vec2::new(sx * (half.x - sawn), sy * half.y),
+                            );
+                        }
+                        let lean = (ends[0].y - ends[1].y).abs();
+                        assert!(
+                            lean < 1e-3,
+                            "a brace in a {long}m wall {high}m high has an end leaning \
+                             {lean} out of true - it cannot sit flat on the timber it \
+                             lands on"
+                        );
+                    }
+                }
+                assert!(
+                    seen >= 2,
+                    "only {seen} braces in a {long}m wall {high}m high"
+                );
+            }
+        }
+    }
+
     /// Framing a wall changes only its framing.
     ///
     /// The right-click rebuilds the part from a name, so anything the rebuild forgets is

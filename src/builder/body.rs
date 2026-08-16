@@ -459,10 +459,21 @@ pub(crate) fn body_of(kind: &PartKind, repaint: Option<(&str, f32)>) -> Vec<Slab
                             // against the tangent of that pitch, and the signs
                             // are opposite because one end cuts the top and the
                             // other the bottom.
+                            //
+                            // IN METRES, like every other cut on this bench: the run is
+                            // a distance along the piece, and the mesh divides it by the
+                            // piece's own length itself. Divided by that length HERE as
+                            // well, it came out over by a factor of the length - which is
+                            // nothing much on a brace a metre long and grows as the wall
+                            // gets squat, since a shorter brace divides by a smaller
+                            // number. Brett, with a picture of one: "when framed walls get
+                            // short the lines dont stay clean." Its ends were leaning a
+                            // third of a metre out of true and leaving a triangle of
+                            // daylight in every corner.
                             let angle = up.atan2(half);
                             let reach = (half * half + up * up).sqrt() + ATOM;
                             let wide = STUD_WIDE as f32 * ATOM;
-                            let run = (wide / angle.tan().max(1e-3)) / reach;
+                            let run = wide / angle.tan().max(1e-3);
                             let (x, _) = across(a, b - a);
                             for side in [-1.0f32, 1.0] {
                                 body.push(canted(
@@ -475,7 +486,13 @@ pub(crate) fn body_of(kind: &PartKind, repaint: Option<(&str, f32)>) -> Vec<Slab
                                     "wood",
                                     0.62,
                                     side * angle,
-                                    Vec2::new(side * run, -side * run),
+                                    // Opposite hands, and THIS way round: at the end
+                                    // that stands high the saw takes the underside, and
+                                    // at the end that lands low it takes the top. The
+                                    // other way about leans both faces the wrong way by
+                                    // twice the angle, which is what put a triangle of
+                                    // daylight under every brace.
+                                    Vec2::new(-side * run, side * run),
                                 ));
                             }
                         }
