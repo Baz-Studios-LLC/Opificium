@@ -1251,7 +1251,7 @@ pub(crate) fn work_part_menu(
                 // would otherwise turn it by hand to get. A square ceiling picks either.
                 // The ridge the ceiling has been WEARING - the long side unless a maker
                 // pressed R - so what is raised is what the beam promised.
-                let (long, span, turn) = if (w >= d) != across {
+                let (long, span, turn) = if ridge_along_x(w, d, across) {
                     (w, d, 0.0)
                 } else {
                     (d, w, std::f32::consts::FRAC_PI_2)

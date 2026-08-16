@@ -3816,3 +3816,65 @@ fn a_knee_closes_both_its_joints() {
         }
     }
 }
+
+/// RESIZING A CEILING NEVER SWINGS ITS RIDGE. Only R does.
+///
+/// Brett: "Sometimes when resizing a ceiling it auto changes the ridge. It should
+/// never auto change. i can manually change it with R."
+///
+/// `across` is a FLIP of "the long side" rather than a direction, so a ceiling
+/// dragged from wider-than-deep to deeper-than-wide swapped which side was long
+/// and took the ridge with it - the flag never changed, and that was the fault:
+/// the same flag means different things at different sizes.
+#[test]
+fn resizing_a_ceiling_leaves_its_ridge_alone() {
+    // Every ceiling, dragged to every size, both ways round - and past square in
+    // both directions, which is the only place this ever went wrong.
+    for across in [false, true] {
+        for (long, deep) in [(6.0, 4.0), (4.0, 6.0), (5.0, 5.0)] {
+            let ceiling = PartKind::Ceiling {
+                long,
+                deep,
+                hipped: false,
+                across,
+            };
+            let was = ridge_along_x(long, deep, across);
+            for (w, d) in [(6.0, 4.0), (4.0, 6.0), (5.0, 5.0), (9.0, 2.0), (2.0, 9.0)] {
+                let Some(PartKind::Ceiling {
+                    long: pulled,
+                    deep: dragged,
+                    across: now,
+                    ..
+                }) = crate::gizmo::sized(ceiling, w, d, 0.0)
+                else {
+                    panic!("a ceiling can no longer be dragged to a size")
+                };
+                assert!(
+                    (pulled - w).abs() < 1e-4 && (dragged - d).abs() < 1e-4,
+                    "the ceiling was not dragged to the size asked for"
+                );
+                assert_eq!(
+                    ridge_along_x(w, d, now),
+                    was,
+                    "dragging a {long}x{deep} ceiling to {w}x{d} swung its ridge"
+                );
+            }
+        }
+    }
+}
+
+/// AND R IS STILL THE THING THAT SWINGS IT.
+///
+/// The other half. A resize that held the ridge by refusing to touch the flag at
+/// all would pass the test above and leave a maker no way to turn the beam.
+#[test]
+fn r_still_swings_a_ceilings_ridge() {
+    for (long, deep) in [(6.0, 4.0), (4.0, 6.0), (5.0, 5.0)] {
+        for across in [false, true] {
+            let was = ridge_along_x(long, deep, across);
+            // What `turn_part` makes of it: the same flip, read back the same way.
+            let turned = ridge_along_x(long, deep, !across);
+            assert_ne!(turned, was, "R no longer swings a {long}x{deep} ceiling");
+        }
+    }
+}

@@ -844,7 +844,7 @@ fn shape_of(kind: &PartKind) -> Vec<Slab> {
         } => {
             // WHICH WAY THE RIDGE RUNS decides the whole part, so it is settled first: the
             // long side by default, the other one once a maker has pressed R.
-            let along_x = (long >= deep) != *across;
+            let along_x = ridge_along_x(*long, *deep, *across);
             // THE CEILING GIVES WAY TO THE GABLES. Brett: "there's z fighting from the
             // ceiling and the gable... The ceiling should actually shrink and give way to
             // the gable."

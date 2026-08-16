@@ -262,6 +262,32 @@ pub fn a_mark_of(word: &'static str, size: Option<[f32; 3]>) -> PartKind {
     }
 }
 
+/// WHICH WAY A CEILING'S RIDGE RUNS: along its X, or across it.
+///
+/// `across` is not the answer, it is a FLIP of the answer. The ridge runs the long
+/// side by default, because that is what a roof does, and `across` is a maker
+/// having pressed R to say "the other way". Which means the flag alone says
+/// nothing - it has to be read against the sides it was set on.
+///
+/// One place, because two callers ask it - the body that draws the beam and the
+/// menu that raises the roof it promises - and a ridge drawn one way and raised
+/// the other is the worst answer available.
+pub fn ridge_along_x(long: f32, deep: f32, across: bool) -> bool {
+    (long >= deep) != across
+}
+
+/// THE SAME RULE BACKWARDS: the flag that makes the ridge run the way it already
+/// does, at sides it may not have had before.
+///
+/// A ceiling dragged from wider-than-deep to deeper-than-wide flips which side is
+/// the long one, and the ridge swung a quarter on its own because the flag it was
+/// read against had not changed. Brett: "Sometimes when resizing a ceiling it auto
+/// changes the ridge. It should never auto change. i can manually change it with
+/// R." So a resize asks this and keeps the beam where the maker put it.
+pub fn ridge_across_for(long: f32, deep: f32, along_x: bool) -> bool {
+    (long >= deep) != along_x
+}
+
 /// Whether a part is a MARK rather than a thing: a place, or a place with room in
 /// it.
 ///

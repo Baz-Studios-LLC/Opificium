@@ -1145,77 +1145,8 @@ fn work_gizmo(
             };
             // Measured rather than asked for: see `builder::extent_of`.
             let grown = 0.0;
-            let made = match kind {
-                // A wall keeps everything it is; only its length is being pulled.
-                PartKind::Wall {
-                    high,
-                    framed,
-                    openings,
-                    ..
-                } => PartKind::Wall {
-                    long: w,
-                    high,
-                    framed,
-                    openings,
-                },
-                PartKind::Seg { high, lift, .. } => PartKind::Seg {
-                    long: w,
-                    high,
-                    lift,
-                },
-                PartKind::Trim { stone, .. } => PartKind::Trim { long: w, stone },
-                PartKind::Rail { hand, stone, .. } => PartKind::Rail {
-                    long: w,
-                    hand,
-                    stone,
-                },
-                PartKind::Gable { pitch, framed, .. } => PartKind::Gable {
-                    long: w,
-                    pitch,
-                    framed,
-                },
-                PartKind::Beam(_, high, low) => PartKind::Beam(w, high, low),
-                PartKind::Chimney(_) => PartKind::Chimney(w.max(0.0)),
-                PartKind::Stairs {
-                    stone,
-                    rail_stone,
-                    hand,
-                    ..
-                } => {
-                    let (_, riser, tread) = builder::stair_rhythm(0.0);
-                    let steps = (d / tread).round().clamp(2.0, 24.0);
-                    PartKind::Stairs {
-                        rise: steps * riser,
-                        wide: w.max(0.375),
-                        stone,
-                        rail_stone,
-                        hand,
-                    }
-                }
-                PartKind::Ridge(_) => PartKind::Ridge(w),
-                PartKind::Clock(_) => PartKind::Clock(w),
-                PartKind::Table(..) => PartKind::Table(w, d),
-                PartKind::Floor(..) => PartKind::Floor(w, d),
-                PartKind::Area { word, high, .. } => PartKind::Area {
-                    word,
-                    long: w,
-                    deep: d,
-                    high,
-                },
-                // Pulled to a new size, and it keeps the roof it was going to raise.
-                PartKind::Ceiling { hipped, across, .. } => PartKind::Ceiling {
-                    long: w,
-                    deep: d,
-                    hipped,
-                    across,
-                },
-                PartKind::Foundation(_, _, high) => PartKind::Foundation(w, d, high),
-                PartKind::Roof(..) => PartKind::Roof(w, d),
-                PartKind::GableRoof(_, _, over, pitch) => PartKind::GableRoof(w, d, over, pitch),
-                PartKind::HipRoof(_, _, over, pitch, deck) => {
-                    PartKind::HipRoof(w, d, over, pitch, deck)
-                }
-                _ => return,
+            let Some(made) = sized(kind, w, d, grown) else {
+                return;
             };
             let fresh = builder::part_name(&made);
             if fresh == record.part {
@@ -1286,4 +1217,98 @@ fn work_gizmo(
             }
         }
     }
+}
+
+/// WHAT A PART BECOMES when a red or blue handle drags it to a new footprint.
+///
+/// The ANSWER to the flat-sizing offer, lifted out of the drag so it can be ASKED.
+/// It lived inside `work_gizmo`, which meant the only way to find out what a
+/// ceiling did when it was dragged past square was to drag one - and what it did
+/// was swing its ridge. A rule nothing can question is a rule nobody checks.
+pub(crate) fn sized(kind: PartKind, w: f32, d: f32, grown: f32) -> Option<PartKind> {
+    let _ = grown;
+    Some(match kind {
+        // A wall keeps everything it is; only its length is being pulled.
+        PartKind::Wall {
+            high,
+            framed,
+            openings,
+            ..
+        } => PartKind::Wall {
+            long: w,
+            high,
+            framed,
+            openings,
+        },
+        PartKind::Seg { high, lift, .. } => PartKind::Seg {
+            long: w,
+            high,
+            lift,
+        },
+        PartKind::Trim { stone, .. } => PartKind::Trim { long: w, stone },
+        PartKind::Rail { hand, stone, .. } => PartKind::Rail {
+            long: w,
+            hand,
+            stone,
+        },
+        PartKind::Gable { pitch, framed, .. } => PartKind::Gable {
+            long: w,
+            pitch,
+            framed,
+        },
+        PartKind::Beam(_, high, low) => PartKind::Beam(w, high, low),
+        PartKind::Chimney(_) => PartKind::Chimney(w.max(0.0)),
+        PartKind::Stairs {
+            stone,
+            rail_stone,
+            hand,
+            ..
+        } => {
+            let (_, riser, tread) = builder::stair_rhythm(0.0);
+            let steps = (d / tread).round().clamp(2.0, 24.0);
+            PartKind::Stairs {
+                rise: steps * riser,
+                wide: w.max(0.375),
+                stone,
+                rail_stone,
+                hand,
+            }
+        }
+        PartKind::Ridge(_) => PartKind::Ridge(w),
+        PartKind::Clock(_) => PartKind::Clock(w),
+        PartKind::Table(..) => PartKind::Table(w, d),
+        PartKind::Floor(..) => PartKind::Floor(w, d),
+        PartKind::Area { word, high, .. } => PartKind::Area {
+            word,
+            long: w,
+            deep: d,
+            high,
+        },
+        // Pulled to a new size, and it keeps the roof it was going to raise -
+        // AND THE WAY IT WAS GOING TO RAISE IT.
+        //
+        // `across` is a flip of "the long side" rather than a direction, so
+        // dragging a ceiling past square swapped which side was long and swung
+        // the ridge with it, without a maker touching it. Brett: "Sometimes
+        // when resizing a ceiling it auto changes the ridge. It should never
+        // auto change. i can manually change it with R." The flag is worked
+        // out again at the new sides so the beam stays where it was put.
+        PartKind::Ceiling {
+            long,
+            deep,
+            hipped,
+            across,
+        } => PartKind::Ceiling {
+            long: w,
+            deep: d,
+            hipped,
+            across: builder::ridge_across_for(w, d, builder::ridge_along_x(long, deep, across)),
+        },
+        PartKind::Foundation(_, _, high) => PartKind::Foundation(w, d, high),
+        PartKind::Roof(..) => PartKind::Roof(w, d),
+        PartKind::GableRoof(_, _, over, pitch) => PartKind::GableRoof(w, d, over, pitch),
+        PartKind::HipRoof(_, _, over, pitch, deck) => PartKind::HipRoof(w, d, over, pitch, deck),
+        // A part with no flat footprint is not dragged this way at all.
+        _ => return None,
+    })
 }
