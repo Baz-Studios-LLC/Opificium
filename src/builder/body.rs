@@ -1206,17 +1206,90 @@ pub(crate) fn body_of(kind: &PartKind, repaint: Option<(&str, f32)>) -> Vec<Slab
             slab(0.5625, 1.0, 0.0, 0.125, 2.0, 0.375, "wood", 0.45),
             slab(0.0, 2.0625, 0.0, 1.25, 0.125, 0.375, "wood", 0.45),
         ],
-        PartKind::Prop("window") => vec![
-            // An opening in a timber frame with its bars across it, and
-            // no glass in it at all: glass is a later century than this
-            // village. Jambs, sill, lintel, and the two muntins.
-            slab(-0.5625, 1.375, 0.0, 0.125, 1.125, 0.375, "wood", 0.45),
-            slab(0.5625, 1.375, 0.0, 0.125, 1.125, 0.375, "wood", 0.45),
-            slab(0.0, 0.8125, 0.0, 1.25, 0.125, 0.375, "wood", 0.45),
-            slab(0.0, 1.9375, 0.0, 1.25, 0.125, 0.375, "wood", 0.45),
-            slab(0.0, 1.375, -0.03125, 0.125, 1.0, 0.1875, "wood", 0.4),
-            slab(0.0, 1.375, -0.03125, 1.0, 0.125, 0.1875, "wood", 0.4),
-        ],
+        PartKind::Prop("window") => {
+            // WHAT IT WILL BECOME, drawn from the numbers that will make it. Brett: "right
+            // now the window only slides at one size, can we make it more representative of
+            // what it will look like when placed?"
+            //
+            // It was a frame of its own invention - a quarter wider than the opening it
+            // punches, at a height of its own, and always four panes however the wall it
+            // was aimed at would have glazed it. Every one of those is read here instead,
+            // so the thing sliding along the wall is the thing that lands in it.
+            //
+            // A wall of the ordinary height: a taller one glazes in more rows, and the
+            // ghost cannot know which wall it is over until it is over one.
+            let tall = (WALL_HIGH / ATOM).round() as i32;
+            let (_, _, _, foot, rise) = courses_of(tall);
+            let wide = WINDOW_WIDE;
+            let jamb = jamb_of(Opening::Window);
+            let (half_w, half_j) = (wide as f32 * 0.5 * ATOM, jamb as f32 * ATOM);
+            let middle = (foot as f32 + rise as f32 * 0.5) * ATOM;
+            let mut body = vec![
+                // The jambs either side, and the sill under, standing proud as it will.
+                slab(
+                    -half_w - half_j * 0.5,
+                    middle,
+                    0.0,
+                    half_j,
+                    rise as f32 * ATOM,
+                    WALL_THICK,
+                    "wood",
+                    0.62,
+                ),
+                slab(
+                    half_w + half_j * 0.5,
+                    middle,
+                    0.0,
+                    half_j,
+                    rise as f32 * ATOM,
+                    WALL_THICK,
+                    "wood",
+                    0.62,
+                ),
+                slab(
+                    0.0,
+                    (foot - PLATE_TALL) as f32 * ATOM + PLATE_TALL as f32 * ATOM * 0.5,
+                    0.0,
+                    wide as f32 * ATOM,
+                    PLATE_TALL as f32 * ATOM,
+                    WALL_THICK + SILL_PROUD * 2.0,
+                    "wood",
+                    0.62,
+                ),
+            ];
+            // And the panes it will be divided into, by the same rule the wall uses.
+            let panes = |across: i32| (across as f32 / PANE_WANTED as f32).round().max(1.0) as i32;
+            let thin = WALL_THICK - (INFILL_SET * 2) as f32 * ATOM;
+            let bar = |body: &mut Vec<Slab>, x: f32, y: f32, w: f32, h: f32| {
+                body.push(slab(x, y, 0.0, w, h, thin, "wood", 0.55));
+            };
+            // In WHOLE ATOMS, dividing the way the wall divides: every face on this bench
+            // lands on the lattice, and a bar placed by float division sits between two of
+            // them - which a test catches and a maker would find as a seam that will not
+            // meet anything.
+            let (cols, rows) = (panes(wide), panes(rise));
+            for at in 1..cols {
+                let from = (wide * at) / cols - BAR_WIDE / 2;
+                bar(
+                    &mut body,
+                    (from as f32 + BAR_WIDE as f32 * 0.5 - wide as f32 * 0.5) * ATOM,
+                    middle,
+                    BAR_WIDE as f32 * ATOM,
+                    rise as f32 * ATOM,
+                );
+            }
+            for at in 1..rows {
+                let up = foot + (rise * at) / rows - BAR_WIDE / 2;
+                bar(
+                    &mut body,
+                    0.0,
+                    (up as f32 + BAR_WIDE as f32 * 0.5) * ATOM,
+                    wide as f32 * ATOM,
+                    BAR_WIDE as f32 * ATOM,
+                );
+            }
+            body
+        }
         PartKind::Stairs {
             rise,
             wide,

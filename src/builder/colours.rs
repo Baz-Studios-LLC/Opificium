@@ -760,6 +760,43 @@ mod windows {
         );
     }
 
+    /// The window in hand is the window that lands.
+    ///
+    /// The ghost was a frame of its own invention - a quarter wider than the opening it
+    /// punches, at a height of its own, always four panes however the wall would have
+    /// glazed it. A maker slid one thing along a wall and got another.
+    #[test]
+    fn the_ghost_is_what_it_becomes() {
+        let held = body_of(&PartKind::Prop("window"), None);
+        let placed = a_wall_with_a_window(true);
+
+        // A BAR is set back in the reveal and narrow one way: a mullion is thin across, a
+        // transom thin up. A panel is set back too and narrow neither way, which is what
+        // told them apart.
+        let is_bar = |size: &Vec3| size.z < WALL_THICK - 1e-4 && (size.x < 0.2 || size.y < 0.2);
+        let panes = |body: &[Slab]| body.iter().filter(|Slab { size, .. }| is_bar(size)).count();
+        assert_eq!(
+            panes(&held),
+            panes(&placed),
+            "the ghost is glazed differently from the window it becomes"
+        );
+
+        // The same clear width, read off the bars that divide it: the ghost was a quarter
+        // metre wider than the hole it punches.
+        let widest = |body: &[Slab]| {
+            body.iter()
+                .filter(|Slab { size, .. }| is_bar(size))
+                .map(|Slab { size, .. }| size.x)
+                .fold(0.0f32, f32::max)
+        };
+        assert!(
+            (widest(&held) - widest(&placed)).abs() < 1e-4,
+            "the ghost spans {} where the window spans {}",
+            widest(&held),
+            widest(&placed)
+        );
+    }
+
     /// And a wall with no opening is still one plain box.
     ///
     /// The cheapest thing a wall can be, and the commonest - drawing it in pieces because
