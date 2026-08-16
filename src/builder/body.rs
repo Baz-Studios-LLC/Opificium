@@ -154,6 +154,22 @@ pub(crate) fn body_of(kind: &PartKind, repaint: Option<(&str, f32)>) -> Vec<Slab
             // simply the region the framing works AROUND, and the panels and
             // the rails and the studs all ask it whether they are wanted.
             let holes = openings_at(span, tall, openings);
+            // THE HEAD over an opening: a plate's worth of timber, or whatever is
+            // left where the opening reaches the top of the wall.
+            //
+            // A plain wall had none at all. Its plaster simply carried on over the
+            // hole, so a window had a sill standing proud under it and nothing
+            // whatever across the top - Brett, with a picture of one: "Can we get
+            // the top of the window fixed here? I am just talking about a sill on
+            // the top." Which is exactly what it is: the sill upside down.
+            //
+            // Asked in ONE place because three parts of the wall have to agree
+            // about it - the plaster that stops short of it, the lintel that
+            // starts above it, and the rail that gives way to it.
+            let head_over = |hy: i32, hh: i32| {
+                let room = if *framed { tall - PLATE_TALL } else { tall } - (hy + hh);
+                PLATE_TALL.min(room.max(0))
+            };
             // A horizontal member, laid in as many pieces as the openings
             // standing in its band leave. One that crosses no opening runs the
             // whole length in a single timber.
@@ -200,8 +216,10 @@ pub(crate) fn body_of(kind: &PartKind, repaint: Option<(&str, f32)>) -> Vec<Slab
                     let jamb = jamb_of(*what);
                     plaster(&mut body, from, hx - jamb - from, 0, tall);
                     // Over the opening, and under it - a door reaches the ground and has
-                    // no apron, a window has both.
-                    plaster(&mut body, hx - jamb, hw + jamb * 2, hy + hh, tall - hy - hh);
+                    // no apron, a window has both. Both stop a plate's depth short, where
+                    // the head and the sill stand.
+                    let head = hy + hh + head_over(*hy, *hh);
+                    plaster(&mut body, hx - jamb, hw + jamb * 2, head, tall - head);
                     // Stopping a plate's depth short, where the sill will stand.
                     plaster(&mut body, hx - jamb, hw + jamb * 2, 0, hy - PLATE_TALL);
                     // Nothing beside the sill: it reaches past the reveal on both sides
@@ -224,15 +242,23 @@ pub(crate) fn body_of(kind: &PartKind, repaint: Option<(&str, f32)>) -> Vec<Slab
                     // they are the same colour.
                     let mut from = POST_WIDE;
                     for (what, hx, hw, hy, hh, _) in &holes {
-                        // It breaks for ANY opening it runs into - a door reaches the
-                        // ground, so a rail carried across one would lie over the doorway -
-                        // and additionally where a window's SILL lands, which is a band the
-                        // rail does not cross but must still leave to it.
-                        let crosses = rail_foot + PLATE_TALL > *hy && rail_foot < hy + hh;
-                        let sill_lands = *what == Opening::Window
-                            && hy - PLATE_TALL < rail_foot + PLATE_TALL
-                            && *hy > rail_foot;
-                        if !crosses && !sill_lands {
+                        // It gives way to THE WHOLE OPENING - its sill, its glass and its
+                        // head - because anything of the opening's standing in the rail's
+                        // own band is two solids in the same atoms. A door reaches the
+                        // ground, so a rail carried across one would lie over the doorway;
+                        // a window's sill and head are timbers the rail does not cross but
+                        // must still leave room for.
+                        //
+                        // One test where there were two, and the second one only knew about
+                        // the sill: a window whose head landed in the rail's band drew both
+                        // of them there.
+                        let sill = if *what == Opening::Window {
+                            PLATE_TALL
+                        } else {
+                            0
+                        };
+                        let (low, high) = (hy - sill, hy + hh + head_over(*hy, *hh));
+                        if low >= rail_foot + PLATE_TALL || high <= rail_foot {
                             continue;
                         }
                         let jamb = jamb_of(*what);
@@ -281,18 +307,42 @@ pub(crate) fn body_of(kind: &PartKind, repaint: Option<(&str, f32)>) -> Vec<Slab
                 };
                 timber(&mut body, hx - jamb, jamb, jamb_foot, jamb_tall);
                 timber(&mut body, hx + hw, jamb, jamb_foot, jamb_tall);
-                // The lintel fills whatever is left between the opening's head
-                // and the head plate, rather than being one plate thick and
-                // leaving a strip of nothing over it. Where the opening reaches
-                // the plate there is nothing left to fill and no lintel: a
-                // window has the plate itself over it.
-                // ONLY IN A FRAMED WALL. A lintel fills between the opening's head and
-                // the head PLATE, and a plain wall has no plate - so what it filled there
-                // was ordinary wall, drawn a second time in the same atoms the plaster
-                // already occupies. That is the z-fighting over a plain wall's window.
+
+                // WHAT A SILL AND A HEAD SPAN, which is the same question twice: past
+                // the reveal in a plain wall, where the jambs frame the opening and the
+                // timber covers their plaster columns; between the jambs in a framed
+                // one, where they run the whole clear height and a wider piece would
+                // stand inside them.
+                let (crown_from, crown_wide) = if *framed {
+                    (*hx, *hw)
+                } else {
+                    (hx - jamb, hw + jamb * 2)
+                };
+                // A CROWN OVER EVERY OPENING, standing proud exactly as the sill does.
+                // A window with a sill under it and bare plaster over it reads as a hole
+                // somebody forgot to finish, which is what it was.
+                let head = head_over(*hy, *hh);
+                if head > 0 {
+                    let (x, w) = across(crown_from, crown_wide);
+                    body.push(slab(
+                        x,
+                        (hy + hh) as f32 * ATOM + head as f32 * ATOM * 0.5,
+                        0.0,
+                        w,
+                        head as f32 * ATOM,
+                        WALL_THICK + SILL_PROUD * 2.0,
+                        "wood",
+                        0.62,
+                    ));
+                }
+                // And the lintel over THAT, where a framed wall has room left between
+                // the head and its head plate: the timber that carries the wall across
+                // the hole. A plain wall has no plate, so what a lintel filled there was
+                // ordinary wall drawn a second time in the atoms the plaster already
+                // occupies - which is the z-fighting a plain wall's window used to show.
                 let lintel = lintel_of((tall - PLATE_TALL) - (hy + hh));
-                if *framed && lintel > 0 {
-                    timber(&mut body, *hx, *hw, hy + hh, lintel);
+                if *framed && lintel > head {
+                    timber(&mut body, *hx, *hw, hy + hh + head, lintel - head);
                 }
                 if *what == Opening::Window {
                     // A sill only where the rail is not already under it, for
@@ -303,16 +353,7 @@ pub(crate) fn body_of(kind: &PartKind, repaint: Option<(&str, f32)>) -> Vec<Slab
                     // rail gives way to it in a framed wall - see the courses below -
                     // because a sill and a rail in the same atoms is the flicker this was
                     // meant to avoid rather than cause.
-                    // PAST THE REVEAL in a plain wall, where the jamb frames the window
-                    // and stands above the sill - the sill covers the plaster columns
-                    // beside it. Between the jambs in a framed wall, where they run the
-                    // whole clear height and a wider sill would stand inside them.
-                    let (from, wide) = if *framed {
-                        (*hx, *hw)
-                    } else {
-                        (hx - jamb, hw + jamb * 2)
-                    };
-                    let (x, w) = across(from, wide);
+                    let (x, w) = across(crown_from, crown_wide);
                     body.push(slab(
                         x,
                         (hy - PLATE_TALL) as f32 * ATOM + PLATE_TALL as f32 * ATOM * 0.5,
@@ -1298,18 +1339,17 @@ pub(crate) fn body_of(kind: &PartKind, repaint: Option<(&str, f32)>) -> Vec<Slab
                     "wood",
                     0.62,
                 ),
-                // And the lintel over it, which is the piece that closes the shape.
+                // And the head over it, which is the piece that closes the shape.
                 // Without it the ghost is an open U and a maker can see where a window
-                // starts but not where it stops - the one thing they are judging. It is
-                // the lintel a framed wall lands, to the atom; a plain wall puts its own
-                // plaster there instead, which is solid either way.
+                // starts but not where it stops - the one thing they are judging. Proud,
+                // like the sill and like the head that lands.
                 slab(
                     0.0,
                     (foot + rise) as f32 * ATOM + PLATE_TALL as f32 * ATOM * 0.5,
                     0.0,
                     wide as f32 * ATOM,
                     PLATE_TALL as f32 * ATOM,
-                    WALL_THICK,
+                    WALL_THICK + SILL_PROUD * 2.0,
                     "wood",
                     0.62,
                 ),

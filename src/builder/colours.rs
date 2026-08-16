@@ -841,6 +841,55 @@ mod windows {
         }
     }
 
+    /// Every opening is closed at the top, in either kind of wall.
+    ///
+    /// A plain wall had no head at all: its plaster carried straight on over the hole, so a
+    /// window stood there with a sill proud under it and nothing whatever across the top.
+    /// Brett, with a picture of one: "Can we get the top of the window fixed here? I am just
+    /// talking about a sill on the top." Which is what a head is - the sill upside down.
+    #[test]
+    fn every_opening_has_a_head() {
+        for framed in [false, true] {
+            for what in [Opening::Window, Opening::Door] {
+                let hole = Hole::plain(what, 0.0);
+                let wall = PartKind::Wall {
+                    long: 5.0,
+                    high: WALL_HIGH,
+                    framed,
+                    openings: [Some(hole), None, None, None],
+                };
+                // Where the opening's head actually is, read off the wall rather than off
+                // the hole: the clamps are the solver's business.
+                let tall = (WALL_HIGH / ATOM).round() as i32;
+                let (_, _, _, hy, hh, _) = openings_at(
+                    (5.0 / ATOM).round() as i32,
+                    tall,
+                    &[Some(hole), None, None, None],
+                )[0];
+                let head = (hy + hh) as f32 * ATOM;
+                let over = body_of(&wall, None)
+                    .into_iter()
+                    .find(|Slab { at, size, .. }| {
+                        // Standing proud of both faces, sitting on the opening's head, and
+                        // spanning at least the clear opening.
+                        size.z > WALL_THICK + 1e-4
+                            && (at.y - size.y * 0.5 - head).abs() < 1e-3
+                            && size.x >= hole.wide as f32 * ATOM - 1e-3
+                    });
+                assert!(
+                    over.is_some(),
+                    "a {} wall's {} has nothing across the top of it",
+                    if framed { "framed" } else { "plain" },
+                    if what == Opening::Door {
+                        "door"
+                    } else {
+                        "window"
+                    }
+                );
+            }
+        }
+    }
+
     /// A window goes where it is put, and takes its frame with it.
     ///
     /// Brett: "I really want to rethink windows. I should be able to place the window atom
@@ -873,12 +922,14 @@ mod windows {
         };
         // Where the glass is, read off the wall: the proud sill is under it and nothing
         // else in a wall stands proud of both faces.
+        // The LOWEST of the pieces standing proud of both faces: a window has two of
+        // them now, a sill under it and a head over, and "the first one in the list" is
+        // not a question about geometry.
         let sill_of = |body: &[Slab]| {
             body.iter()
-                .find(|Slab { size, .. }| size.z > WALL_THICK + 1e-4)
-                .expect("a window has a proud sill")
-                .at
-                .y
+                .filter(|Slab { size, .. }| size.z > WALL_THICK + 1e-4)
+                .map(|Slab { at, .. }| at.y)
+                .fold(f32::INFINITY, f32::min)
         };
 
         let usual = band_of(Opening::Window, (WALL_HIGH / ATOM).round() as i32);
@@ -935,39 +986,53 @@ mod windows {
         };
         // Every height between the sill plate and the head plate, an atom at a time: this
         // is cheap and the faults are never where you expect them.
-        for foot in LOWEST_SILL..=tall - PLATE_TALL - usual.rise {
+        // Every height a hand can put one at - which now stops a head's depth short of
+        // the plate, so the window always has its own head over it.
+        for foot in LOWEST_SILL..=tall - PLATE_TALL * 2 - usual.rise {
             // A PLAIN wall, strictly - nothing in one may share space with anything.
             no_two_solids_share_space(&wall(false, foot), false);
 
             // A FRAMED wall, at the sill, which is the piece that meets the rail. The rest
             // of a framed wall's carpentry has long-standing overlaps where braces run into
             // the corner posts; not chased here, and not pretended away either.
+            // BOTH pieces that stand proud - the sill under it and the head over -
+            // since either can land in the rail's own band, and the head is the one
+            // that had nothing telling the rail to give way to it.
             let framed = wall(true, foot);
-            let sill = framed
+            let proud: Vec<&Slab> = framed
                 .iter()
-                .find(|Slab { size, .. }| size.z > WALL_THICK + 1e-4)
-                .expect("a framed window has a proud sill");
-            for other in &framed {
-                // A BRACE is not its own box: it is drawn long and swung, so the box it
-                // was cut from sticks out past the bay at both ends. Asking where its box
-                // is answers a question nobody asked.
-                if std::ptr::eq(other, sill)
-                    || other.size.z > WALL_THICK + 1e-4
-                    || other.cant != 0.0
-                {
-                    continue;
+                .filter(|Slab { size, .. }| size.z > WALL_THICK + 1e-4)
+                .collect();
+            assert_eq!(
+                proud.len(),
+                2,
+                "a framed window wears a proud sill and a proud head, not {}",
+                proud.len()
+            );
+            for piece in &proud {
+                for other in &framed {
+                    // A BRACE is not its own box: it is drawn long and swung, so the box
+                    // it was cut from sticks out past the bay at both ends. Asking where
+                    // its box is answers a question nobody asked.
+                    if std::ptr::eq(*piece, other)
+                        || other.size.z > WALL_THICK + 1e-4
+                        || other.cant != 0.0
+                    {
+                        continue;
+                    }
+                    let apart = |at_a: f32, s_a: f32, at_b: f32, s_b: f32| {
+                        (at_a - at_b).abs() >= (s_a + s_b) * 0.5 - 1e-3
+                    };
+                    assert!(
+                        apart(piece.at.x, piece.size.x, other.at.x, other.size.x)
+                            || apart(piece.at.y, piece.size.y, other.at.y, other.size.y),
+                        "a window with its foot at {foot} has a proud piece at {:?} in \
+                         the same place as {:?} {:?}",
+                        piece.at,
+                        other.at,
+                        other.size
+                    );
                 }
-                let apart = |at_a: f32, s_a: f32, at_b: f32, s_b: f32| {
-                    (at_a - at_b).abs() >= (s_a + s_b) * 0.5 - 1e-3
-                };
-                assert!(
-                    apart(sill.at.x, sill.size.x, other.at.x, other.size.x)
-                        || apart(sill.at.y, sill.size.y, other.at.y, other.size.y),
-                    "a window with its foot at {foot} has its sill in the same place as \
-                     {:?} {:?}",
-                    other.at,
-                    other.size
-                );
             }
         }
     }
@@ -1079,12 +1144,14 @@ mod windows {
     fn the_ghost_stands_where_the_window_lands() {
         let tall = (WALL_HIGH / ATOM).round() as i32;
         let usual = band_of(Opening::Window, tall);
+        // The LOWEST of the pieces standing proud of both faces: a window has two of
+        // them now, a sill under it and a head over, and "the first one in the list" is
+        // not a question about geometry.
         let sill_of = |body: &[Slab]| {
             body.iter()
-                .find(|Slab { size, .. }| size.z > WALL_THICK + 1e-4)
-                .expect("a window has a proud sill")
-                .at
-                .y
+                .filter(|Slab { size, .. }| size.z > WALL_THICK + 1e-4)
+                .map(|Slab { at, .. }| at.y)
+                .fold(f32::INFINITY, f32::min)
         };
         let held = sill_of(&body_of(&PartKind::Prop("window"), None));
         for foot in [LOWEST_SILL, usual.foot - 5, usual.foot, usual.foot + 4] {
@@ -1157,8 +1224,8 @@ mod windows {
         );
         assert_eq!(
             crate::builder::opening_lift(0.0, tall, usual, 5.0, fine),
-            tall - PLATE_TALL - usual.rise,
-            "a window aimed over the wall pushed its head through the head plate"
+            tall - PLATE_TALL * 2 - usual.rise,
+            "a window aimed over the wall left no room for its own head"
         );
     }
 

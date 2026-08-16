@@ -273,12 +273,16 @@ pub fn opening_lift(wall_foot: f32, tall: i32, usual: Band, aim: f32, grid: f32)
     let course = usual.foot as f32 * ATOM;
     let want = aim - wall_foot - usual.rise as f32 * ATOM * 0.5 - course;
     let stepped = (want * grid).round() / grid;
-    // Never sunk into the sill plate, never up into the head plate - and the
-    // second clamp gives way to the first on a wall too short to hold it, since
-    // a window with its foot above its head is not a window.
+    // Never sunk into the sill plate, never up into the head plate - and leaving
+    // room at the top for its own head, the way the bottom leaves room for its
+    // own sill. A window shoved right up under the plate has the plate for a head
+    // and nothing of its own, which is the fault this pairs with.
+    //
+    // The second clamp gives way to the first on a wall too short to hold it,
+    // since a window with its foot above its head is not a window.
     (usual.foot + (stepped / ATOM).round() as i32).clamp(
         LOWEST_SILL,
-        (tall - PLATE_TALL - usual.rise).max(LOWEST_SILL),
+        (tall - PLATE_TALL * 2 - usual.rise).max(LOWEST_SILL),
     )
 }
 
