@@ -2941,3 +2941,81 @@ fn a_table_grows_legs_and_brings_its_chairs() {
         "a stool arrives with furniture of its own"
     );
 }
+
+/// Some groups CAN be stretched: the ones a part brought with it.
+///
+/// Brett, having dragged a table's own handle and pulled the board out from under its
+/// chairs: "Can we flag that SOME groups can be stretched?"
+///
+/// And the flag needs no new fact to be kept anywhere. A group a maker GATHERED is several
+/// things, and sizing six at once has no meaning to invent. A group a part BROUGHT is one
+/// thing that part made - so the part that brings company owns the group, keeps its own
+/// handles inside it, and its company follows when it is pulled.
+#[test]
+fn a_group_its_owner_brought_can_be_stretched() {
+    use crate::gizmo::{Grip, ToolMode, handles_for_choice};
+    let of = |kind: &PartKind| Placed {
+        part: part_name(kind),
+        at: [0.0, 0.0, 0.0],
+        yaw: 0.0,
+        tilt: 0.0,
+        ramp: None,
+        shade: 0.7,
+        stage: "furnishing".to_string(),
+        flip: false,
+        loose: false,
+        material: String::new(),
+        group: Some(1),
+    };
+    // A TABLE in a group of nine wears its own handles, because the eight are its own
+    // chairs: the red pair sizes the board and the blue pair its depth.
+    let table = of(&PartKind::Table(3.0, 0.875));
+    let worn = handles_for_choice(ToolMode::Resize, 9, &table);
+    assert!(
+        worn.iter()
+            .any(|(.., grip)| matches!(grip, Grip::Size { .. })),
+        "a table cannot be sized inside the group it brought"
+    );
+    // A CHAIR in that same group cannot: it brought nothing, so the choice is several
+    // things and several things are carried, not stretched.
+    let chair = of(&PartKind::Prop("chair"));
+    let worn = handles_for_choice(ToolMode::Resize, 9, &chair);
+    assert!(
+        worn.iter().all(|(.., grip)| matches!(grip, Grip::Slide)),
+        "a chair offers to stretch the group it is only a member of"
+    );
+    // And a group of gathered walls stays as it was - carried, not stretched.
+    let wall = of(&PartKind::wall(2.0));
+    assert!(
+        handles_for_choice(ToolMode::Resize, 4, &wall)
+            .iter()
+            .all(|(.., grip)| matches!(grip, Grip::Slide)),
+        "a gathered choice grew size handles"
+    );
+    // One wall on its own is sized as ever.
+    assert!(
+        handles_for_choice(ToolMode::Resize, 1, &wall)
+            .iter()
+            .any(|(.., grip)| matches!(grip, Grip::Size { .. })),
+        "a wall on its own has lost its length"
+    );
+
+    // AND THE COMPANY FOLLOWS THE SIZE. A board pulled from three metres to six wants
+    // more chairs down it, not the same eight further apart than a maker can reach.
+    let short = crate::builder::company_of(&PartKind::Table(3.0, 0.875));
+    let long = crate::builder::company_of(&PartKind::Table(6.0, 0.875));
+    assert!(
+        long.len() > short.len(),
+        "a board twice as long seats the same {} people",
+        short.len()
+    );
+    // Every seat still stands outside the board it belongs to, whatever the size.
+    for deep in [0.875f32, 1.5] {
+        for (_, at, _) in crate::builder::company_of(&PartKind::Table(4.0, deep)) {
+            assert!(
+                at.z.abs() > deep * 0.5,
+                "a chair sits under a board {deep} deep"
+            );
+        }
+    }
+}

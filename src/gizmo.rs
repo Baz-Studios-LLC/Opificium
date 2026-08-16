@@ -273,7 +273,19 @@ fn select_part(
         // Shift adds and takes away; a plain click starts afresh. Clicking a
         // part that belongs to a group takes the whole group, which is what
         // being grouped MEANS - see `builder::kin_of`.
-        let kin = builder::kin_of(touched, &records);
+        // The part that BROUGHT the group leads it. A table's chairs are the
+        // table's own, and it is the table a maker means when they take hold of
+        // one - so it goes first, and the handles, the menu and the measure all
+        // speak about it. Without this the lead was whichever member the query
+        // happened to reach first.
+        let mut kin = builder::kin_of(touched, &records);
+        kin.sort_by_key(|part| {
+            records
+                .get(*part)
+                .ok()
+                .and_then(|(_, standing)| builder::kind_from_name(&standing.part))
+                .is_none_or(|kind| builder::company_of(&kind).is_empty())
+        });
         if gathering {
             for part in kin {
                 selected.toggle(part);
@@ -426,7 +438,17 @@ pub(crate) fn handles_for_choice(
     count: usize,
     record: &Placed,
 ) -> Vec<(Vec3, Vec3, &'static str, Grip)> {
-    if count > 1 {
+    // SOME GROUPS CAN BE STRETCHED, and the flag is the group itself: a part that
+    // BRINGS its company owns the group it made, so the group is one thing rather
+    // than several a maker gathered. Brett, having dragged a table's handle and
+    // pulled the board out from under its own chairs: "Can we flag that SOME groups
+    // can be stretched?"
+    //
+    // Sizing a gathered six has no meaning to invent. Sizing a council's board is
+    // exactly what a maker means, and its chairs follow it - see the size grip.
+    let owns_its_company = builder::kind_from_name(&record.part)
+        .is_some_and(|kind| !builder::company_of(&kind).is_empty());
+    if count > 1 && !owns_its_company {
         return match mode {
             // Painting wears no handles whatever is chosen: the part IS the
             // handle, and a shaft in the way is something to click by mistake.
@@ -897,19 +919,33 @@ fn work_gizmo(
                 }
             }
 
-            // And the marks it carries travel with it. A door slid along a wall
-            // that left its routing mark behind would put the village's doorway
-            // where the door used to be.
+            // And the marks EVERY moved part carries travel with it. A door slid
+            // along a wall that left its routing mark behind would put the
+            // village's doorway where the door used to be - and a table dragged
+            // with its chairs left every sitting place standing in the old room,
+            // because only the handle's own part was asked what it carried.
             if moved.length_squared() > 0.0 {
                 let held: Vec<(Entity, Vec3, builder::Placed)> = parts
                     .iter()
                     .map(|(entity, at, record)| (entity, at.translation, record.clone()))
                     .collect();
-                let carried = builder::carried_marks(
-                    part,
-                    was,
-                    held.iter().map(|(e, at, record)| (*e, *at, record)),
-                );
+                let mut carried: Vec<Entity> = Vec::new();
+                for (owner, before) in std::iter::once((part, was)).chain(
+                    held.iter()
+                        .filter(|(entity, ..)| *entity != part && selected.holds(*entity))
+                        // Where it WAS, which is where its marks still are.
+                        .map(|(entity, at, _)| (*entity, *at - moved)),
+                ) {
+                    for mark in builder::carried_marks(
+                        owner,
+                        before,
+                        held.iter().map(|(e, at, record)| (*e, *at, record)),
+                    ) {
+                        if !carried.contains(&mark) {
+                            carried.push(mark);
+                        }
+                    }
+                }
                 for mark in carried {
                     if let Ok((_, mut mark_at, mut mark_record)) = parts.get_mut(mark) {
                         mark_at.translation += moved;
@@ -1166,6 +1202,46 @@ fn work_gizmo(
                 part,
                 false,
             );
+            // AND ITS COMPANY FOLLOWS IT. A table pulled longer wants its chairs
+            // spread down the new board and another pair on the end of it -
+            // otherwise the board is dragged out from under them, which is what
+            // Brett saw. The old company goes, marks and all, and is seated
+            // afresh from the size the table is now.
+            // Its own record, taken before the query is read again: the borrow the
+            // handle holds on this part ends here.
+            let seated = record.clone();
+            if let Some(group) = seated.group
+                && !builder::company_of(&made).is_empty()
+            {
+                let held: Vec<(Entity, Vec3, builder::Placed)> = parts
+                    .iter()
+                    .map(|(entity, at, record)| (entity, at.translation, record.clone()))
+                    .collect();
+                for (entity, at, standing) in &held {
+                    if *entity == part || standing.group != Some(group) {
+                        continue;
+                    }
+                    // Whatever it was carrying goes with it: a chair's own
+                    // sitting place is no use once the chair has gone.
+                    for mark in builder::carried_marks(
+                        *entity,
+                        *at,
+                        held.iter().map(|(e, at, record)| (*e, *at, record)),
+                    ) {
+                        commands.entity(mark).despawn();
+                    }
+                    commands.entity(*entity).despawn();
+                }
+                builder::seat_the_company(
+                    &mut commands,
+                    &mut meshes,
+                    &mut materials,
+                    &palette,
+                    &made,
+                    &seated,
+                    group,
+                );
+            }
         }
     }
 }
