@@ -626,7 +626,7 @@ pub(crate) fn dims_panel(
         let (_, record) = parts.get(part).ok()?;
         let kind = kind_from_name(&record.part)?;
         match kind {
-            PartKind::Wall(long) => Some((part, long, None, None)),
+            PartKind::Wall { long, .. } => Some((part, long, None, None)),
             PartKind::Seg { long, .. } => Some((part, long, None, None)),
             PartKind::Trim { long, .. } => Some((part, long, None, None)),
             PartKind::Beam(long, ..) => Some((part, long, None, None)),
@@ -693,7 +693,7 @@ pub(crate) fn dims_panel(
                 if let Some(w) = w_in.map(units) {
                     let d = d_in.map(lattice);
                     let made = match kind {
-                        PartKind::Wall(_) => Some(PartKind::Wall(w)),
+                        PartKind::Wall { .. } => Some(PartKind::wall(w)),
                         PartKind::Seg { high, lift, .. } => Some(PartKind::Seg {
                             long: w,
                             high,
@@ -754,7 +754,7 @@ pub(crate) fn dims_panel(
         // Live measure while stretch-drawing.
         let units = |value: f32| format!("{}", (value * 16.0).round() as i64);
         said = match drawn {
-            PartKind::Wall(long) => Some(format!("wall - {}", units(long))),
+            PartKind::Wall { long, .. } => Some(format!("wall - {}", units(long))),
             PartKind::Trim { long, .. } => Some(format!("trim - {}", units(long))),
             PartKind::Floor(w, d) => Some(format!("floor - {} x {}", units(w), units(d))),
             PartKind::Foundation(w, d, _) => {

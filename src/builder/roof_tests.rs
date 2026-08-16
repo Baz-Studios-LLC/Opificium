@@ -461,7 +461,12 @@ fn a_flat_rail_matches_the_flight_it_continues() {
 #[test]
 fn everything_sizable_can_be_trimmed() {
     let cases: Vec<PartKind> = vec![
-        PartKind::Wall(3.0),
+        PartKind::Wall {
+            long: 3.0,
+            high: WALL_HIGH,
+            framed: false,
+            openings: [None; MOST_OPENINGS],
+        },
         PartKind::Seg {
             long: 2.0,
             high: 1.5,
@@ -723,7 +728,8 @@ fn a_framed_wall_is_solid_where_it_is_not_open() {
         ),
     ] {
         for long in [2.5f32, 4.0, 6.5] {
-            let kind = PartKind::Framed {
+            let kind = PartKind::Wall {
+                framed: true,
                 long,
                 high: WALL_HIGH,
                 openings,
@@ -783,7 +789,8 @@ fn an_opening_gathers_its_own_frame() {
             Opening::Window => (WINDOW_WIDE, high_tall, high_foot),
         };
         let body = body_of(
-            &PartKind::Framed {
+            &PartKind::Wall {
+                framed: true,
                 long: 4.0,
                 high: WALL_HIGH,
                 openings: [Some(Hole::plain(hole, 0.0)), None, None, None],
@@ -835,7 +842,8 @@ fn an_opening_gathers_its_own_frame() {
 fn a_longer_wall_gains_a_bay() {
     let studs = |long: f32| {
         body_of(
-            &PartKind::Framed {
+            &PartKind::Wall {
+                framed: true,
                 long,
                 high: WALL_HIGH,
                 openings: [None; MOST_OPENINGS],
@@ -1007,7 +1015,12 @@ fn a_wall_piece_keeps_its_own_height() {
             .fold(f32::INFINITY, f32::min)
     };
     // A plain wall, and the full-height pieces a punch leaves beside a door.
-    let wall = PartKind::Wall(2.0);
+    let wall = PartKind::Wall {
+        long: 2.0,
+        high: WALL_HIGH,
+        framed: false,
+        openings: [None; MOST_OPENINGS],
+    };
     let beside = PartKind::Seg {
         long: 0.75,
         high: WALL_HIGH,
@@ -1779,7 +1792,15 @@ fn only_parts_with_a_length_can_be_trimmed() {
     // A chimney is the case Brett named: it is meant to come through, and
     // it has no length to come back along either.
     assert!(length_of(&PartKind::Beam(3.0, 0.0, 0.0)).is_some());
-    assert!(length_of(&PartKind::Wall(2.0)).is_some());
+    assert!(
+        length_of(&PartKind::Wall {
+            long: 2.0,
+            high: WALL_HIGH,
+            framed: false,
+            openings: [None; MOST_OPENINGS]
+        })
+        .is_some()
+    );
     assert!(length_of(&PartKind::Chimney(1.75)).is_none());
     assert!(length_of(&PartKind::Prop("pole")).is_none());
 }
@@ -1896,7 +1917,15 @@ fn a_roof_comes_apart_into_parts_that_exist() {
         "a door is jambs and a leaf and the bench has a part for neither: \
              breaking one up would leave a hole where a door used to be"
     );
-    assert!(!comes_apart(&PartKind::Wall(2.0)), "a wall is a wall");
+    assert!(
+        !comes_apart(&PartKind::Wall {
+            long: 2.0,
+            high: WALL_HIGH,
+            framed: false,
+            openings: [None; MOST_OPENINGS]
+        }),
+        "a wall is a wall"
+    );
 
     // What it comes apart INTO is free of one another. The pieces used to be
     // stamped with one group, which reads as tidy and is exactly wrong: a click on
@@ -1940,7 +1969,12 @@ fn a_roof_comes_apart_into_parts_that_exist() {
 
     // And every part can be told what it is, whether or not it comes apart.
     for kind in [
-        PartKind::Wall(2.0),
+        PartKind::Wall {
+            long: 2.0,
+            high: WALL_HIGH,
+            framed: false,
+            openings: [None; MOST_OPENINGS],
+        },
         PartKind::GableRoof(6.0, 4.0, 0.25, 30.0),
     ] {
         for nature in NATURES {

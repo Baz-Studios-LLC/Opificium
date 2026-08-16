@@ -569,7 +569,6 @@ impl Plugin for BuilderPlugin {
 
 pub fn part_name(kind: &PartKind) -> String {
     match kind {
-        PartKind::Wall(len) => format!("wall-{len}"),
         PartKind::Seg { long, high, lift } => format!("wallseg-{long}x{high}@{lift}"),
         PartKind::Trim { long, stone } => {
             if *stone {
@@ -578,15 +577,22 @@ pub fn part_name(kind: &PartKind) -> String {
                 format!("trim-{long}")
             }
         }
-        PartKind::Framed {
+        PartKind::Wall {
             long,
             high,
+            framed,
             openings,
         } => {
             // Every opening's kind and where along the wall it sits, so a wall
             // with two windows in it is a different part from the same wall
             // with one.
-            let mut name = format!("framed-{long}x{high}");
+            // ONE spelling for every wall: how long, how high, framed or not, and what it
+            // makes room for. There were two before, because a framed wall was a different
+            // kind of thing - `wall-4` for the plain one and `framed-4x2.5` for the other.
+            let mut name = format!("wall-{long}x{high}");
+            if *framed {
+                name.push_str("xf");
+            }
             for hole in openings.iter().flatten() {
                 let letter = match hole.what {
                     Opening::Door => 'd',
@@ -659,17 +665,22 @@ pub fn part_name(kind: &PartKind) -> String {
 
 pub fn kind_from_name(name: &str) -> Option<PartKind> {
     if let Some(rest) = name.strip_prefix("wall-") {
-        return rest.parse::<f32>().ok().map(PartKind::Wall);
-    }
-    if let Some(rest) = name.strip_prefix("framed-") {
         let mut parts = rest.split('x');
         let long = parts.next()?.parse().ok()?;
         let high = parts
             .next()
             .and_then(|n| n.parse().ok())
             .unwrap_or(WALL_HIGH);
+        let mut framed = false;
         let mut openings = [None; MOST_OPENINGS];
-        for (slot, said) in openings.iter_mut().zip(parts) {
+        let mut slots = openings.iter_mut();
+        for said in parts {
+            // The framing is a word of its own among the openings.
+            if said == "f" {
+                framed = true;
+                continue;
+            }
+            let Some(slot) = slots.next() else { break };
             // `d0.5` or `d0.5@36`: a width only when it is not the usual one.
             let (said, dark) = match said.strip_suffix('!') {
                 Some(said) => (said, true),
@@ -692,9 +703,10 @@ pub fn kind_from_name(name: &str) -> Option<PartKind> {
                 dark,
             });
         }
-        return Some(PartKind::Framed {
+        return Some(PartKind::Wall {
             long,
             high,
+            framed,
             openings,
         });
     }

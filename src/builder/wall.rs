@@ -84,7 +84,7 @@ pub(crate) fn heal_wall_at(
             continue;
         }
         let (long, full) = match kind {
-            PartKind::Wall(long) => (long, true),
+            PartKind::Wall { long, .. } => (long, true),
             PartKind::Seg { long, high, lift } => {
                 (long, lift.abs() < 0.01 && (high - WALL_HIGH).abs() < 0.05)
             }
@@ -106,7 +106,7 @@ pub(crate) fn heal_wall_at(
     }
 
     let dressed = cloth.unwrap_or_else(|| frame_record.clone());
-    let made = PartKind::Wall(((high - low) * 16.0).round() / 16.0);
+    let made = PartKind::wall(((high - low) * 16.0).round() / 16.0);
     let centre = base + along * ((low + high) * 0.5);
     let whole = Placed {
         part: part_name(&made),
@@ -202,12 +202,11 @@ pub fn opening_seat(
 
 pub(crate) fn punchable_length(record: &Placed) -> Option<f32> {
     match kind_from_name(&record.part)? {
-        PartKind::Wall(long) => Some(long),
+        PartKind::Wall { long, .. } => Some(long),
         // A framed wall takes an opening too - it just does not have to be cut
         // to take one. Being punchable is what lets a window's ghost seat
         // itself along the wall as you aim, which is the same arithmetic
         // whether the wall is going to be parted or is going to reframe itself.
-        PartKind::Framed { long, .. } => Some(long),
         PartKind::Seg { long, high, lift }
             if lift.abs() < 0.01 && (high - WALL_HIGH).abs() < 0.05 =>
         {
@@ -290,7 +289,8 @@ pub(crate) fn punch_wall(
     // wall already knows what an opening is: it frames one, declines to panel
     // it, and divides the bays either side of it. So the wall simply gains the
     // opening where it was aimed, and re-solves.
-    let reframed = if let Some(PartKind::Framed {
+    let reframed = if let Some(PartKind::Wall {
+        framed: true,
         long,
         high,
         mut openings,
@@ -326,9 +326,10 @@ pub(crate) fn punch_wall(
                 }
             }
         }
-        let made = PartKind::Framed {
+        let made = PartKind::Wall {
             long,
             high,
+            framed: true,
             openings,
         };
         commands.entity(wall).despawn_related::<Children>();

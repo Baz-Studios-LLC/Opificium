@@ -169,7 +169,7 @@ pub fn stair_rhythm(rise: f32) -> (i32, f32, f32) {
 pub(crate) fn is_structure(kind: &PartKind) -> bool {
     matches!(
         kind,
-        PartKind::Wall(_)
+        PartKind::Wall { long: _, .. }
             | PartKind::Seg { .. }
             | PartKind::Floor(..)
             | PartKind::FloorRun
@@ -375,7 +375,7 @@ pub(crate) fn wall_ends(
             continue;
         }
         let long = match kind_from_name(&record.part) {
-            Some(PartKind::Wall(long)) => long,
+            Some(PartKind::Wall { long, .. }) => long,
             Some(PartKind::Seg { long, lift, .. }) if lift == 0.0 => long,
             _ => continue,
         };
@@ -672,7 +672,7 @@ pub(crate) fn move_ghost(
 
     // Walls click to wall ends - a butt joint or a square corner - and
     // the corner pole magnetizes to the same points it exists to cover.
-    let magnetic = matches!(kind, PartKind::Wall(_))
+    let magnetic = matches!(kind, PartKind::Wall { long: _, .. })
         || kind == PartKind::Prop("pole")
         || kind.run_axes() == Some(1);
     if magnetic {
@@ -699,7 +699,7 @@ pub(crate) fn move_ghost(
         }
         let my_dir = Quat::from_rotation_y(hand.yaw) * Vec3::X;
         let my_ends: Vec<(Vec3, Vec3)> = match kind {
-            PartKind::Wall(long) => {
+            PartKind::Wall { long, .. } => {
                 vec![
                     (snapped + my_dir * (long * 0.5), my_dir),
                     (snapped - my_dir * (long * 0.5), -my_dir),
@@ -731,7 +731,7 @@ pub(crate) fn move_ghost(
         }
         if let Some((_, gap)) = pull {
             snapped += gap;
-        } else if let PartKind::Wall(my_len) = kind {
+        } else if let PartKind::Wall { long: my_len, .. } = kind {
             // No wall end took hold. A wall running parallel to a platform
             // edge seats flush onto it - outer face to the stone's face -
             // and platform corners then slide it ALONG its line only, so

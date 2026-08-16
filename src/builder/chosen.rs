@@ -12,7 +12,7 @@ pub(crate) struct ChosenPanel;
 /// is the right thing to write in a file and the wrong thing to read in a list.
 pub(crate) fn spoken_of(kind: &PartKind) -> String {
     match kind {
-        PartKind::Wall(long) => format!("WALL, {long:.2}M"),
+        PartKind::Wall { long, .. } => format!("WALL, {long:.2}M"),
         PartKind::Seg { long, .. } => format!("WALL PIECE, {long:.2}M"),
         PartKind::Trim { long, stone } => {
             format!("{} TRIM, {long:.2}M", if *stone { "STONE" } else { "WOOD" })

@@ -115,11 +115,28 @@ pub(crate) fn body_of(kind: &PartKind, repaint: Option<(&str, f32)>) -> Vec<Slab
         // Everything is worked out in whole atoms from the left end and turned
         // into metres once, at the very end, when the slab is cut. Nothing here
         // is snapped, because nothing here is ever off.
-        PartKind::Framed {
+        PartKind::Wall {
             long,
             high,
+            framed,
             openings,
         } => {
+            // A plain wall is one slab, as it always was. A framed one is SOLVED below.
+            // Both are the same part now, so a right-click can turn one into the other -
+            // and an opening will mean the same thing in either, which is what makes a
+            // window one window instead of two different things.
+            if !framed {
+                return vec![slab(
+                    0.0,
+                    high * 0.5,
+                    0.0,
+                    *long,
+                    *high,
+                    WALL_THICK,
+                    "wood",
+                    0.7,
+                )];
+            }
             let span = (long / ATOM).round().max(POST_WIDE as f32 * 2.0) as i32;
             let tall = (high / ATOM).round().max((PLATE_TALL * 3 + 8) as f32) as i32;
             let mut body = Vec::new();
@@ -387,16 +404,6 @@ pub(crate) fn body_of(kind: &PartKind, repaint: Option<(&str, f32)>) -> Vec<Slab
             }
             body
         }
-        PartKind::Wall(length) => vec![slab(
-            0.0,
-            WALL_HIGH * 0.5,
-            0.0,
-            *length,
-            WALL_HIGH,
-            WALL_THICK,
-            "wood",
-            0.7,
-        )],
         PartKind::SegRun { high, lift } => vec![slab(
             0.0,
             lift + high * 0.5,

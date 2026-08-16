@@ -283,17 +283,19 @@ fn a_double_door_gets_a_double_hole() {
 /// the ordinary width writes exactly the name it always wrote.
 #[test]
 fn a_framed_wall_names_its_openings() {
-    let plain = PartKind::Framed {
+    let plain = PartKind::Wall {
+        framed: true,
         long: 3.0,
         high: WALL_HIGH,
         openings: [Some(Hole::plain(Opening::Door, 0.0)), None, None, None],
     };
     let name = part_name(&plain);
-    assert_eq!(name, "framed-3x2.5xd0", "an ordinary door gained a width");
+    assert_eq!(name, "wall-3x2.5xfxd0", "an ordinary door gained a width");
     assert!(kind_from_name(&name) == Some(plain), "it did not read back");
 
-    let wide = PartKind::Framed {
+    let wide = PartKind::Wall {
         long: 4.0,
+        framed: true,
         high: WALL_HIGH,
         openings: [
             Some(Hole {
@@ -317,17 +319,23 @@ fn a_framed_wall_names_its_openings() {
         "a wide door did not read back"
     );
 
-    // And a name from before widths existed still opens, at the usual width.
-    let older = kind_from_name("framed-3x2.5xd0.25").expect("an older wall opens");
-    let PartKind::Framed { openings, .. } = older else {
-        panic!("not a framed wall")
+    // A wall with NO framing word is a plain one - and it holds its openings just the
+    // same, which is the whole point of there being one wall instead of two. A width left
+    // unsaid is the usual width for its kind.
+    let plain = kind_from_name("wall-3x2.5xd0.25").expect("a plain wall opens");
+    let PartKind::Wall {
+        framed, openings, ..
+    } = plain
+    else {
+        panic!("not a wall")
     };
+    assert!(!framed, "a wall with no framing word came back framed");
     let hole = openings[0].expect("its door");
-    assert_eq!(
-        hole.wide, DOOR_WIDE,
-        "an older door came back the wrong width"
-    );
+    assert_eq!(hole.wide, DOOR_WIDE, "the door came back the wrong width");
     assert!((hole.at - 0.25).abs() < 1e-6);
+
+    // And a plain wall says itself plainly: no framing word, and nothing else either.
+    assert_eq!(part_name(&PartKind::wall(3.0)), "wall-3x2.5");
 }
 
 /// A swept bench is an empty work: one level, one phase, nothing in it.
@@ -394,9 +402,10 @@ mod bars {
     /// before, silently, for a whole release.
     #[test]
     fn black_bars_survive_a_round_trip() {
-        let dark = PartKind::Framed {
+        let dark = PartKind::Wall {
             long: 4.0,
             high: WALL_HIGH,
+            framed: true,
             openings: [
                 Some(Hole {
                     what: Opening::Window,
@@ -410,7 +419,12 @@ mod bars {
             ],
         };
         let name = part_name(&dark);
-        let Some(PartKind::Framed { openings, .. }) = kind_from_name(&name) else {
+        let Some(PartKind::Wall {
+            framed: true,
+            openings,
+            ..
+        }) = kind_from_name(&name)
+        else {
             panic!("a framed wall did not read back: {name}");
         };
         assert!(
@@ -420,14 +434,20 @@ mod bars {
 
         // And a wall drawn before bars could be dark writes exactly the name it always
         // wrote, so every saved building reads back byte for byte the same.
-        let plain = PartKind::Framed {
+        let plain = PartKind::Wall {
+            framed: true,
             long: 4.0,
             high: WALL_HIGH,
             openings: [Some(Hole::plain(Opening::Window, 0.0)), None, None, None],
         };
         let said = part_name(&plain);
         assert!(!said.contains('!'), "a plain wall's name changed: {said}");
-        let Some(PartKind::Framed { openings, .. }) = kind_from_name(&said) else {
+        let Some(PartKind::Wall {
+            framed: true,
+            openings,
+            ..
+        }) = kind_from_name(&said)
+        else {
             panic!("it did not read back");
         };
         assert!(!openings[0].expect("its window").dark);

@@ -55,6 +55,22 @@ pub struct Hole {
     pub dark: bool,
 }
 
+impl PartKind {
+    /// A plain wall of a length: the usual height, no framing, nothing in it.
+    ///
+    /// The shorthand for what used to be `Wall(long)`, kept because most of the bench
+    /// wants exactly that and spelling four fields at every one of them would bury the
+    /// two places that actually care.
+    pub const fn wall(long: f32) -> PartKind {
+        PartKind::Wall {
+            long,
+            high: WALL_HIGH,
+            framed: false,
+            openings: [None; MOST_OPENINGS],
+        }
+    }
+}
+
 impl Hole {
     /// An opening at the width its kind usually takes.
     pub const fn plain(what: Opening, at: f32) -> Hole {
@@ -81,33 +97,27 @@ pub const fn usual_width(what: Opening) -> i32 {
 /// What a shelf entry stands for.
 #[derive(Clone, Copy, PartialEq)]
 pub enum PartKind {
-    Wall(f32),
-    /// A half-timbered wall that frames ITSELF.
+    /// A WALL: how long, how high, whether it is framed, and what it makes room for.
     ///
-    /// Every other part in here is a shape a maker sizes. This one is a
-    /// specification the bench solves: given a length and a height it works out
-    /// where the sill and head plates go, where the corner posts stand, and how
-    /// many studs divide the clear span between them - then places all of it
-    /// from scratch every time either number changes.
+    /// One part where there were two. A framed wall used to be its own species, which is
+    /// why a window was two different things - openings belonged to the framed kind, and a
+    /// plain wall had to be cut into `Seg` leftovers around a hole instead. Brett: "Walls
+    /// should just have a right click to add the framing."
     ///
-    /// The difference shows the moment you pull it. A plain wall dragged from
-    /// two metres to three is the same wall stretched, and everything drawn on
-    /// it stretches too. A framed wall dragged the same way GAINS A BAY: the
-    /// studs stay the width studs are, the panels stay the size panels are, and
-    /// the wall is simply longer. Nothing is ever scaled, so nothing is ever
-    /// distorted.
-    ///
-    /// Taken from Opificium, which is Brett's own bench for medieval buildings
-    /// and worked this way from the start.
-    Framed {
+    /// So framing is a PROPERTY, like a flight's rail being stone or timber. A plain wall
+    /// and a half-timbered one are the same wall with the same openings in the same places;
+    /// the flag decides whether the infill is bays and studs or plain plaster.
+    Wall {
         long: f32,
         high: f32,
-        /// What the wall leaves holes for, and how far along it each one sits.
+        /// Half-timbered: the bench solves sill, plates, posts and studs for it, and it
+        /// GAINS A BAY when pulled longer rather than stretching what is there.
+        framed: bool,
+        /// What it leaves holes for, and how far along it each one sits.
         ///
-        /// A fixed array because a `PartKind` is `Copy` and is spelled out as a
-        /// name - a wall is its measurements, and a list that could grow without
-        /// bound could not be either of those things. Four is more openings than
-        /// one wall of a house has ever wanted.
+        /// A fixed array because a `PartKind` is `Copy` and is spelled out as a name - a
+        /// wall is its measurements, and a list that could grow without bound could not be
+        /// either. Four is more openings than one wall of a house has ever wanted.
         openings: [Option<Hole>; MOST_OPENINGS],
     },
     /// A piece of wall left standing around an opening: the sides of a
@@ -253,7 +263,7 @@ impl PartKind {
     /// What a run becomes at the drawn size.
     pub fn run_made(&self, w: f32, d: f32) -> PartKind {
         match self {
-            PartKind::WallRun => PartKind::Wall(w),
+            PartKind::WallRun => PartKind::wall(w),
             PartKind::TrimRun { stone } => PartKind::Trim {
                 long: w,
                 stone: *stone,
@@ -381,10 +391,20 @@ pub const STRUCTURE: &[CatalogEntry] = &[
         "walls",
     ),
     structure("TRIM, STRETCH", PartKind::TrimRun { stone: false }, "walls"),
-    structure("WALL, 2M", PartKind::Wall(2.0), "walls"),
+    structure(
+        "WALL, 2M",
+        PartKind::Wall {
+            long: 2.0,
+            high: WALL_HIGH,
+            framed: false,
+            openings: [None; MOST_OPENINGS],
+        },
+        "walls",
+    ),
     structure(
         "WALL, FRAMED",
-        PartKind::Framed {
+        PartKind::Wall {
+            framed: true,
             long: 3.0,
             high: WALL_HIGH,
             openings: [None; MOST_OPENINGS],
@@ -393,7 +413,8 @@ pub const STRUCTURE: &[CatalogEntry] = &[
     ),
     structure(
         "WALL, FRAMED, DOOR",
-        PartKind::Framed {
+        PartKind::Wall {
+            framed: true,
             long: 3.0,
             high: WALL_HIGH,
             openings: [Some(Hole::plain(Opening::Door, 0.0)), None, None, None],
@@ -402,7 +423,8 @@ pub const STRUCTURE: &[CatalogEntry] = &[
     ),
     structure(
         "WALL, FRAMED, WINDOW",
-        PartKind::Framed {
+        PartKind::Wall {
+            framed: true,
             long: 3.0,
             high: WALL_HIGH,
             openings: [Some(Hole::plain(Opening::Window, 0.0)), None, None, None],

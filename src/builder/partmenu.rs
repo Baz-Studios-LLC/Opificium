@@ -203,16 +203,19 @@ pub(crate) fn length_of(kind: &PartKind) -> Option<(f32, Box<dyn Fn(f32) -> Part
         PartKind::Beam(long, high, low) => {
             Some((long, Box::new(move |n| PartKind::Beam(n, high, low))))
         }
-        PartKind::Wall(long) => Some((long, Box::new(PartKind::Wall))),
-        PartKind::Framed {
+        // A wall pulled longer keeps its height, its framing and its openings. A framed
+        // one GAINS A BAY doing it; a plain one simply gets longer.
+        PartKind::Wall {
             long,
             high,
+            framed,
             openings,
         } => Some((
             long,
-            Box::new(move |n| PartKind::Framed {
+            Box::new(move |n| PartKind::Wall {
                 long: n,
                 high,
+                framed,
                 openings,
             }),
         )),
@@ -363,7 +366,11 @@ pub(crate) fn deeds_for(kind: &PartKind) -> Vec<Deed> {
     // A framed wall's window bars, the same way - and only when the wall HAS a window,
     // since a line that would do nothing is worse than no line at all: it has to be tried
     // before a maker learns it is nothing.
-    if let PartKind::Framed { openings, .. } = kind
+    if let PartKind::Wall {
+        framed: true,
+        openings,
+        ..
+    } = kind
         && let Some(window) = openings
             .iter()
             .flatten()
@@ -694,7 +701,8 @@ pub(crate) fn work_part_menu(
         }
         Some((Deed::BarsIn(dark), part)) => {
             if let Ok((_, _, mut record)) = placed.get_mut(part)
-                && let Some(PartKind::Framed {
+                && let Some(PartKind::Wall {
+                    framed: true,
                     long,
                     high,
                     mut openings,
@@ -707,9 +715,10 @@ pub(crate) fn work_part_menu(
                         hole.dark = dark;
                     }
                 }
-                let made = PartKind::Framed {
+                let made = PartKind::Wall {
                     long,
                     high,
+                    framed: true,
                     openings,
                 };
                 record.part = part_name(&made);
