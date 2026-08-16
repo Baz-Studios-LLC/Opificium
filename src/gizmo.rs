@@ -792,19 +792,22 @@ fn work_gizmo(
                     }
                     PartKind::Foundation(w, d, high)
                 }
+                // ANY wall, framed or not. The gold handle is offered to every wall now
+                // that every wall has a height - and this arm only answered for framed
+                // ones, so a plain wall grew a handle that did nothing when pulled.
                 Some(PartKind::Wall {
-                    framed: true,
                     long,
                     high: was,
+                    framed,
                     openings,
                 }) => {
                     if (high - was).abs() < 1e-4 {
                         return;
                     }
                     PartKind::Wall {
-                        framed: true,
                         long,
                         high,
+                        framed,
                         openings,
                     }
                 }
