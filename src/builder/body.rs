@@ -1189,10 +1189,40 @@ fn shape_of(kind: &PartKind) -> Vec<Slab> {
             slab(0.0, 0.40625, 0.0, 0.375, 0.0625, 0.375, "wood", 0.6),
             slab(0.0, 0.1875, 0.0, 0.25, 0.375, 0.25, "wood", 0.45),
         ],
-        PartKind::Prop("hearth") => vec![
-            slab(0.0, 0.40625, 0.0, 0.875, 0.8125, 0.625, "stone", 0.6),
-            slab(0.0, 0.5625, 0.09375, 0.625, 0.5, 0.4375, "stone", 0.25),
-        ],
+        PartKind::Prop("hearth") => {
+            // DRAWN AROUND ITS FIRE, the way a wall is drawn around a window - a
+            // hearthstone, a back, a jamb each side and a lintel over - rather than
+            // as a block with a dark box sunk into its face.
+            //
+            // The dark box shared its front face AND its top with the block it sat
+            // in: two solids at one depth, which is the speckle Brett saw. There is
+            // nothing to fight now, because nothing is inside anything.
+            let a = ATOM;
+            let piece = |x: (f32, f32), y: (f32, f32), z: (f32, f32), shade: f32| {
+                slab(
+                    (x.0 + x.1) * 0.5 * a,
+                    (y.0 + y.1) * 0.5 * a,
+                    (z.0 + z.1) * 0.5 * a,
+                    (x.1 - x.0) * a,
+                    (y.1 - y.0) * a,
+                    (z.1 - z.0) * a,
+                    "stone",
+                    shade,
+                )
+            };
+            vec![
+                // The hearthstone it is all built on.
+                piece((-7.0, 7.0), (0.0, 2.0), (-5.0, 5.0), 0.55),
+                // The back, and the two jambs standing on the stone.
+                piece((-7.0, 7.0), (2.0, 13.0), (-5.0, -3.0), 0.45),
+                piece((-7.0, -4.0), (2.0, 10.0), (-3.0, 5.0), 0.6),
+                piece((4.0, 7.0), (2.0, 10.0), (-3.0, 5.0), 0.6),
+                // The lintel across them, carrying the stack above.
+                piece((-7.0, 7.0), (10.0, 13.0), (-3.0, 5.0), 0.6),
+                // And the fire itself, well inside the opening it burns in.
+                piece((-3.0, 3.0), (2.0, 3.0), (-2.0, 2.0), 0.15),
+            ]
+        }
         PartKind::Chimney(drop) => vec![
             // A stack of dressed stone with a capped throat, and a shaft
             // that reaches down as far as it is told: set on a roof it
@@ -1242,25 +1272,28 @@ fn shape_of(kind: &PartKind) -> Vec<Slab> {
             slab(
                 0.96875, 0.3125, 0.03125, 0.1875, 0.625, 0.8125, "wood", 0.55,
             ),
-            slab(0.0, 0.75, -0.28125, 1.875, 0.75, 0.1875, "wood", 0.55),
+            // The back's foot is buried in the plinth rather than starting level
+            // with the cushions: two faces at one height is a flicker even where
+            // nothing can see it.
+            slab(0.0, 0.71875, -0.28125, 1.875, 0.8125, 0.1875, "wood", 0.55),
             // The cushions: two to sit on, two to lean against.
             slab(
                 -0.46875,
                 0.4375,
-                0.09375,
+                0.0625,
                 0.8125,
                 0.125,
-                0.6875,
+                0.625,
                 "cloth-wine",
                 0.6,
             ),
             slab(
                 0.40625,
                 0.4375,
-                0.09375,
+                0.0625,
                 0.8125,
                 0.125,
-                0.6875,
+                0.625,
                 "cloth-wine",
                 0.6,
             ),
@@ -1623,7 +1656,11 @@ fn shape_of(kind: &PartKind) -> Vec<Slab> {
                 0.03125, 0.03125, 0.03125, 0.3125, 0.0625, 0.3125, "stone", 0.5,
             ),
             slab(0.03125, 0.625, 0.03125, 0.0625, 1.125, 0.0625, "wood", 0.4),
-            slab(0.0, 1.1875, 0.0, 0.125, 0.125, 0.125, "bone", 0.95),
+            // Three atoms round a one-atom stem: two would have to share a face
+            // with it to sit on it at all, and a shared face is a flicker.
+            slab(
+                0.03125, 1.1875, 0.03125, 0.1875, 0.125, 0.1875, "bone", 0.95,
+            ),
             slab(
                 0.03125,
                 1.3125,
@@ -1647,9 +1684,10 @@ fn shape_of(kind: &PartKind) -> Vec<Slab> {
             slab(
                 -0.03125, 0.15625, -0.03125, 1.1875, 0.3125, 0.4375, "wood", 0.45,
             ),
-            slab(
-                0.03125, 0.28125, 0.03125, 1.0625, 0.0625, 0.3125, "water", 0.7,
-            ),
+            // Below the rim and inside the staves: a surface level with the wood
+            // all round is a shimmer rather than a drink. Every face on a whole
+            // atom and none of them on one of the trough's own.
+            slab(-0.03125, 0.21875, 0.0, 1.0625, 0.0625, 0.25, "water", 0.7),
         ],
         PartKind::Pole(high) => vec![
             // The corner post: shoulders over both wall ends at a meeting,
@@ -2021,7 +2059,7 @@ fn shape_of(kind: &PartKind) -> Vec<Slab> {
         ],
         PartKind::Prop("cradle") => vec![
             slab(0.03125, 0.28125, 0.0, 0.5625, 0.3125, 0.875, "wood", 0.55),
-            slab(-0.03125, 0.4375, 0.3125, 0.4375, 0.125, 0.25, "bone", 0.9),
+            slab(0.0, 0.4375, 0.28125, 0.375, 0.125, 0.1875, "bone", 0.9),
             slab(0.0, 0.09375, -0.375, 0.625, 0.0625, 0.125, "wood", 0.4),
             slab(0.0, 0.09375, 0.375, 0.625, 0.0625, 0.125, "wood", 0.4),
         ],
@@ -2029,10 +2067,12 @@ fn shape_of(kind: &PartKind) -> Vec<Slab> {
             slab(0.0, 0.9375, 0.0, 1.125, 1.875, 0.5, "wood", 0.5),
             slab(-0.25, 0.96875, 0.28125, 0.5, 1.6875, 0.0625, "wood", 0.62),
             slab(0.25, 0.96875, 0.28125, 0.5, 1.6875, 0.0625, "wood", 0.62),
+            // The handle stands PROUD of the leaf rather than flush in its face:
+            // a knob you cannot take hold of is a knob painted on.
             slab(
-                0.03125,
+                0.09375,
                 0.96875,
-                0.28125,
+                0.34375,
                 0.0625,
                 0.3125,
                 0.0625,

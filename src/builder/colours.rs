@@ -3041,3 +3041,70 @@ fn a_group_its_owner_brought_can_be_stretched() {
         }
     }
 }
+
+/// No two pieces of a part meet the eye at the same depth in different colours.
+///
+/// Brett: "the hearth has some z fighting." Its fire was a dark box sunk into a pale
+/// block, sharing that block's front face AND its top - two surfaces at one depth, which a
+/// rasteriser cannot choose between and paints as speckle.
+///
+/// The rule is only about faces that MEET THE EYE, which is why it asks for a difference of
+/// RAMP rather than of shade. Two timbers of one wood at one depth have flickered quietly
+/// in this bench since it was written and nobody has ever seen it; a dark mouth on pale
+/// stone, gold on timber, water on a trough's rim - those are the ones a maker photographs.
+#[test]
+fn nothing_fights_for_the_same_face() {
+    let mut speckle: Vec<String> = Vec::new();
+    for entry in STRUCTURE.iter().chain(FURNITURE).chain(DECOR) {
+        let kind = match entry.kind.run_axes() {
+            Some(_) => entry.kind.run_made(2.0, 2.0),
+            None => entry.kind,
+        };
+        // Boxes standing square. A canted or leaning piece is not where its box is -
+        // see the framed wall's braces - so its faces cannot be reasoned about this way.
+        let body = body_of(&kind, None);
+        let square: Vec<&Slab> = body
+            .iter()
+            .filter(|slab| slab.cant == 0.0 && slab.lean == 0.0 && matches!(slab.shape, Shape::Box))
+            .collect();
+        for (i, one) in square.iter().enumerate() {
+            for other in square.iter().skip(i + 1) {
+                if one.ramp == other.ramp {
+                    continue;
+                }
+                let axes = [
+                    (one.at.x, one.size.x, other.at.x, other.size.x),
+                    (one.at.y, one.size.y, other.at.y, other.size.y),
+                    (one.at.z, one.size.z, other.at.z, other.size.z),
+                ];
+                // A face they share, facing the same way - not merely touching, which
+                // is how everything here is built.
+                let flush = |(pa, sa, pb, sb): (f32, f32, f32, f32)| {
+                    ((pa + sa * 0.5) - (pb + sb * 0.5)).abs() < 1e-4
+                        || ((pa - sa * 0.5) - (pb - sb * 0.5)).abs() < 1e-4
+                };
+                let over = |(pa, sa, pb, sb): (f32, f32, f32, f32)| {
+                    (pa - pb).abs() < (sa + sb) * 0.5 - 1e-3
+                };
+                for face in 0..3 {
+                    if flush(axes[face]) && (0..3).filter(|n| *n != face).all(|n| over(axes[n])) {
+                        speckle.push(format!(
+                            "{} - {} and {} share a {} face",
+                            entry.label,
+                            one.ramp,
+                            other.ramp,
+                            ["side", "top", "front"][face]
+                        ));
+                    }
+                }
+            }
+        }
+    }
+    speckle.sort();
+    speckle.dedup();
+    assert!(
+        speckle.is_empty(),
+        "these will speckle on a maker's screen:\n  {}",
+        speckle.join("\n  ")
+    );
+}
