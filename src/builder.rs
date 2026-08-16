@@ -1121,6 +1121,14 @@ pub fn companions(kind: &PartKind) -> Vec<(&'static str, Vec3)> {
 /// sitting on: see `companions`. Nothing here has to say so twice.
 pub fn company_of(kind: &PartKind) -> Vec<(PartKind, Vec3, f32)> {
     match kind {
+        // THE CLERK'S OWN CHAIR, on the side the drawers open and the back panel
+        // hides - which is the side somebody sits at. Brett: "The desk should have
+        // a chair with a widget too."
+        PartKind::Prop("desk") => vec![(
+            PartKind::Prop("chair"),
+            Vec3::new(0.0, 0.0, ATOM * 10.0),
+            std::f32::consts::PI,
+        )],
         PartKind::Table(long, deep) => {
             // A seat every three quarters of a metre, which is elbow room, and at
             // least one a side however short the board is.

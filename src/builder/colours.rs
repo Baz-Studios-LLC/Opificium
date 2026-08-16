@@ -2935,10 +2935,32 @@ fn a_table_grows_legs_and_brings_its_chairs() {
             .any(|(what, _)| *what == "sit"),
         "a chair no longer carries a sitting place"
     );
+    // A DESK brings its clerk's chair, on the side the drawers open and the back panel
+    // hides - which is the side somebody sits at.
+    let desk = crate::builder::company_of(&PartKind::Prop("desk"));
+    assert_eq!(desk.len(), 1, "a desk brings {} chairs", desk.len());
+    let (piece, at, facing) = &desk[0];
+    assert!(
+        matches!(piece, PartKind::Prop("chair")),
+        "a desk brought no chair"
+    );
+    assert!(
+        at.z > 0.3,
+        "the desk's chair stands at {} - inside the carcase, or on the public's side",
+        at.z
+    );
+    assert!(
+        (facing - std::f32::consts::PI).abs() < 1e-4,
+        "the desk's chair has its back to the desk"
+    );
     // And nothing else on the shelf brings company it did not ask for.
     assert!(
         crate::builder::company_of(&PartKind::Prop("stool")).is_empty(),
         "a stool arrives with furniture of its own"
+    );
+    assert!(
+        crate::builder::company_of(&PartKind::Prop("lectern")).is_empty(),
+        "a lectern brings a chair - nobody sits at one"
     );
 }
 
