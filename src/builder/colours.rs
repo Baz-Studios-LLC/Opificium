@@ -2705,3 +2705,78 @@ fn a_clock_face_is_an_octagon() {
         );
     }
 }
+
+/// A doorway is a DOOR-shaped hole, whether or not anything hangs in it.
+///
+/// Brett placed a wide doorway and got a window: four panes by four, glazed and silled, at
+/// door height. The punch read what KIND of opening it was making off the flag that says
+/// whether a routing mark rides along - true of a door, false of a window, and false of a
+/// DOORWAY, which is a door with no mark because the gap itself is the portal.
+///
+/// So every doorway ever punched came out a window. One flag cannot answer two questions,
+/// and the comment beside this one swore it only answered one.
+#[test]
+fn a_doorway_is_a_door_shaped_hole() {
+    for double in [false, true] {
+        for leaf in [false, true] {
+            let kind = PartKind::Door { double, leaf };
+            let opens = opening_of(&kind).expect("a door opens a wall");
+            assert!(
+                opens.what == Opening::Door,
+                "{} punches a {} into the wall",
+                part_name(&kind),
+                if opens.what == Opening::Window {
+                    "window"
+                } else {
+                    "door"
+                }
+            );
+            // The mark is the OTHER question, and it answers it differently: a door is
+            // an entrance and a doorway is a way through.
+            assert_eq!(
+                opens.widget,
+                leaf,
+                "{} says the wrong thing about a villager walking through",
+                part_name(&kind)
+            );
+        }
+    }
+    // A window is the other kind, and says so.
+    let glass = opening_of(&PartKind::Window {
+        wide: WINDOW_WIDE,
+        high: WINDOW_WIDE,
+    })
+    .expect("a window opens a wall");
+    assert!(glass.what == Opening::Window && !glass.widget);
+
+    // And the hole a doorway leaves REACHES THE FLOOR, which is the whole difference:
+    // read off the wall rather than off the table that made it.
+    let tall = (WALL_HIGH / ATOM).round() as i32;
+    let hole = Hole {
+        wide: DOOR_WIDE * 2,
+        ..Hole::usual(Opening::Door, 0.0, tall)
+    };
+    let holes = openings_at(
+        (6.0 / ATOM).round() as i32,
+        tall,
+        &[Some(hole), None, None, None],
+    );
+    let (_, _, _, foot, _, _) = holes[0];
+    assert_eq!(
+        foot, 0,
+        "a doorway's hole starts {foot} atoms off the floor"
+    );
+    // Nothing glazes it: a doorway with a mullion up the middle is a window.
+    let wall = PartKind::Wall {
+        long: 6.0,
+        high: WALL_HIGH,
+        framed: false,
+        openings: [Some(hole), None, None, None],
+    };
+    assert!(
+        !body_of(&wall, None)
+            .iter()
+            .any(|slab| slab.size.z < WALL_THICK - 1e-4 && slab.size.x < 0.2),
+        "a doorway has bars across it"
+    );
+}

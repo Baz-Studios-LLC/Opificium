@@ -147,6 +147,7 @@ pub(crate) fn heal_wall_at(
 pub fn opening_of(kind: &PartKind) -> Option<Opens> {
     let door = |wide: f32, clear: i32, widget: bool| {
         Some(Opens {
+            what: Opening::Door,
             wide,
             head: 2.125,
             sill: 0.0,
@@ -187,6 +188,7 @@ pub fn opening_of(kind: &PartKind) -> Option<Opens> {
         // the whole of what "uncouple the window size from the wall height"
         // means: the table stops answering for it and passes on what it holds.
         PartKind::Window { wide, high } => Some(Opens {
+            what: Opening::Window,
             // The hole a PLAIN wall parts for it, frame and all.
             wide: (wide + jamb_of(Opening::Window) * 2) as f32 * ATOM,
             head: (ghost_band().foot + high) as f32 * ATOM,
@@ -211,6 +213,16 @@ pub fn opening_of(kind: &PartKind) -> Option<Opens> {
 /// long is a trap with a lid on it.
 #[derive(Clone, Copy)]
 pub struct Opens {
+    /// A DOOR or a WINDOW - which decides where the hole sits in the wall and what
+    /// the wall draws around it.
+    ///
+    /// Its own field, and it has to be. This was read off `widget` below, on the
+    /// reasoning that a door has a routing mark and a window does not - true of
+    /// those two and false of the third: a DOORWAY is a door with no mark, so every
+    /// doorway ever punched came out a window. Brett placed a wide one and got four
+    /// panes by four, glazed and silled, at door height. One flag cannot answer two
+    /// questions, and the comment beside it swore it only answered one.
+    pub what: Opening,
     /// How far a PLAIN wall parts for it, in metres, frame included.
     pub wide: f32,
     /// Where its head is, in metres off the wall's foot.
@@ -398,10 +410,11 @@ pub(crate) fn punch_wall(
     grid: f32,
 ) -> bool {
     let Opens {
+        what,
         wide,
         head,
         sill,
-        widget: is_door,
+        widget,
         clear,
         ..
     } = opens;
@@ -469,11 +482,7 @@ pub(crate) fn punch_wall(
         mut openings,
     }) = kind_from_name(&record.part)
     {
-        let what = if is_door {
-            Opening::Door
-        } else {
-            Opening::Window
-        };
+        // What the table says it is, not what its routing mark implies.
         // THE SIZE IT IS, and WHERE UP THE WALL IT WAS AIMED.
         //
         // The size is the opening's own, carried in from the one table: the
@@ -623,15 +632,14 @@ pub(crate) fn punch_wall(
     }
 
     // The frame takes the wall's own line and turn.
-    // The hand knows which opening it holds; `is_door` only decides
-    // whether a routing widget rides along.
+    // The hand knows which opening it holds.
     // A WINDOW THE WALL HAS ALREADY DRAWN is not placed a second time. The wall frames
     // its own opening now - jambs, lintel, sill and panes - so setting the window part
     // down as well stood one window inside another, a hand's breadth apart.
     //
     // A DOOR still hangs its leaf: the wall makes the opening and the leaf is the thing
     // that swings in it, which no wall has ever drawn.
-    if reframed && !is_door {
+    if reframed && what == Opening::Window {
         return true;
     }
     let frame_kind = hand.kind.unwrap_or(PartKind::Prop("window"));
@@ -681,7 +689,7 @@ pub(crate) fn punch_wall(
     // A door is a doorway: the routing widget arrives with it, its nose
     // pointing OUT through the opening - the way you were looking when
     // you punched it, since that is the side you were standing on.
-    if is_door {
+    if widget {
         let widget = PartKind::Widget("door");
         let outward = aimed
             .map(|(_, _, normal)| Vec3::new(normal.x, 0.0, normal.z))
