@@ -312,6 +312,16 @@ pub enum PartKind {
         /// because a gap in a wall run is a portal found by walking it.
         leaf: bool,
     },
+    /// A TABLE, as long and as deep as it is drawn.
+    ///
+    /// Brett: "Can we get. longer table that os a conference table?" - and a
+    /// conference table IS a long table, so it is the table that grows rather than
+    /// a second line on the shelf saying TABLE, LONG. The same answer the gable and
+    /// the beam and the post all got.
+    ///
+    /// It gains LEGS as it grows, the way a wall gains bays: a four-metre board on
+    /// four legs sags in the middle, and looks it.
+    Table(f32, f32),
     /// A CLOCK'S FACE, as wide as it is drawn - and no hands.
     ///
     /// Brett: "I wonder if we should make it hands free and have the game create
@@ -646,7 +656,7 @@ pub const FURNITURE: &[CatalogEntry] = &[
     prop("LECTERN", "lectern"),
     prop("SHELVES", "shelves"),
     prop("STOOL", "stool"),
-    prop("TABLE", "table"),
+    structure("TABLE", PartKind::Table(1.5, 0.875), "furnishing"),
     prop("TABLE, SIDE", "side-table"),
     prop("WARDROBE", "wardrobe"),
 ];

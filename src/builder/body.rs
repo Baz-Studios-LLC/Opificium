@@ -1136,19 +1136,51 @@ fn shape_of(kind: &PartKind) -> Vec<Slab> {
             slab(-0.46875, 0.5625, 0.6875, 0.5625, 0.125, 0.375, "bone", 0.95),
             slab(0.40625, 0.5625, 0.6875, 0.5625, 0.125, 0.375, "bone", 0.95),
         ],
-        PartKind::Prop("table") => {
-            let mut parts = vec![slab(0.0, 0.75, 0.0, 1.5, 0.125, 0.875, "wood", 0.65)];
-            for (sx, sz) in [(-1.0f32, -1.0f32), (1.0, -1.0), (-1.0, 1.0), (1.0, 1.0)] {
+        PartKind::Table(long, deep) => {
+            // A BOARD ON LEGS, and more legs the longer it gets - the way a wall
+            // gains a bay rather than a wider one. A four-metre board on four legs
+            // sags in the middle and looks it.
+            let long = on_the_lattice(long.max(0.5));
+            let deep = on_the_lattice(deep.max(0.375));
+            let leg = 0.125;
+            let mut parts = vec![slab(0.0, 0.75, 0.0, long, 0.125, deep, "wood", 0.65)];
+            // The apron under the lid, which is what tells a table from a plank
+            // standing on sticks.
+            let inset = 0.0625;
+            for side in [-1.0f32, 1.0] {
                 parts.push(slab(
-                    sx * 0.625,
-                    0.375,
-                    sz * 0.3125,
+                    0.0,
+                    0.625,
+                    side * (deep * 0.5 - inset - leg * 0.5),
+                    long - leg * 2.0,
                     0.125,
-                    0.75,
-                    0.125,
+                    leg,
                     "wood",
-                    0.5,
+                    0.55,
                 ));
+            }
+            // A pair of legs at each end, and a pair for every stride between: no
+            // span of the board left longer than a maker could lean on.
+            let reach = long * 0.5 - inset - leg * 0.5;
+            let pairs = (((long / 1.5).round() as i32) + 1).max(2);
+            for step in 0..pairs {
+                let along = if pairs > 1 {
+                    -reach + reach * 2.0 * step as f32 / (pairs - 1) as f32
+                } else {
+                    0.0
+                };
+                for side in [-1.0f32, 1.0] {
+                    parts.push(slab(
+                        on_the_lattice(along),
+                        0.375,
+                        side * (deep * 0.5 - inset - leg * 0.5),
+                        leg,
+                        0.75,
+                        leg,
+                        "wood",
+                        0.5,
+                    ));
+                }
             }
             parts
         }

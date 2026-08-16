@@ -126,7 +126,7 @@ pub(crate) fn bake_one_phase(
                 marks.push(mark("fire", anchor, record.yaw));
                 marks.push(mark("smoke", anchor, record.yaw));
             }
-            PartKind::Prop("table") => marks.push(mark("table", anchor, record.yaw)),
+            PartKind::Table(..) => marks.push(mark("table", anchor, record.yaw)),
             PartKind::Prop("chest" | "cupboard" | "wardrobe" | "shelves") => {
                 marks.push(mark("store", anchor, record.yaw))
             }

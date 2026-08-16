@@ -672,6 +672,7 @@ pub fn part_name(kind: &PartKind) -> String {
         }
         PartKind::Pole(high) => format!("pole-{high}"),
         PartKind::Clock(wide) => format!("clock-{wide}"),
+        PartKind::Table(long, deep) => format!("table-{long}x{deep}"),
         // The four corners of one square, each spelled as what it IS. The three
         // that existed as props keep reading under their old names as well.
         PartKind::Door { double, leaf } => match (double, leaf) {
@@ -863,6 +864,14 @@ pub fn kind_from_name(name: &str) -> Option<PartKind> {
             double: door.0,
             leaf: door.1,
         });
+    }
+    if let Some(rest) = name.strip_prefix("table-") {
+        return sides_of(rest).map(|(long, deep)| PartKind::Table(long, deep));
+    }
+    if name == "prop:table" {
+        // Every table drawn before one could be pulled longer, at the size they all
+        // were.
+        return Some(PartKind::Table(1.5, 0.875));
     }
     if let Some(rest) = name.strip_prefix("clock-") {
         return rest.parse::<f32>().ok().map(PartKind::Clock);
@@ -1098,6 +1107,89 @@ pub fn companions(kind: &PartKind) -> Vec<(&'static str, Vec3)> {
             ("sit", Vec3::new(0.4375, 0.09375, 0.0)),
         ],
         _ => vec![],
+    }
+}
+
+/// The PARTS a piece of furniture brings with it, as kind, offset and turn.
+///
+/// Brett, of the conference table: "Can we have it as a group with chairs and sit
+/// widgets already there when you place it?" A council's board is not a board - it
+/// is a board and the seats round it - and setting eight chairs by hand and then
+/// gathering them is work a maker should not be doing twice for every hall.
+///
+/// The chairs bring their OWN sit marks, because a chair already knows it is for
+/// sitting on: see `companions`. Nothing here has to say so twice.
+pub fn company_of(kind: &PartKind) -> Vec<(PartKind, Vec3, f32)> {
+    match kind {
+        PartKind::Table(long, deep) => {
+            // A seat every three quarters of a metre, which is elbow room, and at
+            // least one a side however short the board is.
+            let seats = ((long / 0.75).round() as i32).clamp(1, 10);
+            let mut company = Vec::new();
+            for step in 0..seats {
+                // Spread evenly, each in the middle of its own share of the board.
+                let along = long * ((step as f32 + 0.5) / seats as f32 - 0.5);
+                for side in [-1.0f32, 1.0] {
+                    company.push((
+                        PartKind::Prop("chair"),
+                        Vec3::new(
+                            on_the_lattice(along),
+                            0.0,
+                            side * on_the_lattice(deep * 0.5 + 0.25),
+                        ),
+                        // Facing the board it is drawn up to: a chair's back is
+                        // behind it, so the far side turns right round.
+                        if side < 0.0 {
+                            0.0
+                        } else {
+                            std::f32::consts::PI
+                        },
+                    ));
+                }
+            }
+            company
+        }
+        _ => vec![],
+    }
+}
+
+/// Sets down the company a part brings, grouped with it so it travels as one.
+///
+/// Returns the group they share, for the part itself to wear.
+#[allow(clippy::too_many_arguments)]
+pub fn seat_the_company(
+    commands: &mut Commands,
+    meshes: &mut Assets<Mesh>,
+    materials: &mut Assets<StandardMaterial>,
+    palette: &Palette,
+    kind: &PartKind,
+    record: &Placed,
+    group: u32,
+) {
+    let turn = pose(record.yaw, record.tilt, record.flip);
+    for (piece, offset, facing) in company_of(kind) {
+        let offset = if record.flip {
+            Vec3::new(-offset.x, offset.y, offset.z)
+        } else {
+            offset
+        };
+        let at = Vec3::from(record.at) + turn * offset;
+        let seated = Placed {
+            part: part_name(&piece),
+            at: at.into(),
+            yaw: record.yaw + facing,
+            tilt: 0.0,
+            ramp: record.ramp.clone(),
+            shade: record.shade,
+            stage: record.stage.clone(),
+            flip: false,
+            loose: false,
+            material: String::new(),
+            group: Some(group),
+        };
+        spawn_part(commands, meshes, materials, palette, &piece, &seated, false);
+        // And whatever IT implies in turn - a chair's own sitting place.
+        seat_the_figures(commands, meshes, materials, palette, &piece, &seated);
     }
 }
 
@@ -1417,6 +1509,14 @@ fn place_grab_remove(
                 && let Some((ghost_at, _)) = ghost_spots.iter().next()
                 && let Some(record) = hand.record(ghost_at.translation)
             {
+                // WHAT COMES WITH IT, grouped with it: a table arrives with the
+                // chairs drawn up to it, and the lot moves as one thing.
+                let mut record = record;
+                let company = !company_of(&kind).is_empty();
+                let group = a_fresh_group(placed.iter().map(|(_, _, standing, _)| standing));
+                if company {
+                    record.group = Some(group);
+                }
                 spawn_part(
                     &mut commands,
                     &mut meshes,
@@ -1434,6 +1534,17 @@ fn place_grab_remove(
                     &kind,
                     &record,
                 );
+                if company {
+                    seat_the_company(
+                        &mut commands,
+                        &mut meshes,
+                        &mut materials,
+                        &palette,
+                        &kind,
+                        &record,
+                        group,
+                    );
+                }
             }
             // Down it goes, and the hand is empty - a door punched into a wall counts,
             // since that is what setting a door down means.

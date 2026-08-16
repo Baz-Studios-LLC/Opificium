@@ -2853,3 +2853,91 @@ fn the_townhalls_furniture_stands_where_it_is_put() {
         boxes.len()
     );
 }
+
+/// A table is drawn to a length, gains legs as it grows, and arrives with its chairs.
+///
+/// Brett: "Can we get. longer table that os a conference table?" - and a conference table
+/// IS a long table, so the table grows rather than the shelf. Then: "Can we have it as a
+/// group with chairs and sit widgets already there when you place it?"
+#[test]
+fn a_table_grows_legs_and_brings_its_chairs() {
+    // LEGS, a pair at each end and a pair for every stride between. A four-metre board
+    // on four legs sags in the middle and looks it.
+    let legs_of = |long: f32| {
+        body_of(&PartKind::Table(long, 0.875), None)
+            .iter()
+            .filter(|slab| slab.size.y > 0.5)
+            .count()
+    };
+    assert_eq!(legs_of(1.5), 4, "a village table has lost its four legs");
+    assert!(
+        legs_of(4.5) > legs_of(1.5),
+        "a four-and-a-half metre board stands on the same four legs as a short one"
+    );
+    for long in [1.5f32, 3.0, 4.5, 6.0] {
+        assert_eq!(legs_of(long) % 2, 0, "a {long}m table has an odd leg");
+    }
+    // The top is the length it was asked for, and the surface stays at the village's
+    // one sitting height however long it grows.
+    for long in [1.5f32, 4.0] {
+        let top = body_of(&PartKind::Table(long, 0.875), None);
+        let lid = top
+            .iter()
+            .max_by(|a, b| a.size.x.partial_cmp(&b.size.x).unwrap());
+        let lid = lid.expect("a table has a top");
+        assert!(
+            (lid.size.x - long).abs() < 1e-4,
+            "a {long}m table is {} long",
+            lid.size.x
+        );
+        assert!(
+            (lid.at.y + lid.size.y * 0.5 - 0.8125).abs() < 1e-4,
+            "a {long}m table's surface is at {}",
+            lid.at.y + lid.size.y * 0.5
+        );
+    }
+
+    // ITS COMPANY: a chair every stride down both sides, each facing the board.
+    let company = crate::builder::company_of(&PartKind::Table(3.0, 0.875));
+    assert_eq!(
+        company.len(),
+        8,
+        "a three-metre board seats {}",
+        company.len()
+    );
+    for (piece, at, facing) in &company {
+        assert!(
+            matches!(piece, PartKind::Prop("chair")),
+            "a table brought something that is not a chair"
+        );
+        // Outside the board, not under it.
+        assert!(
+            at.z.abs() > 0.875 * 0.5,
+            "a chair stands at {} against a board {} deep",
+            at.z,
+            0.875
+        );
+        // And turned to it: the near side as drawn, the far side right round.
+        let wants = if at.z < 0.0 {
+            0.0
+        } else {
+            std::f32::consts::PI
+        };
+        assert!(
+            (facing - wants).abs() < 1e-4,
+            "a chair has its back to the table"
+        );
+    }
+    // A chair brings its own sitting place, so the table never has to say so.
+    assert!(
+        crate::builder::companions(&PartKind::Prop("chair"))
+            .iter()
+            .any(|(what, _)| *what == "sit"),
+        "a chair no longer carries a sitting place"
+    );
+    // And nothing else on the shelf brings company it did not ask for.
+    assert!(
+        crate::builder::company_of(&PartKind::Prop("stool")).is_empty(),
+        "a stool arrives with furniture of its own"
+    );
+}
