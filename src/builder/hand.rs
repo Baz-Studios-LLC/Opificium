@@ -195,7 +195,6 @@ pub(crate) fn is_structure(kind: &PartKind) -> bool {
             | PartKind::Ceiling { .. }
             | PartKind::Foundation(..)
             | PartKind::Roof(..)
-            | PartKind::RoofRun
             | PartKind::Trim { .. }
             | PartKind::TrimRun { .. }
             | PartKind::SegRun { .. }
@@ -206,7 +205,6 @@ pub(crate) fn is_structure(kind: &PartKind) -> bool {
             | PartKind::RidgeRun
             | PartKind::GableRoof(..)
             | PartKind::HipRoof(..)
-            | PartKind::GableRoofRun
             | PartKind::Stairs { .. }
             | PartKind::Rail { .. }
             | PartKind::Prop("steps")

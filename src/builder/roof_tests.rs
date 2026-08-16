@@ -871,11 +871,8 @@ fn every_face_lands_on_an_atom() {
             if matches!(
                 kind,
                 PartKind::Roof(..)
-                    | PartKind::RoofRun
                     | PartKind::GableRoof(..)
-                    | PartKind::GableRoofRun
                     | PartKind::HipRoof(..)
-                    | PartKind::HipRoofRun
                     | PartKind::Gable(..)
                     | PartKind::GableRun
                     | PartKind::RoofPlan(..)
@@ -939,11 +936,8 @@ fn every_part_is_drawn_in_whole_atoms() {
         if matches!(
             entry.kind,
             PartKind::Roof(..)
-                | PartKind::RoofRun
                 | PartKind::GableRoof(..)
-                | PartKind::GableRoofRun
                 | PartKind::HipRoof(..)
-                | PartKind::HipRoofRun
                 | PartKind::Gable(..)
                 | PartKind::GableRun
                 | PartKind::RoofPlan(..)

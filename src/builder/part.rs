@@ -252,15 +252,12 @@ pub enum PartKind {
     },
     GableRun,
     RidgeRun,
-    GableRoofRun,
     /// A hip roof: four faces sloping in from the eaves to a flat deck.
     ///
     /// The same four numbers a gable roof takes - how long, how far across, how
     /// far the eaves reach past the walls, and the pitch - because it is the
     /// same roof with its ends hipped in rather than closed by a gable.
     HipRoof(f32, f32, f32, f32),
-    HipRoofRun,
-    RoofRun,
     Prop(&'static str),
     Widget(&'static str),
 }
@@ -275,13 +272,17 @@ impl PartKind {
             | PartKind::GableRun
             | PartKind::RidgeRun
             | PartKind::BeamRun => Some(1),
-            PartKind::RoofRun | PartKind::GableRoofRun | PartKind::HipRoofRun => Some(2),
             _ => None,
         }
     }
 
     /// What a run becomes at the drawn size.
-    pub fn run_made(&self, w: f32, d: f32) -> PartKind {
+    ///
+    /// The depth goes unread at the moment: every run left stretches along ONE axis, now
+    /// that the whole roofs and the rectangles are raised from a ceiling or placed
+    /// ready-made and pulled. The parameter stays because the two-axis path it belongs to
+    /// still stands - a run that stretches both ways is a thing this could have again.
+    pub fn run_made(&self, w: f32, _d: f32) -> PartKind {
         match self {
             PartKind::TrimRun { stone } => PartKind::Trim {
                 long: w,
@@ -295,16 +296,11 @@ impl PartKind {
             PartKind::GableRun => PartKind::Gable(w, ROOF_PITCH_DEGREES),
             PartKind::RidgeRun => PartKind::Ridge(w),
             PartKind::BeamRun => PartKind::Beam(w, 0.0, 0.0),
-            // A hand's breadth of overhang to begin with; the gold
-            // handles pull it further without moving the gables.
-            PartKind::GableRoofRun => PartKind::GableRoof(w, d, 0.25, ROOF_PITCH_DEGREES),
-            PartKind::HipRoofRun => PartKind::HipRoof(w, d, 0.25, ROOF_PITCH_DEGREES),
             PartKind::SegRun { high, lift } => PartKind::Seg {
                 long: w,
                 high: *high,
                 lift: *lift,
             },
-            PartKind::RoofRun => PartKind::Roof(w, d),
             other => *other,
         }
     }
@@ -336,7 +332,7 @@ pub(crate) const fn prop(label: &'static str, name: &'static str) -> CatalogEntr
 
 /// The shelf's drawers: each section opens and closes on its header.
 pub const STRUCTURE: &[CatalogEntry] = &[
-    structure("BEAM, STRETCH", PartKind::BeamRun, "frame"),
+    structure("BEAM", PartKind::BeamRun, "frame"),
     structure(
         "CEILING",
         PartKind::Ceiling {
@@ -356,9 +352,9 @@ pub const STRUCTURE: &[CatalogEntry] = &[
         PartKind::Foundation(2.0, 2.0, STEP_UP),
         "footing",
     ),
-    structure("GABLE, STRETCH", PartKind::GableRun, "roof"),
+    structure("GABLE", PartKind::GableRun, "roof"),
     structure(
-        "HEADER, STRETCH",
+        "HEADER",
         PartKind::SegRun {
             high: 0.375,
             lift: 2.125,
@@ -366,28 +362,18 @@ pub const STRUCTURE: &[CatalogEntry] = &[
         "walls",
     ),
     structure("POLE, CORNER", PartKind::Prop("pole"), "frame"),
+    structure("RAIL", PartKind::RailRun { stone: false }, "frame"),
+    structure("RAIL, STONE", PartKind::RailRun { stone: true }, "frame"),
+    structure("RIDGE", PartKind::RidgeRun, "roof"),
+    structure("ROOF", PartKind::Roof(2.2, 2.2), "roof"),
     structure(
-        "RAIL, STONE, STRETCH",
-        PartKind::RailRun { stone: true },
-        "frame",
-    ),
-    structure("RAIL, STRETCH", PartKind::RailRun { stone: false }, "frame"),
-    structure("RIDGE, STRETCH", PartKind::RidgeRun, "roof"),
-    structure("ROOF, GABLE, STRETCH", PartKind::GableRoofRun, "roof"),
-    structure("ROOF, HIP, STRETCH", PartKind::HipRoofRun, "roof"),
-    structure("ROOF, PANEL", PartKind::Roof(2.2, 2.2), "roof"),
-    structure("ROOF, STRETCH", PartKind::RoofRun, "roof"),
-    structure(
-        "SILL, STRETCH",
+        "SILL",
         PartKind::SegRun {
             high: 0.75,
             lift: 0.0,
         },
         "walls",
     ),
-    // One noun for the family, the material after it - the way TRIM, STONE and
-    // TRIM sit together. Two words for one thing, "stairs" and "steps", meant
-    // knowing which of them we had happened to use.
     structure(
         "STAIRS, STONE",
         PartKind::Stairs {
@@ -410,12 +396,8 @@ pub const STRUCTURE: &[CatalogEntry] = &[
         },
         "footing",
     ),
-    structure(
-        "TRIM, STONE, STRETCH",
-        PartKind::TrimRun { stone: true },
-        "walls",
-    ),
-    structure("TRIM, STRETCH", PartKind::TrimRun { stone: false }, "walls"),
+    structure("TRIM", PartKind::TrimRun { stone: false }, "walls"),
+    structure("TRIM, STONE", PartKind::TrimRun { stone: true }, "walls"),
     structure(
         "WALL",
         PartKind::Wall {

@@ -522,7 +522,6 @@ pub(crate) fn body_of(kind: &PartKind, repaint: Option<(&str, f32)>) -> Vec<Slab
             vec![slab(0.0, high * 0.5, 0.0, *w, high, *d, "stone", 0.55)]
         }
         PartKind::Roof(w, d) => vec![slab(0.0, 0.0625, 0.0, *w, 0.125, *d, "earth", 0.4)],
-        PartKind::RoofRun => vec![slab(0.0, 0.0625, 0.0, 0.25, 0.125, 0.25, "earth", 0.4)],
         PartKind::Gable(long, degrees) => {
             // One clean slope each way, at the gable's OWN pitch.
             //
@@ -632,11 +631,6 @@ pub(crate) fn body_of(kind: &PartKind, repaint: Option<(&str, f32)>) -> Vec<Slab
                 0.5,
             ),
         ],
-        PartKind::GableRoofRun => {
-            vec![leaning(
-                0.0, 0.0625, 0.0, 0.25, 0.125, 0.25, "earth", 0.4, 0.0,
-            )]
-        }
         PartKind::Beam(long, cut_high, cut_low) => {
             // The corner post's own timber, laid over. It rests ON its origin
             // rather than straddling it, the way the post stands on its foot -
@@ -865,10 +859,6 @@ pub(crate) fn body_of(kind: &PartKind, repaint: Option<(&str, f32)>) -> Vec<Slab
                 cut: Vec2::ZERO,
             }]
         }
-        PartKind::HipRoofRun => body_of(
-            &PartKind::HipRoof(0.25, 0.25, 0.0, ROOF_PITCH_DEGREES),
-            None,
-        ),
         PartKind::Rail { long, hand, stone } => {
             let (ramp, post_shade, rail_shade, pin_shade) = if *stone {
                 ("stone", 0.5, 0.55, 0.58)

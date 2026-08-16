@@ -216,7 +216,7 @@ impl Hand {
     fn filled(kind: PartKind, stage: String) -> Self {
         // A roof comes to hand already pitched: a flat panel is the
         // exception, not the starting point.
-        let tilt = if matches!(kind, PartKind::Roof(..) | PartKind::RoofRun) {
+        let tilt = if matches!(kind, PartKind::Roof(..)) {
             ROOF_PITCH_DEGREES.to_radians()
         } else {
             0.0
@@ -644,7 +644,6 @@ pub fn part_name(kind: &PartKind) -> String {
         PartKind::HipRoof(long, span, over, pitch) => {
             format!("hiproof-{long}x{span}x{over}x{pitch}")
         }
-        PartKind::HipRoofRun => "hiproofrun".to_string(),
         PartKind::RoofPlan(w, d) => format!("roofplan-{w}x{d}"),
         PartKind::Floor(w, d) => format!("floor-{w}x{d}"),
         PartKind::Ceiling {
@@ -667,9 +666,7 @@ pub fn part_name(kind: &PartKind) -> String {
         PartKind::TrimRun { .. }
         | PartKind::SegRun { .. }
         | PartKind::GableRun
-        | PartKind::RidgeRun
-        | PartKind::GableRoofRun
-        | PartKind::RoofRun => "run".to_string(),
+        | PartKind::RidgeRun => "run".to_string(),
         PartKind::Prop(name) => format!("prop:{name}"),
         PartKind::Widget(name) => format!("widget:{name}"),
     }
