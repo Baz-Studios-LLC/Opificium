@@ -172,6 +172,7 @@ pub(crate) fn is_structure(kind: &PartKind) -> bool {
         PartKind::Wall { long: _, .. }
             | PartKind::Seg { .. }
             | PartKind::Floor(..)
+            | PartKind::Ceiling { .. }
             | PartKind::Foundation(..)
             | PartKind::Roof(..)
             | PartKind::RoofRun
@@ -336,7 +337,10 @@ pub(crate) fn platform_rects(
         let Some(kind) = kind_from_name(&record.part) else {
             continue;
         };
-        if !matches!(kind, PartKind::Floor(..) | PartKind::Foundation(..)) {
+        if !matches!(
+            kind,
+            PartKind::Floor(..) | PartKind::Ceiling { .. } | PartKind::Foundation(..)
+        ) {
             continue;
         }
         let mut low = Vec3::splat(f32::INFINITY);

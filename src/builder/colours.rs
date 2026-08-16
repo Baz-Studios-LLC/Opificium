@@ -587,6 +587,28 @@ mod roofing {
         );
     }
 
+    /// A ceiling counts as structure, so it climbs onto what is under it.
+    ///
+    /// Brett: "It is very hard to get the ceiling to sit ontop of the wall." It was: a
+    /// part that is not structure does not look for what holds it up, so a ceiling had to
+    /// be flown to the top of a wall by eye and by hand. Everything else that spans a room
+    /// - a floor, a footing, a roof - was already in this list, and the ceiling was added
+    /// to the shelf without being added here.
+    #[test]
+    fn a_ceiling_rests_on_what_is_under_it() {
+        let ceiling = PartKind::Ceiling {
+            long: 4.0,
+            deep: 4.0,
+            hipped: false,
+        };
+        assert!(
+            crate::builder::is_structure(&ceiling),
+            "a ceiling that is not structure never finds the wall tops"
+        );
+        // And a floor is too, which is the behaviour being matched.
+        assert!(crate::builder::is_structure(&PartKind::Floor(2.0, 2.0)));
+    }
+
     /// A roof generated over a ceiling covers it, and rests ON it.
     ///
     /// The arithmetic the menu does, checked here rather than by eye: a roof whose eaves
