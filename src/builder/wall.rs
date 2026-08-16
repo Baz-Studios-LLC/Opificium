@@ -307,6 +307,8 @@ pub(crate) fn punch_wall(
             // than implied by its kind. This is the whole of the fix: a double
             // door frames a hole its leaves fit through.
             wide: clear,
+            // Timber until somebody says otherwise; the right-click menu blackens them.
+            dark: false,
         });
         // Into the first empty slot, so a second window joins the first rather
         // than replacing it. With every slot taken, the nearest one moves - a

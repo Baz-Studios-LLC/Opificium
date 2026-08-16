@@ -22,6 +22,8 @@ pub(crate) enum Deed {
     Group,
     /// Put the rail of a flight in the other material.
     RailIn(bool),
+    /// Paint the bars of this wall's windows dark, or leave them as timber.
+    BarsIn(bool),
     /// Keep everything chosen as a PIECE, to bring into other works.
     ///
     /// Brett: "if I could save groups that I could bring into other builds."
@@ -43,6 +45,8 @@ impl Deed {
             Deed::Group => "GROUP",
             Deed::RailIn(true) => "RAIL IN STONE",
             Deed::RailIn(false) => "RAIL IN TIMBER",
+            Deed::BarsIn(true) => "BARS IN BLACK",
+            Deed::BarsIn(false) => "BARS IN TIMBER",
             Deed::KeepAsPiece => "KEEP AS A PIECE",
         }
     }
@@ -355,6 +359,17 @@ pub(crate) fn deeds_for(kind: &PartKind) -> Vec<Deed> {
     // BECOME, so the line says what pressing it does.
     if let PartKind::Stairs { rail_stone, .. } = kind {
         deeds.push(Deed::RailIn(!rail_stone));
+    }
+    // A framed wall's window bars, the same way - and only when the wall HAS a window,
+    // since a line that would do nothing is worse than no line at all: it has to be tried
+    // before a maker learns it is nothing.
+    if let PartKind::Framed { openings, .. } = kind
+        && let Some(window) = openings
+            .iter()
+            .flatten()
+            .find(|hole| hole.what == Opening::Window)
+    {
+        deeds.push(Deed::BarsIn(!window.dark));
     }
     // Every part can be told what it is; only some can be broken up.
     deeds.extend(NATURES.iter().map(|nature| Deed::Nature(nature)));
@@ -672,6 +687,41 @@ pub(crate) fn work_part_menu(
                     &palette,
                     &made,
                     &moved,
+                    part,
+                    false,
+                );
+            }
+        }
+        Some((Deed::BarsIn(dark), part)) => {
+            if let Ok((_, _, mut record)) = placed.get_mut(part)
+                && let Some(PartKind::Framed {
+                    long,
+                    high,
+                    mut openings,
+                }) = kind_from_name(&record.part)
+            {
+                // EVERY window in the wall, because one wall with two windows in two
+                // colours is not a thing anybody means, and the menu acts on the part.
+                for hole in openings.iter_mut().flatten() {
+                    if hole.what == Opening::Window {
+                        hole.dark = dark;
+                    }
+                }
+                let made = PartKind::Framed {
+                    long,
+                    high,
+                    openings,
+                };
+                record.part = part_name(&made);
+                let copy = record.clone();
+                commands.entity(part).despawn_related::<Children>();
+                dress_part(
+                    &mut commands,
+                    &mut meshes,
+                    &mut materials,
+                    &palette,
+                    &made,
+                    &copy,
                     part,
                     false,
                 );

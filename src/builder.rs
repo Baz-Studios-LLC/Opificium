@@ -599,6 +599,11 @@ pub fn part_name(kind: &PartKind) -> String {
                 if hole.wide != usual_width(hole.what) {
                     name.push_str(&format!("@{}", hole.wide));
                 }
+                // Only when the bars are dark. A wall drawn before they could be writes
+                // the name it always wrote, and reads back the same.
+                if hole.dark {
+                    name.push('!');
+                }
             }
             name
         }
@@ -666,6 +671,10 @@ pub fn kind_from_name(name: &str) -> Option<PartKind> {
         let mut openings = [None; MOST_OPENINGS];
         for (slot, said) in openings.iter_mut().zip(parts) {
             // `d0.5` or `d0.5@36`: a width only when it is not the usual one.
+            let (said, dark) = match said.strip_suffix('!') {
+                Some(said) => (said, true),
+                None => (said, false),
+            };
             let (where_at, wide) = match said[1..].split_once('@') {
                 Some((at, wide)) => (at, wide.parse::<i32>().ok()),
                 None => (&said[1..], None),
@@ -680,6 +689,7 @@ pub fn kind_from_name(name: &str) -> Option<PartKind> {
                 what,
                 at,
                 wide: wide.unwrap_or(usual_width(what)),
+                dark,
             });
         }
         return Some(PartKind::Framed {

@@ -262,6 +262,7 @@ fn a_double_door_gets_a_double_hole() {
                 what: Opening::Door,
                 at: 0.0,
                 wide: double,
+                dark: false,
             }),
             None,
             None,
@@ -299,6 +300,7 @@ fn a_framed_wall_names_its_openings() {
                 what: Opening::Door,
                 at: 0.5,
                 wide: DOOR_WIDE * 2,
+                dark: false,
             }),
             None,
             None,
@@ -379,4 +381,55 @@ fn a_swept_bench_keeps_no_level_at_all() {
         swept.all().iter().all(|level| level.name.is_empty()),
         "a swept bench remembered a level's name"
     );
+}
+
+#[cfg(test)]
+mod bars {
+    use super::*;
+
+    /// A window's dark bars survive being written to a name and read back.
+    ///
+    /// The name is what a `.baz` holds, so a flag that does not round-trip is a flag that
+    /// looks set until the work is reopened - which is how the `kind` field was lost once
+    /// before, silently, for a whole release.
+    #[test]
+    fn black_bars_survive_a_round_trip() {
+        let dark = PartKind::Framed {
+            long: 4.0,
+            high: WALL_HIGH,
+            openings: [
+                Some(Hole {
+                    what: Opening::Window,
+                    at: 0.0,
+                    wide: WINDOW_WIDE,
+                    dark: true,
+                }),
+                None,
+                None,
+                None,
+            ],
+        };
+        let name = part_name(&dark);
+        let Some(PartKind::Framed { openings, .. }) = kind_from_name(&name) else {
+            panic!("a framed wall did not read back: {name}");
+        };
+        assert!(
+            openings[0].expect("its window").dark,
+            "the bars came back as timber: {name}"
+        );
+
+        // And a wall drawn before bars could be dark writes exactly the name it always
+        // wrote, so every saved building reads back byte for byte the same.
+        let plain = PartKind::Framed {
+            long: 4.0,
+            high: WALL_HIGH,
+            openings: [Some(Hole::plain(Opening::Window, 0.0)), None, None, None],
+        };
+        let said = part_name(&plain);
+        assert!(!said.contains('!'), "a plain wall's name changed: {said}");
+        let Some(PartKind::Framed { openings, .. }) = kind_from_name(&said) else {
+            panic!("it did not read back");
+        };
+        assert!(!openings[0].expect("its window").dark);
+    }
 }

@@ -180,6 +180,17 @@ pub const MOST_OPENINGS: usize = 4;
 /// rather than as a window.
 pub(crate) const BAR_WIDE: i32 = 1;
 
+/// How big a pane of glass wants to be, in atoms.
+///
+/// The same idea as [`BAY_WANTED`] and for the same reason: a pane is a SIZE, not a
+/// fraction of a window. A taller window gains another row of panes rather than three
+/// taller ones, exactly as a longer wall gains a bay rather than wider ones - so every
+/// window in a village is glazed alike whatever wall it stands in.
+///
+/// Nine atoms lands the ordinary 2.5 m cottage wall on two panes by two, and a hall's
+/// three-metre wall on two by three, which is what a townhall's windows look like.
+pub(crate) const PANE_WANTED: i32 = 9;
+
 /// A span of atoms in `n` parts that sum to exactly the span.
 ///
 /// Integer division leaves a remainder of up to `n - 1` atoms. Dropping it
@@ -199,8 +210,8 @@ pub(crate) fn openings_at(
     span: i32,
     tall: i32,
     openings: &[Option<Hole>; MOST_OPENINGS],
-) -> Vec<(Opening, i32, i32, i32, i32)> {
-    let mut holes: Vec<(Opening, i32, i32, i32, i32)> = Vec::new();
+) -> Vec<(Opening, i32, i32, i32, i32, bool)> {
+    let mut holes: Vec<(Opening, i32, i32, i32, i32, bool)> = Vec::new();
     let (_inner_foot, _, _, high_foot, high_tall) = courses_of(tall);
     for hole in openings.iter().flatten().copied() {
         let (what, at) = (hole.what, hole.at);
@@ -240,7 +251,7 @@ pub(crate) fn openings_at(
         let rise = rise.min(tall - PLATE_TALL - foot - PLATE_TALL);
         // Two openings that overlap would frame each other's jambs and leave a
         // bay of no width between them. The later one simply does not fit.
-        if holes.iter().any(|(theirs, hx, hw, hy, hh)| {
+        if holes.iter().any(|(theirs, hx, hw, hy, hh, _)| {
             from < hx + hw + jamb_of(*theirs)
                 && from + wide + jamb_of(what) > *hx
                 && foot < hy + hh
@@ -248,7 +259,7 @@ pub(crate) fn openings_at(
         }) {
             continue;
         }
-        holes.push((what, from, wide, foot, rise));
+        holes.push((what, from, wide, foot, rise, hole.dark));
     }
     holes.sort_by_key(|(_, from, ..)| *from);
     holes

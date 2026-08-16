@@ -677,7 +677,7 @@ fn a_doorway_is_the_size_of_its_door() {
         tall,
         &[Some(Hole::plain(Opening::Door, 0.0)), None, None, None],
     );
-    let (_, _, _, hy, hh) = holes[0];
+    let (_, _, _, hy, hh, _) = holes[0];
     assert!(
         (hy as f32 * ATOM - foot).abs() < 1e-4,
         "the doorway starts at {} and the door at {foot}",
@@ -747,7 +747,7 @@ fn a_framed_wall_is_solid_where_it_is_not_open() {
                             && (piece.at.x - x).abs() < piece.size.x * 0.5
                             && (piece.at.y - y).abs() < piece.size.y * 0.5
                     });
-                    let open = holes.iter().any(|(_, hx, hw, hy, hh)| {
+                    let open = holes.iter().any(|(_, hx, hw, hy, hh, _)| {
                         ix >= *hx && ix < hx + hw && iy >= *hy && iy < hy + hh
                     });
                     assert!(

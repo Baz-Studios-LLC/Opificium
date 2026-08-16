@@ -164,7 +164,7 @@ pub(crate) fn body_of(kind: &PartKind, repaint: Option<(&str, f32)>) -> Vec<Slab
             // whole length in a single timber.
             let course = |body: &mut Vec<Slab>, foot: i32, rise: i32| {
                 let mut from = 0;
-                for (what, hx, hw, hy, hh) in &holes {
+                for (what, hx, hw, hy, hh, _) in &holes {
                     if foot + rise <= *hy || foot >= hy + hh {
                         continue;
                     }
@@ -194,7 +194,7 @@ pub(crate) fn body_of(kind: &PartKind, repaint: Option<(&str, f32)>) -> Vec<Slab
             // clear height, a lintel over it, and a sill under a window. This
             // is the timber the hole ADDS - the whole reason nothing has to be
             // cut out of anything.
-            for (what, hx, hw, hy, hh) in &holes {
+            for (what, hx, hw, hy, hh, dark) in &holes {
                 let jamb = jamb_of(*what);
                 // A jamb runs from the opening's own foot, which for a door is
                 // the ground, up to the head plate.
@@ -235,12 +235,27 @@ pub(crate) fn body_of(kind: &PartKind, repaint: Option<(&str, f32)>) -> Vec<Slab
                             w,
                             rise as f32 * ATOM,
                             thin,
+                            // Painted joinery or bare timber. Dark bars are what a hall's
+                            // windows wear against pale plaster; a cottage keeps its wood.
                             "wood",
-                            0.55,
+                            if *dark { 0.12 } else { 0.55 },
                         ));
                     };
-                    bar(&mut body, hx + (hw - BAR_WIDE) / 2, BAR_WIDE, *hy, *hh);
-                    bar(&mut body, *hx, *hw, hy + (hh - BAR_WIDE) / 2, BAR_WIDE);
+                    // As many bars as the opening has room for panes. One mullion
+                    // divides it into two lights, two into three, and the same across -
+                    // so the glazing follows the window's size instead of always being
+                    // the same four panes whatever shape the hole is.
+                    let panes =
+                        |across: i32| (across as f32 / PANE_WANTED as f32).round().max(1.0) as i32;
+                    let (cols, rows) = (panes(*hw), panes(*hh));
+                    for at in 1..cols {
+                        let x = hx + (hw * at) / cols - BAR_WIDE / 2;
+                        bar(&mut body, x, BAR_WIDE, *hy, *hh);
+                    }
+                    for at in 1..rows {
+                        let y = hy + (hh * at) / rows - BAR_WIDE / 2;
+                        bar(&mut body, *hx, *hw, y, BAR_WIDE);
+                    }
                 }
             }
 
@@ -261,7 +276,7 @@ pub(crate) fn body_of(kind: &PartKind, repaint: Option<(&str, f32)>) -> Vec<Slab
                 }
                 let mut spans: Vec<(i32, i32)> = Vec::new();
                 let mut from = POST_WIDE;
-                for (what, hx, hw, hy, hh) in &holes {
+                for (what, hx, hw, hy, hh, _) in &holes {
                     let jamb = jamb_of(*what);
                     if foot < hy + hh && foot + rise > *hy {
                         // The opening stands in this course: the wall stops at

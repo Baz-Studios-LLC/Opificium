@@ -45,6 +45,14 @@ pub struct Hole {
     /// How far along the wall from its middle, in metres.
     pub at: f32,
     pub wide: i32,
+    /// Whether this window's bars are painted dark rather than left as timber.
+    ///
+    /// On the WINDOW rather than on the wall, because that is what wears them - and
+    /// because a wall is spelled out as a name, so a field here costs seven places that
+    /// build a hole where one on the wall would have cost twenty-two.
+    ///
+    /// A door has bars in nothing and ignores it.
+    pub dark: bool,
 }
 
 impl Hole {
@@ -54,6 +62,7 @@ impl Hole {
             what,
             at,
             wide: usual_width(what),
+            dark: false,
         }
     }
 }
