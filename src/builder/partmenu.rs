@@ -26,14 +26,13 @@ pub(crate) enum Deed {
     BarsIn(bool),
     /// Frame a wall, or take the framing off it again.
     Frame(bool),
-    /// Open a drawer of the menu's own, and go back out of one.
+    /// Open a drawer of the menu's own, alongside the line that names it.
     ///
     /// The menu answers several different questions about a part - what it IS, what it is
     /// made of, what may be done to it - and asking all of them at once made a list eleven
     /// lines long where five were the same question. Brett: "the right click menu could
     /// use sub catagories too. Like for the Part Of stuff."
     More(&'static str),
-    Back,
     /// Keep everything chosen as a PIECE, to bring into other works.
     ///
     /// Brett: "if I could save groups that I could bring into other builds."
@@ -61,7 +60,6 @@ impl Deed {
             Deed::Frame(true) => "ADD FRAMING",
             Deed::Frame(false) => "REMOVE FRAMING",
             Deed::More(group) => group,
-            Deed::Back => "  BACK",
             Deed::KeepAsPiece => "KEEP AS A PIECE",
         }
     }
@@ -405,23 +403,29 @@ pub(crate) fn deeds_for(kind: &PartKind) -> Vec<Deed> {
     deeds
 }
 
-/// What the PART OF drawer holds: the natures, and the way back out.
+/// What the PART OF drawer holds.
 pub(crate) const PART_OF: &str = "PART OF...";
 
 pub(crate) fn deeds_in(group: &str) -> Vec<Deed> {
-    let mut deeds: Vec<Deed> = match group {
+    match group {
         PART_OF => NATURES.iter().map(|nature| Deed::Nature(nature)).collect(),
         _ => Vec::new(),
-    };
-    deeds.push(Deed::Back);
-    deeds
+    }
 }
 
 /// The menu itself. Which part raised it rides on each LINE, since that is
 /// where it is read - keeping a second copy up here only invited the two to
 /// disagree.
 #[derive(Component)]
-pub(crate) struct PartMenu(pub(crate) Vec2);
+pub(crate) struct PartMenu;
+
+/// A drawer standing open beside the line that names it.
+///
+/// A CHILD of that line, and placed at `left: 100%`, so the layout engine puts it against
+/// the menu's right edge and level with its own line. Working the corner out by hand would
+/// mean knowing how wide the menu came out, which depends on the longest word on it.
+#[derive(Component)]
+pub(crate) struct PartDrawer;
 
 /// One line of it.
 #[derive(Component)]
@@ -541,6 +545,77 @@ pub(crate) fn raise_part_menu(
     );
 }
 
+/// Hangs a drawer open beside the line that named it.
+///
+/// A child of that LINE at `left: 100%`, so the layout engine sets it against the menu's
+/// right edge and level with the line - no arithmetic, and nothing that has to know how
+/// wide the menu came out.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn hang_a_drawer(
+    commands: &mut Commands,
+    fonts: &Fonts,
+    palette: &Palette,
+    line: Entity,
+    part: Entity,
+    wearing: &str,
+    deeds: Vec<Deed>,
+) {
+    let drawer = commands
+        .spawn((
+            PartDrawer,
+            Node {
+                position_type: PositionType::Absolute,
+                left: Val::Percent(100.0),
+                // A hair up, so the drawer's first line sits level with the line that
+                // opened it rather than a border below it.
+                top: Val::Px(-4.0),
+                flex_direction: FlexDirection::Column,
+                padding: UiRect::all(Val::Px(3.0)),
+                border: UiRect::all(Val::Px(1.0)),
+                ..default()
+            },
+            BackgroundColor(theme::panel_bg()),
+            BorderColor::all(theme::panel_border(palette)),
+            // Above the menu it hangs off, which is above everything else.
+            GlobalZIndex(61),
+            ChildOf(line),
+        ))
+        .id();
+    for deed in deeds {
+        let standing = matches!(deed, Deed::Nature(nature) if nature == wearing);
+        let row = commands
+            .spawn((
+                MenuLine { deed, part },
+                Interaction::default(),
+                Node {
+                    padding: UiRect::axes(Val::Px(12.0), Val::Px(5.0)),
+                    ..default()
+                },
+                BackgroundColor(Color::NONE),
+                ChildOf(drawer),
+            ))
+            .id();
+        commands.spawn((
+            Text::new(if standing {
+                format!("- {}", deed.label())
+            } else {
+                format!("  {}", deed.label())
+            }),
+            TextFont {
+                font: fonts.display.clone().into(),
+                font_size: crate::look::text_at(11.0),
+                ..default()
+            },
+            TextColor(if standing {
+                theme::accent(palette)
+            } else {
+                theme::text_dim(palette)
+            }),
+            ChildOf(row),
+        ));
+    }
+}
+
 /// Hangs the menu at a point, with these lines on it.
 ///
 /// Its own function because the menu is hung TWICE: once when a maker right-clicks a
@@ -558,7 +633,7 @@ pub(crate) fn hang_the_part_menu(
 ) {
     let menu = commands
         .spawn((
-            PartMenu(at),
+            PartMenu,
             Node {
                 position_type: PositionType::Absolute,
                 left: Val::Px(at.x),
@@ -623,21 +698,24 @@ pub(crate) fn work_part_menu(
     mut wants_naming: ResMut<PieceWantsAName>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
-    mut lines: Query<(&MenuLine, &Interaction, &mut BackgroundColor)>,
-    menus: Query<(Entity, &PartMenu)>,
+    mut lines: Query<(Entity, &MenuLine, &Interaction, &mut BackgroundColor)>,
+    menus: Query<Entity, With<PartMenu>>,
+    drawers: Query<Entity, With<PartDrawer>>,
     mut placed: Query<(Entity, &mut Transform, &mut Placed), Without<Ghost>>,
 ) {
     if menus.is_empty() {
         return;
     }
     let mut chosen = None;
+    let mut pressed_line = None;
     let mut over = false;
-    for (line, interaction, mut fill) in &mut lines {
+    for (entity, line, interaction, mut fill) in &mut lines {
         if *interaction != Interaction::None {
             over = true;
         }
         if *interaction == Interaction::Pressed {
             chosen = Some((line.deed, line.part));
+            pressed_line = Some(entity);
         }
         let wanted = BackgroundColor(if *interaction == Interaction::None {
             Color::NONE
@@ -890,66 +968,38 @@ pub(crate) fn work_part_menu(
                 record.stage = nature.to_string();
             }
         }
-        // A DRAWER is not a deed done to the part: it re-hangs the menu where it stands
-        // showing that drawer's lines, and the part is untouched. Both arms return rather
-        // than falling through to the teardown below, which closes the menu on anything
-        // that WAS done.
+        // A DRAWER IS NOT A DEED. It stands open beside the line that names it and does
+        // not touch the part, where every other line acts and closes. Returning here rather
+        // than falling through is the whole of it - the teardown below closes the menu on
+        // anything that WAS done.
         Some((Deed::More(group), part)) => {
-            rehang(
-                &mut commands,
-                &fonts,
-                &palette,
-                &menus,
-                &placed,
-                part,
-                deeds_in(group),
-            );
-            return;
-        }
-        Some((Deed::Back, part)) => {
-            let out = placed
-                .get(part)
-                .ok()
-                .and_then(|(_, _, record)| kind_from_name(&record.part))
-                .map(|kind| deeds_for(&kind))
-                .unwrap_or_default();
-            rehang(&mut commands, &fonts, &palette, &menus, &placed, part, out);
+            // Any drawer already open goes first, so a second press moves the drawer
+            // rather than stacking one on another.
+            for drawer in &drawers {
+                commands.entity(drawer).despawn();
+            }
+            if let Some(line) = pressed_line {
+                let wearing = placed
+                    .get(part)
+                    .map(|(_, _, record)| record.stage.clone())
+                    .unwrap_or_default();
+                hang_a_drawer(
+                    &mut commands,
+                    &fonts,
+                    &palette,
+                    line,
+                    part,
+                    &wearing,
+                    deeds_in(group),
+                );
+            }
             return;
         }
         None => {}
     }
-    for (menu, _) in &menus {
+    for menu in &menus {
         commands.entity(menu).despawn();
     }
-}
-
-/// Puts the menu up again where it already stands, with different lines on it.
-///
-/// The corner comes from the menu itself rather than from the cursor, so opening a drawer
-/// does not walk the menu across the screen a few pixels at a time.
-#[allow(clippy::too_many_arguments)]
-fn rehang(
-    commands: &mut Commands,
-    fonts: &Fonts,
-    palette: &Palette,
-    menus: &Query<(Entity, &PartMenu)>,
-    placed: &Query<(Entity, &mut Transform, &mut Placed), Without<Ghost>>,
-    part: Entity,
-    lines: Vec<Deed>,
-) {
-    let at = menus
-        .iter()
-        .next()
-        .map(|(_, menu)| menu.0)
-        .unwrap_or(Vec2::ZERO);
-    let wearing = placed
-        .get(part)
-        .map(|(_, _, record)| record.stage.clone())
-        .unwrap_or_default();
-    for (menu, _) in menus {
-        commands.entity(menu).despawn();
-    }
-    hang_the_part_menu(commands, fonts, palette, at, part, &wearing, lines);
 }
 
 /// Breaks a made part into the parts it is made of, standing exactly where its

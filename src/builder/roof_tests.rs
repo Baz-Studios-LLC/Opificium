@@ -1484,7 +1484,7 @@ fn naming_a_nature_leaves_the_body_alone() {
             Transform::default(),
         ))
         .id();
-    let menu = app.world_mut().spawn(PartMenu(Vec2::ZERO)).id();
+    let menu = app.world_mut().spawn(PartMenu).id();
     app.world_mut().spawn((
         MenuLine {
             deed: Deed::Nature("roof"),
@@ -1990,8 +1990,8 @@ fn a_roof_comes_apart_into_parts_that_exist() {
                 "{nature} is not on offer inside the drawer"
             );
         }
-        // And the way back out, or the drawer is a room with no door.
-        assert!(deeds_in(PART_OF).contains(&Deed::Back));
+        // No way back needed: the drawer stands open BESIDE the menu that named it, so
+        // the menu never went anywhere to come back from.
     }
 }
 
