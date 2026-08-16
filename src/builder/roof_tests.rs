@@ -2872,3 +2872,117 @@ fn a_click_on_nothing_still_lets_go() {
         "a click on nothing no longer lets go of the selection"
     );
 }
+
+/// COPYING A GROUP COPIES THE GROUP, and pasting it hands over the whole cluster.
+///
+/// Brett: "cut and paste isnt working with the group." A copy was one record, so
+/// copying a table took the board and left its chairs behind - and copying
+/// anything grouped took whichever member the cursor happened to be over.
+///
+/// What is COPIED is what would MOVE, which is the rule a click already follows:
+/// a group is one thing to the clipboard exactly as it is to the hand.
+#[test]
+fn copying_a_group_takes_all_of_it() {
+    use bevy::asset::AssetPlugin;
+    let mut app = App::new();
+    app.add_plugins((MinimalPlugins, AssetPlugin::default()));
+    app.init_asset::<Mesh>().init_asset::<StandardMaterial>();
+    app.insert_resource(crate::look::load_palette_for_bake());
+    app.init_resource::<ButtonInput<KeyCode>>();
+    app.init_resource::<crate::gizmo::Selected>();
+    app.init_resource::<crate::gizmo::ToolMode>();
+    app.init_resource::<PieceInHand>();
+    app.init_resource::<Clipboard>();
+    app.init_resource::<Hand>();
+    app.init_resource::<Hovered>();
+    app.init_resource::<DimsEntry>();
+    app.init_resource::<Naming>();
+    app.init_resource::<crate::menu::MenuWish>();
+    app.insert_resource(crate::Bench::Builder);
+    app.add_systems(Update, copy_and_paste);
+
+    // A table and its two chairs, grouped - and a wall standing apart from them.
+    let mut kin = Vec::new();
+    for step in 0..3 {
+        kin.push(
+            app.world_mut()
+                .spawn((
+                    Placed {
+                        part: part_name(&PartKind::wall(2.0)),
+                        at: [step as f32 * 2.0, 0.0, 0.0],
+                        yaw: 0.0,
+                        tilt: 0.0,
+                        ramp: None,
+                        shade: 0.5,
+                        stage: "walls".to_string(),
+                        flip: false,
+                        group: Some(7),
+                        loose: false,
+                        material: String::new(),
+                    },
+                    Transform::default(),
+                ))
+                .id(),
+        );
+    }
+    app.world_mut().spawn((
+        Placed {
+            part: part_name(&PartKind::wall(2.0)),
+            at: [40.0, 0.0, 0.0],
+            yaw: 0.0,
+            tilt: 0.0,
+            ramp: None,
+            shade: 0.5,
+            stage: "walls".to_string(),
+            flip: false,
+            group: None,
+            loose: false,
+            material: String::new(),
+        },
+        Transform::default(),
+    ));
+
+    // CMD-C on one member of the group.
+    app.world_mut()
+        .resource_mut::<crate::gizmo::Selected>()
+        .toggle(kin[1]);
+    for key in [KeyCode::SuperLeft, KeyCode::KeyC] {
+        app.world_mut()
+            .resource_mut::<ButtonInput<KeyCode>>()
+            .press(key);
+    }
+    app.update();
+    assert_eq!(
+        app.world().resource::<Clipboard>().0.len(),
+        3,
+        "copying a grouped part did not take the group with it"
+    );
+
+    // CMD-V hands the whole cluster over, centred on its own middle so it lands
+    // where the cursor is rather than where it was drawn.
+    app.world_mut()
+        .resource_mut::<ButtonInput<KeyCode>>()
+        .reset_all();
+    for key in [KeyCode::SuperLeft, KeyCode::KeyV] {
+        app.world_mut()
+            .resource_mut::<ButtonInput<KeyCode>>()
+            .press(key);
+    }
+    app.update();
+    let held = app.world().resource::<PieceInHand>();
+    assert_eq!(
+        held.parts.len(),
+        3,
+        "pasting a copied group did not hand over all of it"
+    );
+    let middles: f32 = held.parts.iter().map(|record| record.at[0]).sum();
+    assert!(
+        middles.abs() < 1e-3,
+        "the pasted cluster is not centred on its own middle"
+    );
+    // And a lone part still goes into the plain hand, as it always did.
+    assert!(
+        app.world().resource::<Hand>().kind.is_none(),
+        "a cluster was put into the single-part hand as well"
+    );
+}

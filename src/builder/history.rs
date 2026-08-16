@@ -158,7 +158,7 @@ pub(crate) fn disarm_on_mode(
 
 /// The last part copied, kept whole - its kind, size, turn and paint.
 #[derive(Resource, Default)]
-pub struct Clipboard(pub Option<Placed>);
+pub struct Clipboard(pub Vec<Placed>);
 
 /// Cmd or ctrl with C copies what the cursor touches (or what is
 /// selected); with V it loads that copy into the hand, ghost and all,
@@ -172,9 +172,16 @@ pub(crate) fn copy_and_paste(
     naming: Res<Naming>,
     dims: Res<DimsEntry>,
     hovered: Res<Hovered>,
-    gizmo: (Res<crate::gizmo::Selected>, ResMut<crate::gizmo::ToolMode>),
+    // Bundled: Bevy takes sixteen parameters and no more, and holding a copied
+    // GROUP takes a second kind of hand.
+    gizmo: (
+        Res<crate::gizmo::Selected>,
+        ResMut<crate::gizmo::ToolMode>,
+        ResMut<PieceInHand>,
+    ),
     mut clipboard: ResMut<Clipboard>,
     mut hand: ResMut<Hand>,
+    piece_ghosts: Query<Entity, With<PieceGhost>>,
     placed: Query<&Placed, Without<Ghost>>,
     ghosts: Query<Entity, With<Ghost>>,
     mut meshes: ResMut<Assets<Mesh>>,
@@ -182,7 +189,9 @@ pub(crate) fn copy_and_paste(
     palette: Res<Palette>,
     mut wish: ResMut<crate::menu::MenuWish>,
 ) {
-    let (selected, mut tool) = gizmo;
+    // The other way to hold something: several parts at once, which is what a
+    // copied group is. See `pieces::wield_a_piece`, which sets it down.
+    let (selected, mut tool, mut piece) = gizmo;
     // As in `recall`: spent up front, so a wish cannot go off later.
     let asked_copy = wish.taken(crate::menu::MenuDeed::Copy);
     let asked_paste = wish.taken(crate::menu::MenuDeed::Paste);
@@ -199,37 +208,85 @@ pub(crate) fn copy_and_paste(
         && let Some(source) = selected.lead().or(hovered.grab)
         && let Ok(record) = placed.get(source)
     {
-        clipboard.0 = Some(record.clone());
-        info!("copied {}", record.part);
+        // EVERYTHING THAT TRAVELS WITH IT. A copy used to be one record, so
+        // copying a table took the board and left its chairs, and copying anything
+        // grouped took whichever member the cursor happened to be over. Brett:
+        // "cut and paste isnt working with the group."
+        //
+        // What is COPIED is what would MOVE - the same rule a click already
+        // follows, so a group is one thing to the clipboard as it is to the hand.
+        let together: Vec<Placed> = match record.group {
+            Some(group) => placed
+                .iter()
+                .filter(|other| other.group == Some(group))
+                .cloned()
+                .collect(),
+            None => vec![record.clone()],
+        };
+        info!("copied {} - {} parts", record.part, together.len());
+        clipboard.0 = together;
     }
     // Bracketed, because the `let` chain below binds names the body needs: without
     // them `||` splits the condition and the bindings belong to only one half.
-    if (keys.just_pressed(KeyCode::KeyV) && held || asked_paste)
-        && let Some(record) = clipboard.0.clone()
-        && let Some(kind) = kind_from_name(&record.part)
-    {
-        // Pasting is placing: the hand takes the copy and the modes step
-        // back to NORMAL, where placement lives.
-        *tool = crate::gizmo::ToolMode::Normal;
-        *hand = Hand {
-            kind: Some(kind),
-            anchor: None,
-            flip: record.flip,
-            stage: record.stage.clone(),
-            yaw: record.yaw,
-            tilt: record.tilt,
-            lift: 0.0,
-            ramp: record.ramp.clone(),
-            shade: record.shade,
-        };
-        dress_ghost(
-            &mut commands,
-            &mut meshes,
-            &mut materials,
-            &palette,
-            &hand,
-            &ghosts,
-        );
+    if keys.just_pressed(KeyCode::KeyV) && held || asked_paste {
+        // Pasting is placing, whichever it is: the modes step back to NORMAL,
+        // where placement lives.
+        let mut taken = clipboard.0.clone();
+        if taken.len() > 1 {
+            // A CLUSTER GOES INTO THE HAND AS A PIECE, which is the bench's own
+            // way of holding several parts at once - a ghost apiece, R to turn the
+            // whole of it, escape to drop it, and one click to set it all down. It
+            // is centred on its own middle for the same reason a kept piece is: it
+            // lands where the cursor is rather than where it was drawn.
+            *tool = crate::gizmo::ToolMode::Normal;
+            *hand = Hand::default();
+            for ghost in &ghosts {
+                commands.entity(ghost).despawn();
+            }
+            for ghost in &piece_ghosts {
+                commands.entity(ghost).despawn();
+            }
+            piece.parts = crate::builder::piece_from(&taken);
+            piece.name = "copy".to_string();
+            piece.yaw = 0.0;
+            for record in &piece.parts {
+                if let Some(kind) = kind_from_name(&record.part) {
+                    let ghost = spawn_part(
+                        &mut commands,
+                        &mut meshes,
+                        &mut materials,
+                        &palette,
+                        &kind,
+                        record,
+                        true,
+                    );
+                    commands.entity(ghost).insert(PieceGhost);
+                }
+            }
+        } else if let Some(record) = taken.pop()
+            && let Some(kind) = kind_from_name(&record.part)
+        {
+            *tool = crate::gizmo::ToolMode::Normal;
+            *hand = Hand {
+                kind: Some(kind),
+                anchor: None,
+                flip: record.flip,
+                stage: record.stage.clone(),
+                yaw: record.yaw,
+                tilt: record.tilt,
+                lift: 0.0,
+                ramp: record.ramp.clone(),
+                shade: record.shade,
+            };
+            dress_ghost(
+                &mut commands,
+                &mut meshes,
+                &mut materials,
+                &palette,
+                &hand,
+                &ghosts,
+            );
+        }
     }
 }
 

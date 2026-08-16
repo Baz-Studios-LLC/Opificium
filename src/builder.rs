@@ -1437,10 +1437,10 @@ pub struct PieceWantsAName(pub bool);
 /// The piece the hand is holding, if it holds one.
 #[derive(Resource, Default)]
 pub struct PieceInHand {
-    parts: Vec<Placed>,
-    name: String,
+    pub(crate) parts: Vec<Placed>,
+    pub(crate) name: String,
     /// Quarter turns, the way every other placement turns.
-    yaw: f32,
+    pub(crate) yaw: f32,
 }
 
 /// A ghost box belonging to the held piece.
@@ -1462,7 +1462,7 @@ fn pieces_home() -> std::path::PathBuf {
 /// Middle on the ground, FOOT in the air: a porch put down at head height would
 /// be a puzzle. The lowest part of a piece is what meets the ground the maker
 /// is pointing at.
-fn piece_from(parts: &[Placed]) -> Vec<Placed> {
+pub(crate) fn piece_from(parts: &[Placed]) -> Vec<Placed> {
     let mut low = Vec3::splat(f32::INFINITY);
     let mut high = Vec3::splat(f32::NEG_INFINITY);
     for record in parts {
