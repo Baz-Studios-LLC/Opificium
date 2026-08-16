@@ -1507,6 +1507,64 @@ mod materials {
 }
 
 #[cfg(test)]
+mod snapping {
+    use super::*;
+
+    /// A face lying up is answered with its own height; a face standing up seats itself.
+    ///
+    /// Brett: "When snapping a object like a wall or gable to a face, it only snaps them to
+    /// side faces not top faces." It was true and it was one line: a side face clung flush
+    /// and returned, where a top face only SEEDED the placement and left the height to the
+    /// vote under the footprint - which takes the lower of two equal answers on purpose, so
+    /// that a part half over a wall settles beside it rather than climbing it. Right for a
+    /// part being nudged about, wrong for one a maker has pointed at a wall head.
+    #[test]
+    fn a_face_lying_up_says_where_a_part_lands() {
+        let head = Vec3::new(1.0, 2.5, -3.0);
+        // A WALL HEAD, a floor, a foundation top: the part lands on the face itself.
+        assert_eq!(
+            crate::builder::face_seat(Vec3::Y, head),
+            Some(2.5),
+            "a part aimed at a wall head does not land on it"
+        );
+        // A roof at the bench's own pitch is a face to stand on too.
+        let slope = Quat::from_rotation_x(ROOF_PITCH_DEGREES.to_radians()) * Vec3::Y;
+        assert_eq!(
+            crate::builder::face_seat(slope, head),
+            Some(2.5),
+            "a roof at {ROOF_PITCH_DEGREES} degrees is not a face to set anything on"
+        );
+        // A WALL'S SIDE answers nothing here: it clings flush, which is its own arithmetic.
+        for side in [Vec3::X, Vec3::Z, -Vec3::X] {
+            assert!(
+                crate::builder::face_seat(side, head).is_none(),
+                "a face standing up was answered as one lying up"
+            );
+            assert!(
+                crate::builder::face_stands_up(side),
+                "a wall's own side is not being taken as a face to hang against"
+            );
+        }
+        // And the two are never both true, which is what would make a snap depend on
+        // which branch was written first.
+        for tilt in [0.0f32, 15.0, 30.0, 45.0, 60.0, 75.0, 90.0] {
+            let normal = Quat::from_rotation_x(tilt.to_radians()) * Vec3::Y;
+            assert!(
+                !(crate::builder::face_lies_up(normal) && crate::builder::face_stands_up(normal)),
+                "a face at {tilt} degrees is both a top and a side"
+            );
+        }
+        // The gap is deliberate: a face leaning further than a roof is neither, and gets
+        // no face snap at all. Asserted so that closing it is a decision somebody makes.
+        let steep = Quat::from_rotation_x(60f32.to_radians()) * Vec3::Y;
+        assert!(
+            !crate::builder::face_lies_up(steep) && !crate::builder::face_stands_up(steep),
+            "the gap between the two has been closed - which may be right, but not by \
+             accident"
+        );
+    }
+}
+
 mod gables {
     use super::*;
 

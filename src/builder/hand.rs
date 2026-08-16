@@ -211,6 +211,37 @@ pub(crate) fn is_structure(kind: &PartKind) -> bool {
     )
 }
 
+/// Where a part's foot goes when it has been aimed at a face lying UP.
+///
+/// The face's own height, because the point is on the face and a part's body
+/// rests on its own nought. Nothing for a face standing up, which seats itself
+/// flush and needs no help from the ground.
+///
+/// One place for the question, since it is asked twice - once to decide which
+/// kind of snap this is, and once to say where the part lands - and a snap that
+/// classified a face one way and seated it the other is the trap this bench
+/// keeps walking into.
+pub fn face_seat(normal: Vec3, point: Vec3) -> Option<f32> {
+    face_lies_up(normal).then_some(point.y)
+}
+
+/// A face lying up, that a part can be set down ON: a floor, a wall head, a
+/// roof's own slope.
+pub fn face_lies_up(normal: Vec3) -> bool {
+    normal.y > 0.7
+}
+
+/// A face standing up, that a part can be hung flush AGAINST.
+///
+/// The gap between the two is deliberate and it is a GAP: a face leaning
+/// further than a roof at thirty degrees - a steep slope, a canted brace - is
+/// neither, and gets no face snap at all. Nobody has wanted one yet, and
+/// guessing which way a maker means a forty-five degree face to take a wall is
+/// worse than leaving it to the grid.
+pub fn face_stands_up(normal: Vec3) -> bool {
+    normal.y.abs() < 0.3
+}
+
 /// The carried part's footprint, spoken as sample points: its centre and
 /// four corners, drawn in slightly so edge-kisses do not flicker.
 pub(crate) fn footprint_samples(kind: &PartKind, at: Vec3, yaw: f32) -> Vec<Vec3> {
@@ -604,7 +635,7 @@ pub(crate) fn move_ghost(
     if let Some(opens) = opening_of(&kind_now) {
         let seat = hovered
             .build
-            .filter(|hit| hit.normal.y.abs() < 0.3)
+            .filter(|hit| face_stands_up(hit.normal))
             .and_then(|hit| {
                 let (_, wall_at, record, _) = placed.get(hit.entity).ok()?;
                 let length = punchable_length(record)?;
@@ -675,17 +706,38 @@ pub(crate) fn move_ghost(
     }
 
     let mut seeded: Option<Vec3> = None;
+    // The height of the face a part was aimed AT, when it was aimed at a top.
+    //
+    // Without this a top face was only ever a seed: the x and z came off the aim
+    // and the height came from the vote under the footprint - which deliberately
+    // takes the LOWER of two equal answers, so that a part half over a wall
+    // settles beside it rather than climbing it. Right for a part being nudged
+    // about on the ground, and wrong for one a maker has pointed at the top of
+    // something: a wall aimed at a wall head, or a gable at the wall it closes,
+    // sat down on the floor beside it. Brett: "When snapping a object like a wall
+    // or gable to a face, it only snaps them to side faces not top faces."
+    //
+    // A SIDE face has answered outright since it was written - it clings flush and
+    // returns. This is the same answer for the other four.
+    let mut on_the_face: Option<f32> = None;
     if mode.face
         && let Some(hit) = hovered.build
     {
-        if hit.normal.y > 0.7 {
+        if face_lies_up(hit.normal) {
             let per = 16.0 / snap_grid.0 as f32;
             seeded = Some(Vec3::new(
                 (hit.point.x * per).round() / per,
                 0.0,
                 (hit.point.z * per).round() / per,
             ));
-        } else if hit.normal.y.abs() < 0.3 {
+            // The point is ON the face, so its height IS the face's - and a part's
+            // body rests on its own nought, so its foot lands there.
+            //
+            // The magnets still run: the seat is a HEIGHT, not the whole placement,
+            // so a wall set down on a foundation's top still slides flush to its
+            // edges and still clicks to the end of the wall it continues.
+            on_the_face = face_seat(hit.normal, hit.point);
+        } else if face_stands_up(hit.normal) {
             // My reach along the face's normal: how far my centre must
             // stand off so my body kisses the face.
             let mut low = Vec3::splat(f32::INFINITY);
@@ -880,9 +932,11 @@ pub(crate) fn move_ghost(
     }
 
     // Whatever lies beneath carries the part; Q and E add height on top
-    // of that, so a roof panel rides the wall tops on its own.
+    // of that, so a roof panel rides the wall tops on its own. Unless a face
+    // was aimed at, which is a maker saying where it goes rather than asking.
     let samples = footprint_samples(&kind, snapped, hand.yaw);
-    let support = support_height(&placed, &samples, is_structure(&kind), None);
+    let support =
+        on_the_face.unwrap_or_else(|| support_height(&placed, &samples, is_structure(&kind), None));
     // A tilted part rests its DOWNHILL EDGE on what carries it and
     // rises from there - a pitched panel's eave sits on the wall plate
     // instead of half the slope swinging down into the room.
