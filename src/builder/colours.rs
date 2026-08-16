@@ -2633,3 +2633,75 @@ fn a_door_is_four_doors() {
         "the menu does not mark the door that is standing there"
     );
 }
+
+/// A clock's face is an octagon, cut at a true forty-five degrees.
+///
+/// Brett asked for one - "Maybe an octogon for the clock face?" - and then, of two
+/// attempts at it: "this is not an octogon", and the question that settled it, "cant we do
+/// angles now, does it have to be steps?"
+///
+/// It does not. A cut takes a box's END off at an angle, so a box cut at both ends is a
+/// TRAPEZIUM, and an octagon is two of those and a rectangle. Three pieces with two real
+/// edges each, where five stepped bands still read as a cross.
+#[test]
+fn a_clock_face_is_an_octagon() {
+    for wide in [0.75f32, 1.0, 1.5] {
+        // The case, not the dial standing on it.
+        let mut bands: Vec<Slab> = body_of(&PartKind::Clock(wide), None)
+            .into_iter()
+            .filter(|slab| slab.at.z < ATOM * 1.5)
+            .collect();
+        bands.sort_by(|a, b| a.at.y.partial_cmp(&b.at.y).unwrap());
+        assert_eq!(
+            bands.len(),
+            3,
+            "a {wide}m face is {} pieces - an octagon is a trapezium, a rectangle and a \
+             trapezium",
+            bands.len()
+        );
+        // ALL THE SAME BOX. The corners come off in the mesh, not off the width.
+        let full = bands[1].size.x;
+        for band in &bands {
+            assert!(
+                (band.size.x - full).abs() < 1e-4,
+                "a {wide}m face steps its width instead of cutting it: {} against {full}",
+                band.size.x
+            );
+        }
+        // CUT AT THE FOOT below and at the TOP above, by the same run, and not at all
+        // through the middle - which is what makes the outline an octagon rather than a
+        // rectangle with two odd ends.
+        let (low, mid, high) = (&bands[0], &bands[1], &bands[2]);
+        assert!(
+            low.cut.x < 0.0 && (low.cut.x - low.cut.y).abs() < 1e-4,
+            "the foot of a {wide}m face is not cut away at both ends"
+        );
+        assert!(
+            high.cut.x > 0.0 && (high.cut.x - high.cut.y).abs() < 1e-4,
+            "the head of a {wide}m face is not cut away at both ends"
+        );
+        assert!(
+            mid.cut == Vec2::ZERO,
+            "a {wide}m face is cut through its middle"
+        );
+        assert!(
+            (low.cut.x.abs() - high.cut.x).abs() < 1e-4 && (low.size.y - high.size.y).abs() < 1e-4,
+            "a {wide}m face is not the same at the top as the bottom"
+        );
+        // AND AT FORTY-FIVE DEGREES: the saw travels its own run while crossing the
+        // band's height. Steeper is a notch and shallower is a bevel; an octagon is
+        // neither.
+        assert!(
+            (low.cut.x.abs() - low.size.y).abs() < 1e-4,
+            "the corner of a {wide}m face comes in {} while rising {}",
+            low.cut.x.abs(),
+            low.size.y
+        );
+        // And it really does take a corner off - a run of nothing is a rectangle.
+        assert!(
+            low.cut.x.abs() > 0.0 && low.cut.x.abs() * 2.0 < full,
+            "the corner cut of a {wide}m face is {} against a face {full} wide",
+            low.cut.x.abs()
+        );
+    }
+}

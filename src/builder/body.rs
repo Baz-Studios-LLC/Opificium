@@ -1902,13 +1902,8 @@ fn shape_of(kind: &PartKind) -> Vec<Slab> {
             }
             // A piece from its own four faces, so nothing has to be centred by
             // halving anything.
-            let piece = |body: &mut Vec<Slab>,
-                         x: (i32, i32),
-                         y: (i32, i32),
-                         z: (i32, i32),
-                         ramp: &str,
-                         shade: f32| {
-                body.push(slab(
+            let piece_at = |x: (i32, i32), y: (i32, i32), z: (i32, i32), ramp: &str, shade: f32| {
+                slab(
                     (x.0 + x.1) as f32 * 0.5 * ATOM,
                     (y.0 + y.1) as f32 * 0.5 * ATOM,
                     (z.0 + z.1) as f32 * 0.5 * ATOM,
@@ -1917,18 +1912,41 @@ fn shape_of(kind: &PartKind) -> Vec<Slab> {
                     (z.1 - z.0) as f32 * ATOM,
                     ramp,
                     shade,
-                ));
+                )
             };
-            // Three bands making an octagon of a square: the waist runs the whole
-            // width, the two caps are drawn in by a quarter each side.
+            let piece =
+                |body: &mut Vec<Slab>,
+                 x: (i32, i32),
+                 y: (i32, i32),
+                 z: (i32, i32),
+                 ramp: &str,
+                 shade: f32| { body.push(piece_at(x, y, z, ramp, shade)) };
+            // A TRUE OCTAGON, in three pieces with two real edges each.
+            //
+            // It was five stepped bands, and before that three, and Brett saw
+            // straight through both: "this is not an octogon", and then the
+            // question that settles it - "cant we do angles now, does it have to
+            // be steps?" It does not. A cut takes a box's END off at an angle, so a
+            // box cut at both ends is a TRAPEZIUM, and an octagon is two of those
+            // and a rectangle: a foot-cut band flaring up to full width, the full
+            // width through the middle, and a top-cut band closing in again.
+            //
+            // The run equals the band's own height, which is what makes the edge
+            // forty-five degrees - the same arithmetic the gable's rakes and the
+            // wall's braces are cut by.
             let octagon = |body: &mut Vec<Slab>, w: i32, z: (i32, i32), ramp: &str, shade: f32| {
-                let waist = (((w as f32 * 0.375).round() as i32) & !1).max(2);
-                let cap = (w - waist) / 2;
-                let thin = (((w as f32 * 0.75).round() as i32) & !1).max(2);
-                let half = w / 2;
-                piece(body, (-half, half), (cap, cap + waist), z, ramp, shade);
-                for band in [(0, cap), (cap + waist, w)] {
-                    piece(body, (-thin / 2, thin / 2), band, z, ramp, shade);
+                // A regular octagon takes a bit under a third off each corner.
+                let corner = (((w as f32 * 0.293).round() as i32).max(1)).min((w - 2) / 2);
+                let middle = w - corner * 2;
+                let run = corner as f32 * ATOM;
+                for (band, cut) in [
+                    ((0, corner), Vec2::new(-run, -run)),
+                    ((corner, corner + middle), Vec2::ZERO),
+                    ((corner + middle, w), Vec2::new(run, run)),
+                ] {
+                    let mut cut_to = piece_at((-w / 2, w / 2), band, z, ramp, shade);
+                    cut_to.cut = cut;
+                    body.push(cut_to);
                 }
             };
             let mut body = Vec::new();
