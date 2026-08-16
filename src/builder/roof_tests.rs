@@ -2404,3 +2404,132 @@ fn a_hip_drawn_before_its_deck_existed_still_opens() {
         "{said} did not come back"
     );
 }
+
+/// Right-clicking the DOOR - the leaf, which is what a cursor lands on - changes the door.
+///
+/// Brett: "When I place a door now and i right click on it I dont see the options to make
+/// it a double door or have leafs or not."
+///
+/// A door in a wall is a hole the wall was told about AND a leaf that swings in it, and the
+/// leaf is a part of its own so that a game can swing it. Which makes the leaf the thing
+/// standing in front of a maker - so a menu that only knew about the wall showed nothing at
+/// all when they clicked the door itself.
+#[test]
+fn right_clicking_a_door_changes_it() {
+    use bevy::asset::AssetPlugin;
+    let mut app = App::new();
+    app.add_plugins((MinimalPlugins, AssetPlugin::default()));
+    app.init_asset::<Mesh>().init_asset::<StandardMaterial>();
+    app.insert_resource(crate::look::load_palette_for_bake());
+    app.init_resource::<ButtonInput<KeyCode>>();
+    app.init_resource::<ButtonInput<MouseButton>>();
+    app.init_resource::<crate::gizmo::Selected>();
+    app.init_resource::<PieceKept>();
+    app.init_resource::<PieceWantsAName>();
+    app.init_resource::<crate::look::Fonts>();
+    app.init_resource::<MaterialFor>();
+    app.init_resource::<WindowPanes>();
+    app.init_resource::<DoorAs>();
+    app.init_resource::<Naming>();
+    app.add_systems(Update, work_part_menu);
+
+    // A wall with a single door in it, and the leaf hanging where the punch would have
+    // hung it.
+    let wall_kind = PartKind::Wall {
+        long: 4.0,
+        high: WALL_HIGH,
+        framed: true,
+        openings: [Some(Hole::plain(Opening::Door, 0.5)), None, None, None],
+    };
+    let wall = app
+        .world_mut()
+        .spawn((
+            Placed {
+                part: part_name(&wall_kind),
+                at: [0.0, 0.0, 0.0],
+                yaw: 0.0,
+                tilt: 0.0,
+                ramp: None,
+                shade: 0.5,
+                stage: "walls".to_string(),
+                flip: false,
+                group: None,
+                loose: false,
+                material: String::new(),
+            },
+            Transform::default(),
+        ))
+        .id();
+    let leaf = app
+        .world_mut()
+        .spawn((
+            Placed {
+                part: part_name(&PartKind::Prop("door-leaf")),
+                at: [0.5, 0.0, 0.0],
+                yaw: 0.0,
+                tilt: 0.0,
+                ramp: None,
+                shade: 0.5,
+                stage: "walls".to_string(),
+                flip: false,
+                group: None,
+                loose: false,
+                material: String::new(),
+            },
+            Transform::from_xyz(0.5, 0.0, 0.0),
+        ))
+        .id();
+
+    // THE MENU IS OFFERED ON THE LEAF, which is the half that was missing.
+    assert!(
+        deeds_for(&PartKind::Prop("door-leaf")).contains(&Deed::More(A_DOOR)),
+        "a door's leaf offers nothing when it is right-clicked"
+    );
+
+    // And pressing a line on it changes the door: click the LEAF, not the wall.
+    let menu = app.world_mut().spawn(PartMenu).id();
+    app.world_mut().spawn((
+        MenuLine {
+            deed: Deed::DoorAs {
+                double: true,
+                leaf: true,
+            },
+            part: leaf,
+        },
+        Interaction::Pressed,
+        BackgroundColor(Color::NONE),
+        ChildOf(menu),
+    ));
+    app.update();
+
+    // The WALL's own opening is twice as wide now.
+    let said = app
+        .world()
+        .get::<Placed>(wall)
+        .expect("the wall stands")
+        .part
+        .clone();
+    let Some(PartKind::Wall { openings, .. }) = kind_from_name(&said) else {
+        panic!("{said} is not a wall")
+    };
+    let hole = openings[0].expect("the doorway went missing");
+    assert_eq!(
+        hole.wide,
+        DOOR_WIDE * 2,
+        "the wall's opening is still a single door's"
+    );
+
+    // And what hangs in it is a pair of leaves, with a routing mark for each.
+    let mut hung = 0;
+    let mut marks = 0;
+    for record in app.world_mut().query::<&Placed>().iter(app.world()) {
+        match kind_from_name(&record.part) {
+            Some(PartKind::Prop("door-double-leaf")) => hung += 1,
+            Some(PartKind::Prop("door-leaf")) => panic!("the single leaf is still hanging"),
+            Some(PartKind::Widget("door")) => marks += 1,
+            _ => {}
+        }
+    }
+    assert_eq!(hung, 1, "a double door hangs {hung} sets of leaves");
+    assert_eq!(marks, 2, "a double door has {marks} lanes, not two");
+}

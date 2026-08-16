@@ -550,10 +550,18 @@ pub(crate) fn deeds_for(kind: &PartKind) -> Vec<Deed> {
     // "Walls should just have a right click to add the framing." It goes first because it
     // changes what the wall IS, where everything under it only changes how it looks.
     // A DOOR, wherever one is: the four corners of one square in a drawer of their
-    // own. Offered on the WALL that holds it, which is where a maker's cursor is -
-    // a door in a wall is a hole the wall was told about, not a part to click.
-    if matches!(kind, PartKind::Door { .. })
-        || matches!(kind, PartKind::Wall { openings, .. }
+    // own.
+    //
+    // On the LEAF above all, because that is what a maker's cursor is on when they
+    // right-click a door. A door in a wall is a hole the wall was told about and a
+    // leaf that swings in it, and the leaf is the part standing in front of them -
+    // so a menu that only knew about the wall showed nothing at all when they
+    // clicked the door itself. Brett: "When I place a door now and i right click on
+    // it I dont see the options."
+    if matches!(
+        kind,
+        PartKind::Door { .. } | PartKind::Prop("door-leaf" | "door-double-leaf")
+    ) || matches!(kind, PartKind::Wall { openings, .. }
             if openings.iter().flatten().any(|hole| hole.what == Opening::Door))
     {
         deeds.push(Deed::More(A_DOOR));
@@ -602,6 +610,42 @@ pub(crate) const BUILT_OF: &str = "MADE OF...";
 
 /// The drawer a flight's materials hang in.
 pub(crate) const MADE_OF: &str = "STONE OR TIMBER...";
+
+/// The wall a door leaf hangs in, when a leaf is what was clicked.
+///
+/// A leaf is not part of the wall - it is the thing that swings in the hole the wall
+/// was told about, and it is a part of its own so that a game can swing it. Which
+/// makes it the part a maker's cursor lands on, and the wall the part that has to be
+/// told anything.
+fn wall_of(
+    placed: &Query<(Entity, &mut Transform, &mut Placed), Without<Ghost>>,
+    clicked: Entity,
+) -> Option<Entity> {
+    let (_, hung_at, hung) = placed.get(clicked).ok()?;
+    if !matches!(
+        kind_from_name(&hung.part),
+        Some(PartKind::Prop("door-leaf" | "door-double-leaf"))
+    ) {
+        return None;
+    }
+    let leaf = hung_at.translation;
+    // The wall whose own doorway stands where this leaf does. Measured at the HOLE
+    // rather than at the wall's middle: a leaf near the end of a long wall is no
+    // nearer that wall's centre than it is to the next wall's.
+    placed
+        .iter()
+        .find(|(_, at, record)| {
+            let Some(PartKind::Wall { openings, .. }) = kind_from_name(&record.part) else {
+                return false;
+            };
+            let along = Quat::from_rotation_y(record.yaw) * Vec3::X;
+            openings.iter().flatten().any(|hole| {
+                hole.what == Opening::Door
+                    && (at.translation + along * hole.at).distance(leaf) < 0.6
+            })
+        })
+        .map(|(entity, ..)| entity)
+}
 
 /// The drawer the four doors hang in.
 pub(crate) const A_DOOR: &str = "A DOOR...";
@@ -1179,7 +1223,11 @@ pub(crate) fn work_part_menu(
                 // hand, which is what that pair of commands is for.
             }
         }
-        Some((Deed::DoorAs { double, leaf }, part)) => {
+        Some((Deed::DoorAs { double, leaf }, clicked)) => {
+            // THE WALL THE LEAF HANGS IN, when it is the leaf that was clicked - which
+            // it usually is, a leaf being the part a maker's cursor finds. The wall
+            // owns the opening; the leaf only swings in it.
+            let part = wall_of(&placed, clicked).unwrap_or(clicked);
             // Remembered for the next one, the way a window's panes are: a maker
             // who has just put a double doorway in one wall is about to put one in
             // the other.
