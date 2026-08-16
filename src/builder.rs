@@ -1348,6 +1348,60 @@ fn place_grab_remove(
             && let Ok((_, transform, record, _)) = placed.get(grabbed)
             && let Some(kind) = kind_from_name(&record.part)
         {
+            // A WINDOW IS NOT A PART, so grabbing one means asking the wall which of its
+            // openings the cursor was on and taking that one out. The wall stays where it
+            // is and closes over the hole; the window comes to hand as the thing that was
+            // put there, ready to be set down somewhere better.
+            if let Some(hit) = hovered.build
+                && let Some(slot) =
+                    opening_under(&kind, transform.translation, record.yaw, hit.point)
+                && let PartKind::Wall {
+                    long,
+                    high,
+                    framed,
+                    mut openings,
+                } = kind
+            {
+                let taken = openings[slot].take();
+                let made = PartKind::Wall {
+                    long,
+                    high,
+                    framed,
+                    openings,
+                };
+                let mut healed = record.clone();
+                healed.part = part_name(&made);
+                commands.entity(grabbed).despawn_related::<Children>();
+                dress_part(
+                    &mut commands,
+                    &mut meshes,
+                    &mut materials,
+                    &palette,
+                    &made,
+                    &healed,
+                    grabbed,
+                    false,
+                );
+                commands.entity(grabbed).insert(healed);
+                *hand = Hand {
+                    kind: Some(PartKind::Prop(match taken.map(|hole| hole.what) {
+                        Some(Opening::Door) => "door",
+                        _ => "window",
+                    })),
+                    stage: record.stage.clone(),
+                    yaw: record.yaw,
+                    ..Hand::default()
+                };
+                dress_ghost(
+                    &mut commands,
+                    &mut meshes,
+                    &mut materials,
+                    &palette,
+                    &hand,
+                    &ghosts,
+                );
+                return;
+            }
             // An opening picked up closes the wall behind it.
             heal_wall(
                 &mut commands,

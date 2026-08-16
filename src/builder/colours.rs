@@ -715,6 +715,51 @@ mod windows {
         }
     }
 
+    /// The cursor on the glass finds the window; the cursor on the wall finds the wall.
+    ///
+    /// A window is a hole a wall was told about, so picking one up means asking the wall
+    /// which opening was struck. Getting this loose in either direction is worse than not
+    /// having it: too generous and a maker clicking plaster loses their window, too mean
+    /// and the window cannot be picked up at all.
+    #[test]
+    fn a_wall_says_which_opening_was_clicked() {
+        let wall = PartKind::Wall {
+            long: 4.0,
+            high: WALL_HIGH,
+            framed: true,
+            openings: [Some(Hole::plain(Opening::Window, 0.0)), None, None, None],
+        };
+        let at = Vec3::ZERO;
+        // Where the glass is: the middle of the wall, up in the window's own band. Read
+        // off the wall rather than guessed, so the test cannot drift from the geometry.
+        let body = body_of(&wall, None);
+        let bars: Vec<f32> = body
+            .iter()
+            .filter(|Slab { size, .. }| size.x < WALL_THICK && size.z < WALL_THICK)
+            .map(|Slab { at, .. }| at.y)
+            .collect();
+        let middle_y = bars.iter().sum::<f32>() / bars.len().max(1) as f32;
+
+        assert_eq!(
+            crate::builder::opening_under(&wall, at, 0.0, Vec3::new(0.0, middle_y, 0.0)),
+            Some(0),
+            "the cursor on the glass did not find the window"
+        );
+        // Below it, on the plaster: that is the wall, and taking the window out from
+        // there would be a maker losing a window they never aimed at.
+        assert_eq!(
+            crate::builder::opening_under(&wall, at, 0.0, Vec3::new(0.0, 0.2, 0.0)),
+            None,
+            "the cursor low on the wall took the window out"
+        );
+        // And along the wall, well past the opening.
+        assert_eq!(
+            crate::builder::opening_under(&wall, at, 0.0, Vec3::new(1.8, middle_y, 0.0)),
+            None,
+            "the cursor at the wall's end took the window out"
+        );
+    }
+
     /// And a wall with no opening is still one plain box.
     ///
     /// The cheapest thing a wall can be, and the commonest - drawing it in pieces because

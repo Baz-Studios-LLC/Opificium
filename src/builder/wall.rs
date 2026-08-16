@@ -218,6 +218,53 @@ pub(crate) fn punchable_length(record: &Placed) -> Option<f32> {
 }
 
 #[allow(clippy::too_many_arguments)]
+/// Which of a wall's openings the cursor is on, if any.
+///
+/// A window is not a part any more - it is a hole a wall was told about - so grabbing one
+/// means asking the wall which of its openings was struck. Brett: "I need to be able to
+/// pick windows up."
+///
+/// Both bands are checked, across the wall and up it, because a wall with a window in it is
+/// mostly WALL: a maker clicking the plaster under a window means the wall, and a maker
+/// clicking the glass means the window.
+pub(crate) fn opening_under(
+    kind: &PartKind,
+    wall_at: Vec3,
+    yaw: f32,
+    point: Vec3,
+) -> Option<usize> {
+    let PartKind::Wall {
+        long,
+        high,
+        openings,
+        ..
+    } = kind
+    else {
+        return None;
+    };
+    let span = (long / ATOM).round().max(POST_WIDE as f32 * 2.0) as i32;
+    let tall = (high / ATOM).round().max((PLATE_TALL * 3 + 8) as f32) as i32;
+    let along = Quat::from_rotation_y(yaw) * Vec3::X;
+    // Along the wall from its own left end, and up from its foot, both in atoms.
+    let across = (point - wall_at).dot(along) / ATOM + span as f32 * 0.5;
+    let up = (point.y - (wall_at.y - 0.0)) / ATOM;
+    for (what, hx, hw, hy, hh, _) in openings_at(span, tall, openings) {
+        if across >= hx as f32
+            && across <= (hx + hw) as f32
+            && up >= hy as f32
+            && up <= (hy + hh) as f32
+        {
+            // Which SLOT it is, so the caller can take that one out and leave the rest.
+            let at_metres = (hx as f32 + hw as f32 * 0.5 - span as f32 * 0.5) * ATOM;
+            let _ = what;
+            return openings.iter().position(|slot| {
+                slot.is_some_and(|hole| (hole.at - at_metres).abs() < ATOM * 2.0)
+            });
+        }
+    }
+    None
+}
+
 pub(crate) fn punch_wall(
     commands: &mut Commands,
     meshes: &mut Assets<Mesh>,
