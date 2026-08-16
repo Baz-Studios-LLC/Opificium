@@ -696,8 +696,8 @@ pub fn part_name(kind: &PartKind) -> String {
         PartKind::GableRoof(long, span, over, pitch) => {
             format!("gableroof-{long}x{span}x{over}x{pitch}")
         }
-        PartKind::HipRoof(long, span, over, pitch) => {
-            format!("hiproof-{long}x{span}x{over}x{pitch}")
+        PartKind::HipRoof(long, span, over, pitch, deck) => {
+            format!("hiproof-{long}x{span}x{over}x{pitch}x{deck}")
         }
         PartKind::RoofPlan(w, d) => format!("roofplan-{w}x{d}"),
         PartKind::Floor(w, d) => format!("floor-{w}x{d}"),
@@ -810,7 +810,13 @@ pub fn kind_from_name(name: &str) -> Option<PartKind> {
             .next()
             .and_then(|n| n.parse().ok())
             .unwrap_or(ROOF_PITCH_DEGREES);
-        return Some(PartKind::HipRoof(long, span, over, pitch));
+        // And the deck, which a hip saved before it could be closed did not carry:
+        // it opens at the half every hip on this bench was drawn with.
+        let deck = parts
+            .next()
+            .and_then(|n| n.parse().ok())
+            .unwrap_or(HIP_DECK);
+        return Some(PartKind::HipRoof(long, span, over, pitch, deck));
     }
     if let Some(rest) = name.strip_prefix("gableroof-") {
         // Four numbers now: the building it covers, the overhang, and the

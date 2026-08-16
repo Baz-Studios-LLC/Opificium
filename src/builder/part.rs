@@ -399,10 +399,17 @@ pub enum PartKind {
     RidgeRun,
     /// A hip roof: four faces sloping in from the eaves to a flat deck.
     ///
-    /// The same four numbers a gable roof takes - how long, how far across, how
-    /// far the eaves reach past the walls, and the pitch - because it is the
-    /// same roof with its ends hipped in rather than closed by a gable.
-    HipRoof(f32, f32, f32, f32),
+    /// A gable roof's four numbers - how long, how far across, how far the eaves
+    /// reach past the walls, and the pitch - because it is the same roof with its
+    /// ends hipped in rather than closed by a gable. And a fifth: how much of the
+    /// run its FLAT TOP keeps.
+    ///
+    /// A hip with a deck is a real roof and so is a hip that comes to a point, and
+    /// the difference is one number. Nought closes the slopes onto each other - a
+    /// ridge, or a point when the roof is square - and a half is the deck every hip
+    /// on this bench had before the number existed. Brett: "What if pulling that up
+    /// increased the roof height until it made a point?"
+    HipRoof(f32, f32, f32, f32, f32),
     Prop(&'static str),
     Widget(&'static str),
 }

@@ -310,6 +310,13 @@ pub(crate) fn panes_across(panes: i32) -> i32 {
     panes.clamp(1, MOST_PANES) * PANE_WANTED
 }
 
+/// How much of its run a hip roof's flat top keeps when nobody has said.
+///
+/// A half, which is what every hip on this bench had while the deck was implied
+/// - the slope ran in by half the shorter half-extent - so a roof saved before
+/// the number existed opens at the shape it was drawn in.
+pub(crate) const HIP_DECK: f32 = 0.5;
+
 /// The most panes a window is offered either way.
 ///
 /// Four is a shopfront. Past that a maker wants two windows, and a drawer with

@@ -1215,14 +1215,18 @@ pub(crate) fn body_of(kind: &PartKind, repaint: Option<(&str, f32)>) -> Vec<Slab
                 0.7,
             ),
         ],
-        PartKind::HipRoof(long, span, over, pitch) => {
+        PartKind::HipRoof(long, span, over, pitch, deck) => {
             // The roof's own footprint, eaves and all.
             let half_long = (long * 0.5 + over).max(ATOM);
             let half_span = (span * 0.5 + over).max(ATOM);
             // How far the slope runs IN from the eave, the same on all four
-            // sides: half of the shorter half-extent, which leaves a deck of the
-            // same proportion whatever shape the building is.
-            let run = on_the_lattice(half_long.min(half_span) * 0.5).max(ATOM);
+            // sides - and how much of that run the DECK keeps.
+            //
+            // At a half it is the roof this bench always drew. At nought the
+            // slopes run the whole way in and meet: a ridge along the longer
+            // axis, and a point when the roof is square.
+            let reach = half_long.min(half_span);
+            let run = on_the_lattice(reach * (1.0 - deck.clamp(0.0, 1.0))).clamp(ATOM, reach);
             let high = on_the_lattice(run * pitch.to_radians().tan()).max(ATOM);
             // What the deck keeps of the box, as a fraction of each half-extent:
             // the slope runs in the same DISTANCE on every side, so the two

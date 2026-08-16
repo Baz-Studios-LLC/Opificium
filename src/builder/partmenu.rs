@@ -378,9 +378,9 @@ pub(crate) fn length_of(kind: &PartKind) -> Option<(f32, Box<dyn Fn(f32) -> Part
             long,
             Box::new(move |n| PartKind::GableRoof(n, span, over, pitch)),
         )),
-        PartKind::HipRoof(long, span, over, pitch) => Some((
+        PartKind::HipRoof(long, span, over, pitch, deck) => Some((
             long,
-            Box::new(move |n| PartKind::HipRoof(n, span, over, pitch)),
+            Box::new(move |n| PartKind::HipRoof(n, span, over, pitch, deck)),
         )),
         // The flat ones are sized in two, and it is their X a trim comes back
         // along - the same axis every other part is cut on.
@@ -1087,7 +1087,7 @@ pub(crate) fn work_part_menu(
                     (d, w, std::f32::consts::FRAC_PI_2)
                 };
                 let raised = if hipped {
-                    PartKind::HipRoof(long, span, ROOF_OVERHANG, ROOF_PITCH_DEGREES)
+                    PartKind::HipRoof(long, span, ROOF_OVERHANG, ROOF_PITCH_DEGREES, HIP_DECK)
                 } else {
                     PartKind::GableRoof(long, span, ROOF_OVERHANG, ROOF_PITCH_DEGREES)
                 };

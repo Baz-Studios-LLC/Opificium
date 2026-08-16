@@ -77,7 +77,7 @@ fn a_hip_roof_faces_outward() {
 #[test]
 fn a_hip_roof_slopes_on_every_side() {
     for (long, span) in [(6.0_f32, 6.0_f32), (8.0, 4.0), (3.0, 9.0)] {
-        let kind = PartKind::HipRoof(long, span, 0.25, 40.0);
+        let kind = PartKind::HipRoof(long, span, 0.25, 40.0, HIP_DECK);
         let body = body_of(&kind, None);
         assert_eq!(body.len(), 1, "a hip roof is one shape");
         let Slab {
@@ -105,8 +105,8 @@ fn a_hip_roof_slopes_on_every_side() {
         );
     }
     // A steeper pitch is a taller roof, and the deck stays where it is.
-    let low = body_of(&PartKind::HipRoof(6.0, 6.0, 0.25, 20.0), None);
-    let steep = body_of(&PartKind::HipRoof(6.0, 6.0, 0.25, 50.0), None);
+    let low = body_of(&PartKind::HipRoof(6.0, 6.0, 0.25, 20.0, HIP_DECK), None);
+    let steep = body_of(&PartKind::HipRoof(6.0, 6.0, 0.25, 50.0, HIP_DECK), None);
     assert!(
         steep[0].size.y > low[0].size.y,
         "pitch did not raise the roof"
@@ -2259,5 +2259,137 @@ fn choosing_a_hip_raises_one_and_wears_its_ridge() {
         Deed::RoofOf { hipped: true }.is_standing(&wearing, "roof", "")
             && !Deed::RoofOf { hipped: false }.is_standing(&wearing, "roof", ""),
         "the menu marks the wrong roof for a ceiling wearing a hip's ridge"
+    );
+}
+
+/// The gold handle at a ridge answers on every roof it is offered on.
+///
+/// Brett: "the hip roof has a yellow resize handle that should pull up but it doesnt do
+/// anything." It was offered on BOTH roofs - "a hip has eaves and a pitch just as a gable
+/// roof does" - and answered for the gable alone, so a hip wore an arrow that moved
+/// nothing. The bench's oldest fault, and this is the sixth time it has cost something.
+#[test]
+fn the_ridge_handle_answers_wherever_it_is_offered() {
+    use crate::gizmo::{apex_of, pitched};
+    for kind in [
+        PartKind::GableRoof(6.0, 4.0, 0.25, ROOF_PITCH_DEGREES),
+        PartKind::HipRoof(6.0, 4.0, 0.25, ROOF_PITCH_DEGREES, HIP_DECK),
+        PartKind::gable(4.0, ROOF_PITCH_DEGREES),
+    ] {
+        let stands = apex_of(&kind);
+        assert!(
+            stands > 0.0,
+            "{} has no apex for the handle to stand at",
+            part_name(&kind)
+        );
+        let Some(made) = pitched(kind, stands + 0.5) else {
+            panic!(
+                "{} wears the ridge handle and does not answer it",
+                part_name(&kind)
+            )
+        };
+        assert!(
+            apex_of(&made) > stands,
+            "{} did not rise when its ridge was pulled up: {stands} then {}",
+            part_name(&kind),
+            apex_of(&made)
+        );
+    }
+    // And nothing else is answered, so the handle cannot quietly start moving parts it
+    // was never hung on.
+    assert!(pitched(PartKind::wall(4.0), 2.0).is_none());
+}
+
+/// Pulling a hip's ridge closes its deck, and then makes a point.
+///
+/// Brett: "What if pulling that up increased the roof height until it made a point?" So the
+/// slopes run further in as it rises - the flat top shrinking all the while - until they
+/// meet: a ridge on a long roof, and a point on a square one. Only then does it steepen,
+/// the way a gable's does all along.
+#[test]
+fn a_hip_pulled_up_closes_its_deck() {
+    use crate::gizmo::{apex_of, pitched};
+    // The deck a hip is wearing, read off the shape it draws rather than the number that
+    // made it: nought both ways is a point.
+    let deck_of = |kind: &PartKind| match body_of(kind, None).first().map(|slab| slab.shape) {
+        Some(Shape::Hip(x, z)) => (x, z),
+        other => panic!("a hip roof draws {:?}", other.is_some()),
+    };
+    let square = PartKind::HipRoof(6.0, 6.0, 0.25, ROOF_PITCH_DEGREES, HIP_DECK);
+    let (was_x, was_z) = deck_of(&square);
+    assert!(
+        was_x > 0.0 && was_z > 0.0,
+        "a hip starts with a deck to close"
+    );
+
+    // Up in strides, from where the handle stands.
+    let mut kind = square;
+    let mut tall = apex_of(&kind);
+    let mut pointed = None;
+    for step in 1..=24 {
+        let want = apex_of(&square) + step as f32 * 0.125;
+        let Some(made) = pitched(kind, want) else {
+            panic!("a hip stopped answering its handle")
+        };
+        let now = apex_of(&made);
+        assert!(
+            now >= tall - 1e-4,
+            "a hip pulled UP got shorter: {tall} then {now}"
+        );
+        let (keep_x, keep_z) = deck_of(&made);
+        assert!(
+            keep_x <= was_x + 1e-4 && keep_z <= was_z + 1e-4,
+            "a hip pulled up grew its deck instead of closing it"
+        );
+        if keep_x <= 1e-4 && keep_z <= 1e-4 && pointed.is_none() {
+            pointed = Some(now);
+        }
+        kind = made;
+        tall = now;
+    }
+    let Some(point) = pointed else {
+        panic!("a square hip never came to a point, however far it was pulled")
+    };
+    // And past the point it keeps rising - there is no deck left to close, so the pull
+    // becomes a pitch.
+    assert!(
+        tall > point + 1e-4,
+        "a hip that came to a point at {point} would go no higher"
+    );
+    let (keep_x, keep_z) = deck_of(&kind);
+    assert!(
+        keep_x <= 1e-4 && keep_z <= 1e-4,
+        "a hip steepened past its point grew a deck back"
+    );
+}
+
+/// A hip saved before its deck could be closed opens at the shape it was drawn in.
+#[test]
+fn a_hip_drawn_before_its_deck_existed_still_opens() {
+    let elder = "hiproof-7.5x5x0.25x30";
+    let Some(kind @ PartKind::HipRoof(long, span, over, pitch, deck)) = kind_from_name(elder)
+    else {
+        panic!("{elder} no longer opens at all")
+    };
+    assert_eq!((long, span, over, pitch), (7.5, 5.0, 0.25, 30.0));
+    assert_eq!(
+        deck, HIP_DECK,
+        "it opens at a deck no hip was ever drawn with"
+    );
+    // And the shape it draws is the shape it always drew: the slope running in half of
+    // the shorter half-extent.
+    let Some(Shape::Hip(keep_x, keep_z)) = body_of(&kind, None).first().map(|slab| slab.shape)
+    else {
+        panic!("a hip roof draws no hip")
+    };
+    assert!(
+        (keep_z - 0.5).abs() < 1e-4 && keep_x > keep_z,
+        "an old hip changed shape: it keeps {keep_x} by {keep_z}"
+    );
+    // It writes its deck out now, and reads back the same.
+    let said = part_name(&kind);
+    assert!(
+        matches!(kind_from_name(&said), Some(PartKind::HipRoof(.., d)) if (d - HIP_DECK).abs() < 1e-4),
+        "{said} did not come back"
     );
 }

@@ -95,9 +95,13 @@ pub(crate) enum Grip {
     /// Pull a whole roof's eaves out past the walls, leaving the gables
     /// where the building is.
     Over { o0: f32 },
-    /// Pull a roof's ridge up or down: its pitch, in degrees when the grip
-    /// closed. The eaves do not move, so a roof steepens where it stands.
-    Pitch { p0: f32 },
+    /// Pull a roof's ridge up or down: how tall it stood when the grip closed.
+    /// The eaves do not move, so a roof rises where it stands.
+    ///
+    /// A HEIGHT rather than an angle, because that is what the hand is pulling
+    /// and because the two roofs answer it differently - a gable steepens, a hip
+    /// closes its deck and then steepens.
+    Pitch { high0: f32 },
     /// Raise or lower a flight's handrail. The treads do not move.
     Rail { h0: f32 },
     /// Raise or lower a pad: how tall the stone stands.
@@ -331,6 +335,79 @@ pub(crate) fn stands_at(kind: &PartKind) -> Option<f32> {
     }
 }
 
+/// How tall a roof or a gable stands at its ridge.
+///
+/// The OFFER for the gold handle at the apex: it is placed here, and the drag
+/// starts from here. A hip's height is its RUN against its pitch and not its
+/// half-span, so a handle placed by the gable's arithmetic hung in the air above
+/// a hip - which is half of why pulling it did nothing.
+pub(crate) fn apex_of(kind: &PartKind) -> f32 {
+    builder::body_of(kind, None)
+        .iter()
+        .map(|builder::Slab { at, size, .. }| at.y + size.y * 0.5)
+        .fold(0.0f32, f32::max)
+}
+
+/// What a roof becomes when its ridge is pulled to a height.
+///
+/// The ANSWER, and the reason this is a function: the handle was offered on BOTH
+/// roofs and answered for the gable alone, so a hip wore a gold arrow that did
+/// nothing whatever when pulled. Brett: "the hip roof has a yellow resize handle
+/// that should pull up but it doesnt do anything."
+///
+/// A GABLE steepens about its eaves. A HIP closes its deck first - the slopes run
+/// further in as it rises, until they meet in a ridge, or in a point when the
+/// roof is square - and only then does it steepen. Brett again, and it is the
+/// better gesture: "What if pulling that up increased the roof height until it
+/// made a point?"
+pub(crate) fn pitched(kind: PartKind, rise: f32) -> Option<PartKind> {
+    let rise = rise.max(0.02);
+    // Snapped in DEGREES rather than at the ridge, so two roofs meant to match
+    // match exactly however differently they were dragged.
+    let angle = |across: f32| {
+        let half = (across * 0.5).max(0.125);
+        (((rise / half).atan().to_degrees() / builder::PITCH_STEP).round() * builder::PITCH_STEP)
+            .clamp(builder::PITCH_LEAST, builder::PITCH_MOST)
+    };
+    match kind {
+        PartKind::GableRoof(long, span, over, _) => {
+            Some(PartKind::GableRoof(long, span, over, angle(span)))
+        }
+        PartKind::Gable { long, framed, .. } => Some(PartKind::Gable {
+            long,
+            pitch: angle(long),
+            framed,
+        }),
+        PartKind::HipRoof(long, span, over, pitch, _) => {
+            // How far the slopes may run before they meet, and how tall the roof
+            // is when they do. Past that there is no deck left to close and the
+            // pull becomes a pitch, the way a gable's always is.
+            let reach = (long * 0.5 + over)
+                .min(span * 0.5 + over)
+                .max(builder::ATOM);
+            let shut = reach * pitch.to_radians().tan();
+            if rise >= shut {
+                let steeper = (((rise / reach).atan().to_degrees() / builder::PITCH_STEP).round()
+                    * builder::PITCH_STEP)
+                    .clamp(builder::PITCH_LEAST, builder::PITCH_MOST);
+                return Some(PartKind::HipRoof(long, span, over, steeper, 0.0));
+            }
+            // The RUN lands on the lattice, and the deck is what is left of it -
+            // so a hip's own faces meet the grid the way every other part's do.
+            let run = builder::on_the_lattice(rise / pitch.to_radians().tan().max(1e-3))
+                .clamp(builder::ATOM, reach);
+            Some(PartKind::HipRoof(
+                long,
+                span,
+                over,
+                pitch,
+                1.0 - run / reach,
+            ))
+        }
+        _ => None,
+    }
+}
+
 /// What a CHOICE wears, which is not always what one part wears.
 ///
 /// ONE part wears its own handles for the standing mode. SEVERAL wear the MOVE
@@ -411,7 +488,7 @@ fn handles_for(mode: ToolMode, record: &Placed) -> Vec<(Vec3, Vec3, &'static str
                 PartKind::Foundation(w, d, _) => Some((w, d, true)),
                 PartKind::Roof(w, d) => Some((w, d, true)),
                 PartKind::GableRoof(w, d, _, _) => Some((w, d, true)),
-                PartKind::HipRoof(w, d, _, _) => Some((w, d, true)),
+                PartKind::HipRoof(w, d, ..) => Some((w, d, true)),
                 _ => None,
             });
             // A part sized along its own footprint wears the red pair, and a
@@ -493,11 +570,11 @@ fn handles_for(mode: ToolMode, record: &Placed) -> Vec<(Vec3, Vec3, &'static str
             // Both roofs wear the gold pair: a hip has eaves and a pitch just
             // as a gable roof does, and Brett asked for the lot - "it needs
             // resize handles for everything too".
-            if let Some((long, span, over, pitch)) = match builder::kind_from_name(&record.part) {
-                Some(PartKind::GableRoof(long, span, over, pitch))
-                | Some(PartKind::HipRoof(long, span, over, pitch)) => {
-                    Some((long, span, over, pitch))
-                }
+            if let Some((long, span, over, kind)) = match builder::kind_from_name(&record.part) {
+                Some(
+                    kind @ (PartKind::GableRoof(long, span, over, _)
+                    | PartKind::HipRoof(long, span, over, ..)),
+                ) => Some((long, span, over, kind)),
                 _ => None,
             } {
                 // Stood off along the ridge, not straight out past the blue
@@ -520,27 +597,32 @@ fn handles_for(mode: ToolMode, record: &Placed) -> Vec<(Vec3, Vec3, &'static str
                         Grip::Over { o0: over },
                     ));
                 }
-                // And one at the ridge, straight up: the pitch. Pull the ridge
-                // and the roof steepens about its eaves, which stay on the
-                // walls where they were set.
-                let rise = span * 0.5 * pitch.to_radians().tan();
+                // And one at the ridge, straight up. On a GABLE ROOF it is the
+                // pitch: pull the ridge and the roof steepens about its eaves,
+                // which stay on the walls where they were set. On a HIP it closes
+                // the deck first and steepens after - see `pitched`.
+                //
+                // Standing at the roof's OWN apex, read off the part rather than
+                // worked out here: a hip's height is its run against its pitch, not
+                // its half-span, so a handle placed by the gable's arithmetic hung
+                // in the air above a hip instead of on it.
+                let rise = apex_of(&kind);
                 handles.push((
                     spin * Vec3::Y,
                     spin * (Vec3::Y * (rise + 0.4)),
                     "cloth-gold",
-                    Grip::Pitch { p0: pitch },
+                    Grip::Pitch { high0: rise },
                 ));
             }
             // A gable is pulled by its peak the same way, so the wall under a
             // steepened roof can be steepened to meet it.
-            if let Some(PartKind::Gable { long, pitch, .. }) = builder::kind_from_name(&record.part)
-            {
-                let rise = long * 0.5 * pitch.to_radians().tan();
+            if let Some(kind @ PartKind::Gable { .. }) = builder::kind_from_name(&record.part) {
+                let rise = apex_of(&kind);
                 handles.push((
                     spin * Vec3::Y,
                     spin * (Vec3::Y * (rise + 0.4)),
                     "cloth-gold",
-                    Grip::Pitch { p0: pitch },
+                    Grip::Pitch { high0: rise },
                 ));
             }
             handles
@@ -832,40 +914,16 @@ fn work_gizmo(
                 }
             }
         }
-        Grip::Pitch { p0 } => {
-            // The drag is a ridge HEIGHT and the stored number is an angle:
-            // pulling a ridge is what a roof looks like being made steeper,
-            // while degrees are what a builder means by a pitch, so the handle
-            // speaks the first and records the second.
-            // A roof is pitched about its span and a gable about its width;
-            // beyond that the gesture is the same, so the arithmetic is written
-            // once and only the part it rebuilds differs.
-            let (across, rebuild): (f32, &dyn Fn(f32) -> PartKind) =
-                match builder::kind_from_name(&record.part) {
-                    Some(PartKind::GableRoof(long, span, over, _)) => (span, &move |pitch| {
-                        PartKind::GableRoof(long, span, over, pitch)
-                    }),
-                    Some(PartKind::Gable { long, framed, .. }) => {
-                        (long, &move |pitch| PartKind::Gable {
-                            long,
-                            pitch,
-                            framed,
-                        })
-                    }
-                    _ => return,
-                };
-            let was = p0;
-            let half = (across * 0.5).max(0.125);
-            let rise = (half * p0.to_radians().tan() + (t - state.t0)).max(0.02);
-            // Snapped in degrees rather than at the ridge, so two roofs meant
-            // to match match exactly however differently they were dragged.
-            let pitch = ((rise / half).atan().to_degrees() / builder::PITCH_STEP).round()
-                * builder::PITCH_STEP;
-            let pitch = pitch.clamp(10.0, 60.0);
-            if (pitch - was).abs() < 1e-4 {
+        Grip::Pitch { high0 } => {
+            // The drag is a ridge HEIGHT: pulling a ridge is what a roof looks
+            // like being raised, and what it does with the height is the roof's
+            // own business - see `pitched`.
+            let Some(made) = builder::kind_from_name(&record.part)
+                .and_then(|kind| pitched(kind, high0 + (t - state.t0)))
+                .filter(|made| builder::part_name(made) != record.part)
+            else {
                 return;
-            }
-            let made = rebuild(pitch);
+            };
             record.part = builder::part_name(&made);
             commands.entity(part).despawn_related::<Children>();
             builder::dress_part(
@@ -976,11 +1034,11 @@ fn work_gizmo(
                     }
                     PartKind::GableRoof(long, span, over, pitch)
                 }
-                Some(PartKind::HipRoof(long, span, was, pitch)) => {
+                Some(PartKind::HipRoof(long, span, was, pitch, deck)) => {
                     if (over - was).abs() < 1e-4 {
                         return;
                     }
-                    PartKind::HipRoof(long, span, over, pitch)
+                    PartKind::HipRoof(long, span, over, pitch, deck)
                 }
                 _ => return,
             };
@@ -1070,7 +1128,9 @@ fn work_gizmo(
                 PartKind::Foundation(_, _, high) => PartKind::Foundation(w, d, high),
                 PartKind::Roof(..) => PartKind::Roof(w, d),
                 PartKind::GableRoof(_, _, over, pitch) => PartKind::GableRoof(w, d, over, pitch),
-                PartKind::HipRoof(_, _, over, pitch) => PartKind::HipRoof(w, d, over, pitch),
+                PartKind::HipRoof(_, _, over, pitch, deck) => {
+                    PartKind::HipRoof(w, d, over, pitch, deck)
+                }
                 _ => return,
             };
             let fresh = builder::part_name(&made);
