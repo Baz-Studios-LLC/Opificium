@@ -38,11 +38,17 @@ pub(crate) fn turn_the_work(
     bench: Res<Bench>,
     naming: Res<Naming>,
     dims: Res<DimsEntry>,
+    hand: Res<Hand>,
     mut parts: Query<(&mut Transform, &mut Placed), Without<Ghost>>,
 ) {
+    // NOT WHILE A HAND IS FULL. R belongs to what you are holding, and shift is what
+    // you hold to keep placing - so a maker turning a row of books to face the other
+    // way, with shift down to set down another, spun the entire village instead.
+    // Brett: "When holding books to place and pressing R the entire build rotates."
     if *bench != Bench::Builder
         || naming.0.is_some()
         || dims.0.is_some()
+        || hand.kind.is_some()
         || !keys.just_pressed(KeyCode::KeyR)
         || !held_shift(&keys)
     {
@@ -116,11 +122,16 @@ pub(crate) fn turn_part(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     selected: Res<crate::gizmo::Selected>,
+    hand: Res<Hand>,
     mut parts: Query<(&mut Transform, &mut Placed), Without<Ghost>>,
 ) {
+    // The same rule: a full hand turns what it is holding and nothing else. R did BOTH
+    // at once, so a maker with a part in hand and something still chosen turned the
+    // ghost and the chosen thing on one press.
     if *bench != Bench::Builder
         || naming.0.is_some()
         || dims.0.is_some()
+        || hand.kind.is_some()
         || !keys.just_pressed(KeyCode::KeyR)
         || held_shift(&keys)
     {

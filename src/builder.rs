@@ -1427,7 +1427,7 @@ fn piece_from(parts: &[Placed]) -> Vec<Placed> {
 /// A full hand places on click. An empty hand picks a placed part back up.
 /// X removes what the cursor touches either way.
 #[allow(clippy::too_many_arguments)]
-fn place_grab_remove(
+pub(crate) fn place_grab_remove(
     mut commands: Commands,
     buttons: Res<ButtonInput<MouseButton>>,
     keys: Res<ButtonInput<KeyCode>>,

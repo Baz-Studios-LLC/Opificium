@@ -150,16 +150,64 @@ fn hang_the_shelf(mut commands: Commands, fonts: Res<Fonts>, palette: Res<Palett
     }
 
     heading(&mut commands, &fonts, &palette, shelf, "THE BRUSH");
-    reading(&mut commands, &fonts, &palette, shelf, "Radius", Reading::Radius);
-    reading(&mut commands, &fonts, &palette, shelf, "Strength", Reading::Strength);
+    reading(
+        &mut commands,
+        &fonts,
+        &palette,
+        shelf,
+        "Radius",
+        Reading::Radius,
+    );
+    reading(
+        &mut commands,
+        &fonts,
+        &palette,
+        shelf,
+        "Strength",
+        Reading::Strength,
+    );
 
     heading(&mut commands, &fonts, &palette, shelf, "UNDER THE POINTER");
-    reading(&mut commands, &fonts, &palette, shelf, "Where", Reading::Where);
-    reading(&mut commands, &fonts, &palette, shelf, "Ground", Reading::High);
+    reading(
+        &mut commands,
+        &fonts,
+        &palette,
+        shelf,
+        "Where",
+        Reading::Where,
+    );
+    reading(
+        &mut commands,
+        &fonts,
+        &palette,
+        shelf,
+        "Ground",
+        Reading::High,
+    );
 
-    heading(&mut commands, &fonts, &palette, shelf, "THE GROUND YOU MADE");
-    reading(&mut commands, &fonts, &palette, shelf, "Sculpted", Reading::Sculpted);
-    reading(&mut commands, &fonts, &palette, shelf, "History", Reading::History);
+    heading(
+        &mut commands,
+        &fonts,
+        &palette,
+        shelf,
+        "THE GROUND YOU MADE",
+    );
+    reading(
+        &mut commands,
+        &fonts,
+        &palette,
+        shelf,
+        "Sculpted",
+        Reading::Sculpted,
+    );
+    reading(
+        &mut commands,
+        &fonts,
+        &palette,
+        shelf,
+        "History",
+        Reading::History,
+    );
 
     heading(&mut commands, &fonts, &palette, shelf, "THE KEYS");
     for (keys, deed) in [
@@ -195,13 +243,7 @@ fn hang_the_shelf(mut commands: Commands, fonts: Res<Fonts>, palette: Res<Palett
     ));
 }
 
-fn heading(
-    commands: &mut Commands,
-    fonts: &Fonts,
-    palette: &Palette,
-    shelf: Entity,
-    word: &str,
-) {
+fn heading(commands: &mut Commands, fonts: &Fonts, palette: &Palette, shelf: Entity, word: &str) {
     commands.spawn((
         Text::new(word.to_string()),
         TextFont {
@@ -417,9 +459,13 @@ fn say_the_numbers(
     said: Res<Said>,
     mut readings: Query<(&Reading, &mut Text)>,
 ) {
-    let tally = ground
-        .as_ref()
-        .and_then(|ground| ground.sculpt().read().ok().map(|s| crate::terrain::tally(&s)));
+    let tally = ground.as_ref().and_then(|ground| {
+        ground
+            .sculpt()
+            .read()
+            .ok()
+            .map(|s| crate::terrain::tally(&s))
+    });
 
     for (which, mut text) in &mut readings {
         let word = match which {
@@ -427,7 +473,12 @@ fn say_the_numbers(
                 Some(ground) => crate::terrain::opened::called(ground.folder()),
                 None => "none open".to_string(),
             },
-            Reading::Radius => bar(brush.radius, MIN_RADIUS, MAX_RADIUS, &format!("{:.0} m", brush.radius)),
+            Reading::Radius => bar(
+                brush.radius,
+                MIN_RADIUS,
+                MAX_RADIUS,
+                &format!("{:.0} m", brush.radius),
+            ),
             Reading::Strength => bar(
                 brush.strength,
                 MIN_STRENGTH,

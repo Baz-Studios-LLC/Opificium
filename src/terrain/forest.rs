@@ -45,7 +45,6 @@ pub const CELL: f32 = 16.0;
 /// Below this, a cell is untouched and the automatic answer stands.
 const PAINTED_EPSILON: f32 = 0.01;
 
-
 /// One tree, ready to plant.
 pub struct Planted {
     pub at: Vec3,
@@ -93,7 +92,10 @@ impl Painted {
             return empty;
         }
         let Ok(bytes) = fs::read(path) else {
-            warn!("{}: unreadable - taking the ground's own answer", path.display());
+            warn!(
+                "{}: unreadable - taking the ground's own answer",
+                path.display()
+            );
             return empty;
         };
 
@@ -105,8 +107,9 @@ impl Painted {
         let word = |at: usize| {
             u32::from_le_bytes([bytes[at], bytes[at + 1], bytes[at + 2], bytes[at + 3]]) as usize
         };
-        let real =
-            |at: usize| f32::from_le_bytes([bytes[at], bytes[at + 1], bytes[at + 2], bytes[at + 3]]);
+        let real = |at: usize| {
+            f32::from_le_bytes([bytes[at], bytes[at + 1], bytes[at + 2], bytes[at + 3]])
+        };
         let (wide, deep) = (word(8), word(12));
         let saved_half = Vec2::new(real(16), real(20));
 
@@ -198,10 +201,7 @@ impl Painted {
 
         for z in z0..=z1 {
             for x in x0..=x1 {
-                let at = Vec2::new(
-                    x as f32 * CELL - self.half.x,
-                    z as f32 * CELL - self.half.y,
-                );
+                let at = Vec2::new(x as f32 * CELL - self.half.x, z as f32 * CELL - self.half.y);
                 let away = at.distance(centre);
                 if away > radius {
                     continue;
@@ -306,9 +306,15 @@ mod tests {
             ("dry", natural_density(0.1, 40.0, 0.1, 500.0, 0.0, 200.0)),
             ("high", natural_density(0.9, 205.0, 0.1, 500.0, 0.0, 200.0)),
             ("steep", natural_density(0.9, 40.0, 0.9, 500.0, 0.0, 200.0)),
-            ("levelled", natural_density(0.9, 40.0, 0.1, 500.0, 1.0, 200.0)),
+            (
+                "levelled",
+                natural_density(0.9, 40.0, 0.1, 500.0, 1.0, 200.0),
+            ),
         ] {
-            assert!(thin < good * 0.35, "{why} ground should be far barer: {thin}");
+            assert!(
+                thin < good * 0.35,
+                "{why} ground should be far barer: {thin}"
+            );
         }
     }
 
@@ -316,7 +322,10 @@ mod tests {
     fn painting_forces_the_question_either_way() {
         // The point of the layer: a maker overrules the generator rather than
         // nudging it, so a wood can go on a hilltop and a plain can be cleared.
-        assert!(density(0.0, 1.0) > 0.99, "painting should plant bare ground");
+        assert!(
+            density(0.0, 1.0) > 0.99,
+            "painting should plant bare ground"
+        );
         assert!(density(1.0, -1.0) < 0.01, "clearing should empty a wood");
         // And zero is untouched, which is the whole reason it is a bias.
         for natural in [0.0, 0.25, 0.5, 0.75, 1.0] {
@@ -334,7 +343,10 @@ mod tests {
         let patch = painted.paint(Vec2::new(100.0, -50.0), 80.0, 1.0);
         assert!(patch.width() > 0.0);
         assert!(painted.painted_cells() > 0);
-        assert!(painted.at(100.0, -50.0) > 0.9, "the middle should be planted");
+        assert!(
+            painted.at(100.0, -50.0) > 0.9,
+            "the middle should be planted"
+        );
         assert_eq!(painted.at(600.0, 400.0), 0.0, "far ground untouched");
 
         painted.save(&folder).expect("should save");
@@ -355,7 +367,11 @@ mod tests {
         painted.paint(Vec2::ZERO, 60.0, 1.0);
         painted.paint(Vec2::ZERO, 60.0, -1.0);
         assert!(painted.at(0.0, 0.0).abs() < PAINTED_EPSILON);
-        assert_eq!(painted.painted_cells(), 0, "no cell left counted as painted");
+        assert_eq!(
+            painted.painted_cells(),
+            0,
+            "no cell left counted as painted"
+        );
     }
 
     #[test]

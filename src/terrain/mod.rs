@@ -504,7 +504,14 @@ fn paint(
             sculpt.end_stroke();
             patch
         };
-        chunk::recut(&mut commands, &ground, &colours.0, &standing, &building, patch);
+        chunk::recut(
+            &mut commands,
+            &ground,
+            &colours.0,
+            &standing,
+            &building,
+            patch,
+        );
         said.that(format!(
             "Ramp laid, {:.0} m and {:+.0} m of climb",
             Vec2::new(from.x, from.z).distance(Vec2::new(hit.x, hit.z)),
@@ -554,7 +561,14 @@ fn paint(
             let bias = if backwards { -amount } else { amount };
             woods.paint(Vec2::new(on.x, on.z), brush.radius, bias)
         };
-        chunk::recut(&mut commands, &ground, &colours.0, &standing, &building, patch);
+        chunk::recut(
+            &mut commands,
+            &ground,
+            &colours.0,
+            &standing,
+            &building,
+            patch,
+        );
         return;
     }
 
@@ -575,7 +589,14 @@ fn paint(
         })
     };
 
-    chunk::recut(&mut commands, &ground, &colours.0, &standing, &building, patch);
+    chunk::recut(
+        &mut commands,
+        &ground,
+        &colours.0,
+        &standing,
+        &building,
+        patch,
+    );
 }
 
 fn history(
@@ -587,7 +608,11 @@ fn history(
     building: Query<(), With<Building>>,
     mut said: ResMut<Said>,
 ) {
-    if !keys.any_pressed([KeyCode::ControlLeft, KeyCode::ControlRight, KeyCode::SuperLeft]) {
+    if !keys.any_pressed([
+        KeyCode::ControlLeft,
+        KeyCode::ControlRight,
+        KeyCode::SuperLeft,
+    ]) {
         return;
     }
     let shifted = keys.any_pressed([KeyCode::ShiftLeft, KeyCode::ShiftRight]);
@@ -607,16 +632,31 @@ fn history(
 
     match patch {
         Some(patch) => {
-            chunk::recut(&mut commands, &ground, &colours.0, &standing, &building, patch);
+            chunk::recut(
+                &mut commands,
+                &ground,
+                &colours.0,
+                &standing,
+                &building,
+                patch,
+            );
             said.that(if back { "Taken back" } else { "Put back" });
         }
-        None => said.that(if back { "Nothing to take back" } else { "Nothing to put back" }),
+        None => said.that(if back {
+            "Nothing to take back"
+        } else {
+            "Nothing to put back"
+        }),
     }
 }
 
 /// Writes the sculpted ground into the game's own folder.
 fn keep(keys: Res<ButtonInput<KeyCode>>, ground: Res<Ground>, mut said: ResMut<Said>) {
-    let held = keys.any_pressed([KeyCode::ControlLeft, KeyCode::ControlRight, KeyCode::SuperLeft]);
+    let held = keys.any_pressed([
+        KeyCode::ControlLeft,
+        KeyCode::ControlRight,
+        KeyCode::SuperLeft,
+    ]);
     if !held || !keys.just_pressed(KeyCode::KeyS) {
         return;
     }

@@ -2533,3 +2533,81 @@ fn right_clicking_a_door_changes_it() {
     assert_eq!(hung, 1, "a double door hangs {hung} sets of leaves");
     assert_eq!(marks, 2, "a double door has {marks} lanes, not two");
 }
+
+/// R belongs to whatever the hand is holding, and to nothing else.
+///
+/// Brett: "When holding books to place and pressing R the entire build rotates."
+///
+/// Three systems answer that key. The hand turns what it holds; a plain R turns the part
+/// that is chosen; a SHIFT-R turns the whole work about its middle - and shift is what a
+/// maker holds down to keep placing. So turning a row of books to face the other way, with
+/// shift down to set down another, spun the entire village.
+#[test]
+fn r_turns_what_the_hand_holds() {
+    use bevy::asset::AssetPlugin;
+    let mut app = App::new();
+    app.add_plugins((MinimalPlugins, AssetPlugin::default()));
+    app.init_asset::<Mesh>().init_asset::<StandardMaterial>();
+    app.insert_resource(crate::look::load_palette_for_bake());
+    app.init_resource::<ButtonInput<KeyCode>>();
+    app.init_resource::<crate::gizmo::Selected>();
+    app.init_resource::<Naming>();
+    app.init_resource::<DimsEntry>();
+    app.insert_resource(crate::Bench::Builder);
+    app.init_resource::<Hand>();
+    app.add_systems(Update, (turn_the_work, turn_part));
+
+    let standing = |app: &App, part: Entity| app.world().get::<Placed>(part).unwrap().yaw;
+    let wall = app
+        .world_mut()
+        .spawn((
+            Placed {
+                part: part_name(&PartKind::wall(2.0)),
+                at: [3.0, 0.0, 0.0],
+                yaw: 0.0,
+                tilt: 0.0,
+                ramp: None,
+                shade: 0.5,
+                stage: "walls".to_string(),
+                flip: false,
+                group: None,
+                loose: false,
+                material: String::new(),
+            },
+            Transform::from_xyz(3.0, 0.0, 0.0),
+        ))
+        .id();
+    app.world_mut()
+        .resource_mut::<crate::gizmo::Selected>()
+        .toggle(wall);
+
+    // A HAND FULL OF BOOKS, and shift down to keep placing them.
+    app.world_mut().resource_mut::<Hand>().kind = Some(PartKind::Books(0));
+    for key in [KeyCode::ShiftLeft, KeyCode::KeyR] {
+        app.world_mut()
+            .resource_mut::<ButtonInput<KeyCode>>()
+            .press(key);
+    }
+    app.update();
+    assert_eq!(
+        standing(&app, wall),
+        0.0,
+        "a wall turned while a maker was holding books"
+    );
+
+    // The same press with an EMPTY hand is the world's own turn, and still works.
+    app.world_mut().resource_mut::<Hand>().kind = None;
+    app.world_mut()
+        .resource_mut::<ButtonInput<KeyCode>>()
+        .reset_all();
+    for key in [KeyCode::ShiftLeft, KeyCode::KeyR] {
+        app.world_mut()
+            .resource_mut::<ButtonInput<KeyCode>>()
+            .press(key);
+    }
+    app.update();
+    assert!(
+        standing(&app, wall) != 0.0,
+        "an empty hand can no longer turn the work at all"
+    );
+}

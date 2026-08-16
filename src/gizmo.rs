@@ -148,6 +148,16 @@ impl Plugin for GizmoPlugin {
                 Update,
                 (walk_modes, select_part, dress_gizmo, work_gizmo)
                     .chain()
+                    // ONE CLICK LETS GO AND PICKS UP. The choice is read by the grab -
+                    // it stands aside while anything is chosen - so letting go has to
+                    // happen first, or the click that drops a selection is spent doing
+                    // only that and the maker clicks twice for one pickup. Brett: "When
+                    // I placed them I couldnt pick them bqck up."
+                    //
+                    // And after the feel, because what is under the cursor is what this
+                    // chooses: reading it before would choose from the frame before.
+                    .after(builder::feel_ahead)
+                    .before(builder::place_grab_remove)
                     // Moving, resizing and painting are things done to a
                     // BUILDING. Brett, on finding he could stretch a villager's
                     // head: "I shouldnt be able to stretch or resize any part of
@@ -266,6 +276,19 @@ fn select_part(
     // A part that has gone - buried, or left behind on another step - stops
     // being chosen without taking the rest of the choice with it.
     selected.0.retain(|part| parts.contains(*part));
+    // A click on NOTHING lets go. Without it a choice could only be dropped with the
+    // escape key, and everything a click does in the builder - placing, picking up,
+    // punching - stands aside while one is held: a maker who had chosen something
+    // earlier found their next click doing nothing at all and no way to tell why.
+    // Brett: "When I placed them I couldnt pick them bqck up."
+    if buttons.just_pressed(MouseButton::Left)
+        && !hot.0
+        && hovered.grab.is_none()
+        && !gathering
+        && !selected.is_empty()
+    {
+        selected.clear();
+    }
     if buttons.just_pressed(MouseButton::Left)
         && !hot.0
         && let Some(touched) = hovered.grab

@@ -85,9 +85,7 @@ pub fn ask(from: Option<&Path>) -> Option<PathBuf> {
         .add_filter("Map image", &["png", "jpg", "jpeg", "webp"]);
     // Start where the maker most likely means: the world they have open, or the
     // one the open game says is its own.
-    let start = from
-        .map(Path::to_path_buf)
-        .or_else(crate::project::world);
+    let start = from.map(Path::to_path_buf).or_else(crate::project::world);
     if let Some(from) = start {
         dialog = dialog.set_directory(from);
     }

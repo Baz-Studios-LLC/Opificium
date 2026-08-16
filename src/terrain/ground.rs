@@ -350,10 +350,7 @@ impl World {
         world.massif = world.map.as_ref().and_then(|map| {
             (world.recipe.massif_height > 0.0).then(|| {
                 let (u, v) = map.deepest_inland();
-                let at = Vec2::new(
-                    (u - 0.5) * half.x * 2.0,
-                    (v - 0.5) * half.y * 2.0,
-                );
+                let at = Vec2::new((u - 0.5) * half.x * 2.0, (v - 0.5) * half.y * 2.0);
                 info!("the great mountain stands at {:.0}, {:.0}", at.x, at.y);
                 at
             })
@@ -442,8 +439,9 @@ impl World {
 
                 standing.push(forest::Planted {
                     at: Vec3::new(at.x, height, at.y),
-                    variety: (forest::chance(slot_x, slot_z, 4) * crate::terrain::tree::VARIETIES
-                        as f32) as usize
+                    variety: (forest::chance(slot_x, slot_z, 4)
+                        * crate::terrain::tree::VARIETIES as f32)
+                        as usize
                         % crate::terrain::tree::VARIETIES,
                     turn: forest::chance(slot_x, slot_z, 5) * std::f32::consts::TAU,
                     scale: r.tree_scale_low
@@ -627,10 +625,10 @@ impl World {
             return 0.0;
         }
 
-        let presence = self
-            .presence
-            .get([x as f64 * r.range_presence_freq, z as f64 * r.range_presence_freq])
-            as f32
+        let presence = self.presence.get([
+            x as f64 * r.range_presence_freq,
+            z as f64 * r.range_presence_freq,
+        ]) as f32
             * 0.5
             + 0.5;
         let presence = smoothstep(r.range_presence_cutoff, 1.0, presence);
@@ -638,7 +636,9 @@ impl World {
             return 0.0;
         }
 
-        let n = self.ranges.get([x as f64 * r.range_freq, z as f64 * r.range_freq]) as f32;
+        let n = self
+            .ranges
+            .get([x as f64 * r.range_freq, z as f64 * r.range_freq]) as f32;
         let crest = (1.0 - n.abs()).clamp(0.0, 1.0).powf(1.7);
 
         crest * presence * allowed * r.range_elevation

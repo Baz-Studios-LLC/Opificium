@@ -185,7 +185,11 @@ fn steer(
     if scroll.delta.y != 0.0 && !over_pane.0 {
         // A world is kilometres across where a building is metres, so the eye
         // has to be able to stand far enough back to see a coastline.
-        let (near, far) = if terrain { (20.0, 6_000.0) } else { (3.0, 60.0) };
+        let (near, far) = if terrain {
+            (20.0, 6_000.0)
+        } else {
+            (3.0, 60.0)
+        };
         rig.distance = (rig.distance * (1.0 - scroll.delta.y * 0.08)).clamp(near, far);
     }
 }

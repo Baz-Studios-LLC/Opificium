@@ -139,8 +139,8 @@ fn limb(
     for i in 0..habit.limbs {
         // Spaced up the parent rather than all from one point, and turned around
         // it as they go, so limbs spiral instead of leaving in a fan.
-        let up = habit.limbs_from + (1.0 - habit.limbs_from) * (i as f32 + draw.unit() * 0.6)
-            / habit.limbs as f32;
+        let up = habit.limbs_from
+            + (1.0 - habit.limbs_from) * (i as f32 + draw.unit() * 0.6) / habit.limbs as f32;
         let from = foot + along * up.min(1.0);
 
         let turn = draw.unit() * std::f32::consts::TAU;
@@ -201,8 +201,7 @@ impl Timber {
                 let at = centre + out * radius;
                 self.places.push([at.x, at.y, at.z]);
                 self.normals.push([out.x, out.y, out.z]);
-                self.uvs
-                    .push([side as f32 / sides as f32, ring as f32]);
+                self.uvs.push([side as f32 / sides as f32, ring as f32]);
             }
         }
 
@@ -353,8 +352,9 @@ mod tests {
     fn no_two_trees_in_the_pool_are_the_same_tree() {
         // The whole pool is planted across one forest, so a repeat is a pattern
         // the eye will find.
-        let shapes: std::collections::HashSet<Vec<u32>> =
-            (0..VARIETIES as u32).map(|s| shape(&grow(s).wood)).collect();
+        let shapes: std::collections::HashSet<Vec<u32>> = (0..VARIETIES as u32)
+            .map(|s| shape(&grow(s).wood))
+            .collect();
         assert_eq!(
             shapes.len(),
             VARIETIES,
@@ -387,9 +387,6 @@ mod tests {
             panic!("positions should be 3-vectors");
         };
         let lowest = places.iter().map(|p| p[1]).fold(f32::MAX, f32::min);
-        assert!(
-            lowest > -0.5,
-            "the trunk starts {lowest:.2} m underground"
-        );
+        assert!(lowest > -0.5, "the trunk starts {lowest:.2} m underground");
     }
 }

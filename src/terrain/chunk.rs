@@ -549,12 +549,14 @@ pub fn lay_the_sea(
         Sea,
         // A grid rather than a single quad, because its vertices are moved every
         // frame to carry the swell. Coarse: it holds a wave, not a coastline.
-        Mesh3d(meshes.add(
-            Plane3d::default()
-                .mesh()
-                .size(reach, reach)
-                .subdivisions(SEA_QUADS as u32),
-        )),
+        Mesh3d(
+            meshes.add(
+                Plane3d::default()
+                    .mesh()
+                    .size(reach, reach)
+                    .subdivisions(SEA_QUADS as u32),
+            ),
+        ),
         MeshMaterial3d(materials.add(StandardMaterial {
             base_color: palette.shade("water", 0.35).with_alpha(0.78),
             // Blended and smooth: you have to be able to read the shape of the

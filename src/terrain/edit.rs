@@ -618,13 +618,7 @@ impl Sculpt {
     /// and useless for a road up a hillside.
     ///
     /// Returns the ground it changed.
-    pub fn ramp(
-        &mut self,
-        from: Vec3,
-        to: Vec3,
-        width: f32,
-        under: &dyn Fn(Vec2) -> f32,
-    ) -> Rect {
+    pub fn ramp(&mut self, from: Vec3, to: Vec3, width: f32, under: &dyn Fn(Vec2) -> f32) -> Rect {
         let start = Vec2::new(from.x, from.z);
         let end = Vec2::new(to.x, to.z);
         let run = end - start;
@@ -701,10 +695,7 @@ impl Sculpt {
 
     /// Where a cell sits in the world.
     fn cell_at(&self, x: usize, z: usize) -> Vec2 {
-        Vec2::new(
-            x as f32 * CELL - self.half.x,
-            z as f32 * CELL - self.half.y,
-        )
+        Vec2::new(x as f32 * CELL - self.half.x, z as f32 * CELL - self.half.y)
     }
 
     /// The cells a brush covers, kept inside the grid.
@@ -858,7 +849,10 @@ mod tests {
         }
 
         let after = ground.at(0.0, 0.0);
-        assert!(after < before * 0.6, "{before:.1} should fall to under 60%, got {after:.1}");
+        assert!(
+            after < before * 0.6,
+            "{before:.1} should fall to under 60%, got {after:.1}"
+        );
     }
 
     #[test]
@@ -968,9 +962,8 @@ mod tests {
             hasty.apply(&stamp(Vec2::ZERO, 60.0, Brushing::Erode, fast, 0.0));
         }
 
-        let held = |ground: &Sculpt| {
-            (ground.at(0.0, 0.0) - ground.at(CELL * 3.0, 0.0)) / (CELL * 3.0)
-        };
+        let held =
+            |ground: &Sculpt| (ground.at(0.0, 0.0) - ground.at(CELL * 3.0, 0.0)) / (CELL * 3.0);
         let (slow_slope, fast_slope) = (held(&patient), held(&hasty));
 
         assert!(
@@ -1063,7 +1056,13 @@ mod tests {
         assert!(ground.can_redo());
 
         ground.begin_stroke();
-        ground.apply(&stamp(Vec2::new(200.0, 0.0), 40.0, Brushing::Raise, 5.0, 0.0));
+        ground.apply(&stamp(
+            Vec2::new(200.0, 0.0),
+            40.0,
+            Brushing::Raise,
+            5.0,
+            0.0,
+        ));
         ground.end_stroke();
 
         assert!(!ground.can_redo(), "editing after an undo drops the branch");

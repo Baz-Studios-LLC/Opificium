@@ -104,10 +104,7 @@ impl Settlements {
         // Cities first, with the room they need; towns afterwards, filling in
         // whatever is left. Placing them the other way round would let a town
         // sit where a city needed to be.
-        for (wanted, city) in [
-            (recipe.cities, true),
-            (recipe.cities + recipe.towns, false),
-        ] {
+        for (wanted, city) in [(recipe.cities, true), (recipe.cities + recipe.towns, false)] {
             let radius = if city {
                 recipe.city_radius
             } else {
@@ -249,7 +246,11 @@ impl Settlements {
                 let height = road.from_height + (road.to_height - road.from_height) * along;
                 (
                     height,
-                    smoothstep(recipe.road_width + recipe.road_skirt, recipe.road_width, away),
+                    smoothstep(
+                        recipe.road_width + recipe.road_skirt,
+                        recipe.road_width,
+                        away,
+                    ),
                 )
             };
             if pull <= weight {
