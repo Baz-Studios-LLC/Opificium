@@ -1568,12 +1568,17 @@ fn shape_of(kind: &PartKind) -> Vec<Slab> {
             // leaning on its neighbours, which is what a shelf nobody has tidied
             // looks like.
             let a = ATOM;
+            // SIX ATOMS AT MOST, because that is what a shelf leaves: its shelves
+            // stand half a metre apart and are an atom thick, so the gap is seven
+            // and a book of eight goes straight through the one above it. Brett,
+            // with a picture of exactly that: "Books are slightly too big to fit in
+            // shelves."
             let spines = [
-                (-a * 5.0, 7.0, "cloth-wine", 0.45),
-                (-a * 3.0, 8.0, "cloth-blue", 0.4),
-                (-a * 1.0, 6.0, "cloth-green", 0.45),
-                (a * 1.0, 8.0, "cloth-sable", 0.5),
-                (a * 3.0, 7.0, "cloth-rust", 0.5),
+                (-a * 5.0, 5.0, "cloth-wine", 0.45),
+                (-a * 3.0, 6.0, "cloth-blue", 0.4),
+                (-a * 1.0, 4.0, "cloth-green", 0.45),
+                (a * 1.0, 6.0, "cloth-sable", 0.5),
+                (a * 3.0, 5.0, "cloth-rust", 0.5),
             ];
             let mut body: Vec<Slab> = spines
                 .into_iter()
@@ -1590,17 +1595,19 @@ fn shape_of(kind: &PartKind) -> Vec<Slab> {
                     )
                 })
                 .collect();
-            // The one that has been put back in a hurry.
+            // The one that has been put back in a hurry - leaning INTO the row it
+            // came out of, not away from it. Leant the other way it hung out past
+            // the shelf's own side, which is where the shelf is.
             body.push(canted(
-                a * 5.5,
-                a * 3.5,
+                a * 4.0,
+                a * 2.5,
                 0.0,
                 a * 2.0,
-                a * 7.0,
+                a * 5.0,
                 a * 4.0,
                 "cloth-red",
                 0.45,
-                -12f32.to_radians(),
+                10f32.to_radians(),
                 Vec2::ZERO,
             ));
             body

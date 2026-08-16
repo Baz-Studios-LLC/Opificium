@@ -3108,3 +3108,64 @@ fn nothing_fights_for_the_same_face() {
         speckle.join("\n  ")
     );
 }
+
+/// A row of books fits on the shelf it is for.
+///
+/// Brett, with a picture of one going straight through the shelf above it: "Books are
+/// slightly too big to fit in shelves." A shelf's shelves stand half a metre apart and are
+/// an atom thick, so what a book has is seven atoms - and three of them were eight.
+///
+/// Measured off BOTH parts rather than off the numbers that made either: the shelf says how
+/// much room there is and the books say how much they take, and neither can drift from the
+/// other without this noticing.
+#[test]
+fn a_row_of_books_fits_a_shelf() {
+    let shelves = body_of(&PartKind::Prop("shelves"), None);
+    // The boards, and the uprights that hold them.
+    let mut boards: Vec<(f32, f32)> = shelves
+        .iter()
+        .filter(|slab| slab.size.x > 0.5)
+        .map(|slab| (slab.at.y - slab.size.y * 0.5, slab.at.y + slab.size.y * 0.5))
+        .collect();
+    boards.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
+    assert!(
+        boards.len() >= 2,
+        "the shelves have no boards to stand books on"
+    );
+    let gap = boards
+        .windows(2)
+        .map(|pair| pair[1].0 - pair[0].1)
+        .fold(f32::INFINITY, f32::min);
+    let clear = shelves
+        .iter()
+        .filter(|slab| slab.size.x < 0.5)
+        .map(|slab| slab.at.x.abs() - slab.size.x * 0.5)
+        .fold(f32::INFINITY, f32::min);
+
+    // What a row actually takes up, corners and all - the leaning one included, which
+    // is the piece that reaches furthest both ways.
+    let (mut tall, mut wide) = (0.0f32, 0.0f32);
+    for Slab { at, size, cant, .. } in body_of(&PartKind::Prop("books"), None) {
+        let turn = Mat2::from_angle(cant);
+        for sx in [-0.5f32, 0.5] {
+            for sy in [-0.5f32, 0.5] {
+                let corner = Vec2::new(at.x, at.y) + turn * Vec2::new(size.x * sx, size.y * sy);
+                tall = tall.max(corner.y);
+                wide = wide.max(corner.x.abs());
+            }
+        }
+    }
+    assert!(
+        tall <= gap + 1e-4,
+        "a row of books stands {tall} in a shelf that leaves {gap}"
+    );
+    assert!(
+        wide <= clear + 1e-4,
+        "a row of books reaches {wide} across a shelf {clear} wide"
+    );
+    // And it is not a token row rattling about in a big shelf either.
+    assert!(
+        tall > gap * 0.5 && wide > clear * 0.5,
+        "a row of books is lost on the shelf it is for: {tall} of {gap}, {wide} of {clear}"
+    );
+}
