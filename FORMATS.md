@@ -283,11 +283,12 @@ original - and holds:
   before it.
 - `marks`: what the place is FOR once that level is finished.
 
-A mark says WHAT, WHERE and WHICH WAY: `{mark, at, yaw}`. One of them says one
-thing more.
+A mark says WHAT, WHERE and WHICH WAY: `{mark, at, yaw}`. Some say one thing
+more, and a reader that meets neither extra key is reading a mark that is only a
+place - which is nearly all of them.
 
-- `wide`, in metres, and only where there is a width to have. A reader that meets
-  no `wide` is reading a mark that is only a place, which is nearly all of them.
+- `wide`, in metres, where the thing marked has a width.
+- `size`, `[x, y, z]` in metres, where the mark is a VOLUME rather than a point.
 - `clock` is the mark that carries it. The bench builds the FACE - an octagonal
   dial, baked as boxes with everything else, because a face does not move - and
   the game draws the HANDS, because they do. Nothing that moves can be baked, so
@@ -295,6 +296,33 @@ thing more.
   wide it is; two hands of that size, turned to the hour, are its own to draw and
   its own to animate. Brett: "make it hands free and have the game create and
   animate the hands."
+
+### `size`: a place with room in it
+
+A door is walked through and a hearth is stood at - where it is and which way it
+faces is the whole of it. Some places are not points. Brett: "when the people
+collect stone wood and food they stack them in pallets. It would be cool to have a
+pallet widget that I could put in the building that the food stacks into."
+
+Goods stacking into a pallet are FILLING something, and a game filling a space has
+to be told how big the space is. So a mark may carry `size`, and where it does:
+
+- `at` is the middle of its FOOT, not its centre. A stack grows upward off a
+  floor, so the game is given the floor it starts from.
+- `size` is `[long, high, deep]` in metres, in the mark's own frame. `yaw` turns
+  it, the same as for any other mark.
+- What goes in it, how much fits, and how it is drawn are the GAME'S. The bench
+  says where the room is and how much of it there is, and nothing else.
+
+**Which of a game's marks have a size is the game's own to declare**, in
+`data/widgets.json`, on the mark: `{"mark": "pallet", "size": [1.0, 1.0, 1.0]}`.
+That size is the one a maker starts from; they then drag it to what they meant,
+and the drawing remembers theirs. A mark with no `size` in `widgets.json` is
+placed as a point and bakes as one, exactly as before - so declaring a size is how
+a game opts a mark in, and no existing mark changes.
+
+A mark carries `wide` or `size` or neither, never both: one is a diameter and the
+other is a volume, and nothing is both.
 
 Every level is measured from ONE origin: the first level's finished footprint. An
 upgrade has to land on the building it upgrades, so it is never recentred on its

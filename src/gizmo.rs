@@ -336,6 +336,14 @@ fn select_part(
 pub(crate) fn risen(kind: PartKind, high: f32) -> Option<PartKind> {
     match kind {
         PartKind::Pole { knees, .. } => Some(PartKind::Pole { high, knees }),
+        PartKind::Area {
+            word, long, deep, ..
+        } => Some(PartKind::Area {
+            word,
+            long,
+            deep,
+            high,
+        }),
         PartKind::Foundation(w, d, _) => Some(PartKind::Foundation(w, d, high)),
         // ANY wall, framed or not: every wall has a height.
         PartKind::Wall {
@@ -366,6 +374,9 @@ pub(crate) fn stands_at(kind: &PartKind) -> Option<f32> {
         // A POST wears this one alone. It is a beam stood up, and how tall it
         // stands is the only number it has.
         PartKind::Pole { high, .. } => Some(*high),
+        // HOW HIGH A STACK MAY GROW, on the same gold handle a pad rises by -
+        // which is what it is: a volume standing on its own foot.
+        PartKind::Area { high, .. } => Some(*high),
         _ => None,
     }
 }
@@ -533,6 +544,8 @@ fn handles_for(mode: ToolMode, record: &Placed) -> Vec<(Vec3, Vec3, &'static str
                 // A table is sized both ways: a council's board is long AND wide.
                 PartKind::Table(long, deep) => Some((long, deep, true)),
                 PartKind::Floor(w, d) => Some((w, d, true)),
+                // A MARKED VOLUME is dragged to the room it means, both ways.
+                PartKind::Area { long, deep, .. } => Some((long, deep, true)),
                 PartKind::Ceiling { long, deep, .. } => Some((long, deep, true)),
                 PartKind::Foundation(w, d, _) => Some((w, d, true)),
                 PartKind::Roof(w, d) => Some((w, d, true)),
@@ -1183,6 +1196,12 @@ fn work_gizmo(
                 PartKind::Clock(_) => PartKind::Clock(w),
                 PartKind::Table(..) => PartKind::Table(w, d),
                 PartKind::Floor(..) => PartKind::Floor(w, d),
+                PartKind::Area { word, high, .. } => PartKind::Area {
+                    word,
+                    long: w,
+                    deep: d,
+                    high,
+                },
                 // Pulled to a new size, and it keeps the roof it was going to raise.
                 PartKind::Ceiling { hipped, across, .. } => PartKind::Ceiling {
                     long: w,

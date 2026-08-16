@@ -225,6 +225,53 @@ pub fn from_the_shelf(kind: PartKind, panes: WindowPanes, doors: DoorAs) -> Part
     }
 }
 
+/// THE PART A MARK'S WORD STANDS FOR: a point, or a volume.
+///
+/// The one place that decides, because the shelf button that fills the hand, the
+/// border that lights it up and anything else that asks all have to agree - and a
+/// second copy of this rule would light the wrong button the moment a project
+/// declared a size.
+///
+/// A word the project has declared a size for is an [`PartKind::Area`] at that
+/// size, ready to be dragged; every other word is the point it always was.
+pub fn a_mark(word: &'static str) -> PartKind {
+    a_mark_of(
+        word,
+        crate::project::widgets()
+            .iter()
+            .find(|mark| mark.word == word)
+            .and_then(|mark| mark.size),
+    )
+}
+
+/// The rule itself, over a size somebody has already looked up.
+///
+/// Apart from the looking-up so that it can be ASKED - the bench's own project is
+/// whatever folder the bench happens to be standing in, which for a test is a
+/// source tree with no marks in it at all, and a test of a rule that never reaches
+/// the rule is a test that passes by never running.
+pub fn a_mark_of(word: &'static str, size: Option<[f32; 3]>) -> PartKind {
+    match size {
+        Some([long, deep, high]) => PartKind::Area {
+            word,
+            long,
+            deep,
+            high,
+        },
+        None => PartKind::Widget(word),
+    }
+}
+
+/// Whether a part is a MARK rather than a thing: a place, or a place with room in
+/// it.
+///
+/// Marks are drawn see-through, because they are not there. A maker has to be able
+/// to see the pallet they put in the corner AND the corner, and a solid crate in
+/// the way of the wall behind it is a crate nobody can build around.
+pub fn is_a_mark(kind: &PartKind) -> bool {
+    matches!(kind, PartKind::Widget(_) | PartKind::Area { .. })
+}
+
 /// The width a kind of opening takes when nobody says otherwise.
 ///
 /// Also what a NAME leaves out: a hole of the usual width writes no width at all,
@@ -404,6 +451,32 @@ pub enum PartKind {
         double: bool,
         /// What hangs in it, which is three things and not two - see [`Leaf`].
         leaf: Leaf,
+    },
+    /// A MARKED VOLUME: a place with room in it, and how much room.
+    ///
+    /// A [`Widget`](PartKind::Widget) is a point - a door is walked through, a
+    /// hearth is stood at - and where it is and which way it faces is the whole of
+    /// what a game needs to know. Some places are not points. Brett: "when the
+    /// people collect stone wood and food they stack them in pallets. It would be
+    /// cool to have a pallet widget that I could put in the building that the food
+    /// stacks into."
+    ///
+    /// Goods stacking into a pallet are FILLING something, and a game filling a
+    /// space has to be told how big it is. So this is a mark a maker drags to the
+    /// size they mean, the same way they drag a floor, and it bakes with that size
+    /// on it.
+    ///
+    /// The WORD is still the game's and still comes from `widgets.json` - a bench
+    /// that knew what a pallet was would be a bench with one game's vocabulary in
+    /// it. Which of a game's marks have an extent is declared there too, on the
+    /// mark itself; the bench only knows that a mark CAN have one.
+    ///
+    /// It stands on its FOOT, because a stack grows upward from a floor.
+    Area {
+        word: &'static str,
+        long: f32,
+        deep: f32,
+        high: f32,
     },
     /// A ROW OF BOOKS, and the SEED its colours are drawn from.
     ///

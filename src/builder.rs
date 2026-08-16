@@ -617,6 +617,19 @@ impl Plugin for BuilderPlugin {
     }
 }
 
+/// A mark's word, kept alive for a `PartKind` to hold.
+///
+/// ANY word, declared or not. What the project declares is what the shelf offers
+/// and what colour a block wears - never what a saved work is allowed to contain.
+/// A drawing opened in a game that has not declared its marks keeps every one of
+/// them, and saving it keeps them still.
+fn a_word(said: &str) -> &'static str {
+    crate::project::widgets()
+        .iter()
+        .find(|mark| mark.word == said)
+        .map_or_else(|| crate::project::a_kept_word(said), |mark| mark.word)
+}
+
 pub fn part_name(kind: &PartKind) -> String {
     match kind {
         PartKind::Seg { long, high, lift } => format!("wallseg-{long}x{high}@{lift}"),
@@ -766,6 +779,15 @@ pub fn part_name(kind: &PartKind) -> String {
         }
         PartKind::Prop(name) => format!("prop:{name}"),
         PartKind::Widget(name) => format!("widget:{name}"),
+        // The size LAST, so the word may hold hyphens of its own - a game with
+        // `pallet-timber` and `pallet-stone` spells them out and this still reads
+        // back only the three numbers on the end.
+        PartKind::Area {
+            word,
+            long,
+            deep,
+            high,
+        } => format!("area:{word}-{long}x{deep}x{high}"),
     }
 }
 
@@ -1072,16 +1094,21 @@ pub fn kind_from_name(name: &str) -> Option<PartKind> {
             });
     }
     if let Some(widget) = name.strip_prefix("widget:") {
-        // ANY word, declared or not. What the project declares is what the shelf
-        // offers and what colour a block wears - never what a saved work is
-        // allowed to contain. A drawing opened in a game that has not declared its
-        // marks keeps every one of them, and saving it keeps them still.
-        return Some(PartKind::Widget(
-            crate::project::widgets()
-                .iter()
-                .find(|mark| mark.word == widget)
-                .map_or_else(|| crate::project::a_kept_word(widget), |mark| mark.word),
-        ));
+        return Some(PartKind::Widget(a_word(widget)));
+    }
+    // A MARKED VOLUME, whose size is its own and not the project's: a maker drags
+    // a pallet to the room they meant it to have, and reopening the work has to
+    // give back that room rather than whatever the project declares today.
+    if let Some(rest) = name.strip_prefix("area:") {
+        let (word, measures) = rest.rsplit_once('-')?;
+        let mut said = measures.split('x').filter_map(|n| n.parse::<f32>().ok());
+        let (long, deep, high) = (said.next()?, said.next()?, said.next()?);
+        return Some(PartKind::Area {
+            word: a_word(word),
+            long,
+            deep,
+            high,
+        });
     }
     match name {
         // Legacy names from before the primitives learned their sizes.
@@ -1310,7 +1337,7 @@ pub fn dress_part(
     root: Entity,
     ghostly: bool,
 ) {
-    let translucent = ghostly || matches!(kind, PartKind::Widget(_));
+    let translucent = ghostly || is_a_mark(kind);
     let repaint = record.ramp.as_deref().map(|r| (r, record.shade));
     for Slab {
         mut at,
@@ -1335,7 +1362,7 @@ pub fn dress_part(
         if see_through {
             color = color.with_alpha(if ghostly {
                 0.45
-            } else if matches!(kind, PartKind::Widget(_)) {
+            } else if is_a_mark(kind) {
                 0.55
             } else {
                 clarity

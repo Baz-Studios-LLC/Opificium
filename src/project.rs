@@ -297,6 +297,22 @@ offers only what is listed, and a word it is given is passed through untouched:
 {{ "format": 1, "marks": [ {{ "mark": "door", "ramp": "cloth-green", "shade": 0.6 }} ] }}
 ```
 
+A mark is a POINT by default - a door is walked through, a hearth is stood at, and
+where it is and which way it faces is the whole of what a game needs. Give one a
+`size` and it becomes a VOLUME instead: a place with room in it, that a maker sets
+down and then drags to the room they mean.
+
+```json
+{{ "format": 1, "marks": [ {{ "mark": "pallet", "size": [1.0, 1.0, 1.0] }} ] }}
+```
+
+That is for the places a game FILLS rather than stands in - a pallet goods stack
+onto, a pen, a plot, a stockpile. The declared size is only where a maker starts;
+what they drag it to is what the drawing keeps and what the bake carries. Which of
+a game's marks have an extent is the game's business, which is why it is declared
+here: a bench that knew what a pallet was would be a bench with one game's
+vocabulary in it.
+
 `materials.json` is the same kind of vocabulary, for what a part is BUILT of:
 
 ```json
@@ -608,6 +624,23 @@ pub struct Widget {
     pub word: &'static str,
     pub ramp: String,
     pub shade: f32,
+    /// HOW BIG THE THING IT MARKS IS, in metres, when it is a place with an
+    /// extent rather than a point.
+    ///
+    /// Most marks are points: a door is walked through, a hearth is stood at,
+    /// and where it is and which way it faces is the whole of what a game needs.
+    /// Some are VOLUMES - a pallet goods stack into, a pen, a plot, a stockpile -
+    /// and for those the game has to be told how much room it has, because it is
+    /// filling the space rather than standing in it.
+    ///
+    /// Declared HERE rather than decided by the bench, because which of a game's
+    /// marks have an extent is the game's business: a bench that knew "pallet" is
+    /// a bench with one game's vocabulary baked into it. What the bench knows is
+    /// that a mark CAN have one.
+    ///
+    /// A mark with a size is placed as an [`Area`](crate::builder::PartKind::Area)
+    /// and can be dragged to fit; one without stays a point.
+    pub size: Option<[f32; 3]>,
 }
 
 /// One as it is written on disk.
@@ -618,6 +651,9 @@ struct WidgetDef {
     ramp: String,
     #[serde(default = "half")]
     shade: f32,
+    /// Absent for the marks that are only a place, which is nearly all of them.
+    #[serde(default)]
+    size: Option<[f32; 3]>,
 }
 
 fn bone() -> String {
@@ -665,6 +701,12 @@ pub fn widgets() -> &'static [Widget] {
                     word: Box::leak(mark.mark.into_boxed_str()),
                     ramp: mark.ramp,
                     shade: mark.shade,
+                    // Nothing a maker could not drag back, but a size of nought
+                    // would be a volume holding nothing - so a declared size that
+                    // says nothing is no size at all.
+                    size: mark
+                        .size
+                        .filter(|size| size.iter().all(|measure| *measure > 0.0)),
                 })
                 .collect(),
             Err(why) => {
@@ -1197,6 +1239,57 @@ mod tests {
     /// The whole point of the list being the project's: a game that raises no
     /// sawmills is never offered one, and the list grows by use rather than by
     /// somebody editing the bench's source.
+    /// A MARK MAY DECLARE HOW MUCH ROOM IT HAS, and most declare none.
+    ///
+    /// The reading half of the pallet: `size` on a mark in `widgets.json` is what
+    /// makes that word a volume a maker can drag rather than a point they can only
+    /// place. Asked of the parser directly, because `widgets()` reads the project
+    /// the bench is STANDING in - which under a test runner is a source tree with
+    /// no marks at all, so walking it would prove nothing.
+    #[test]
+    fn a_mark_may_declare_its_room() {
+        let said = r#"{ "format": 1, "marks": [
+            { "mark": "door" },
+            { "mark": "pallet", "ramp": "cloth-gold", "shade": 0.7, "size": [1.5, 1.0, 1.25] },
+            { "mark": "flat", "size": [1.0, 0.0, 1.0] } ] }"#;
+        let file: WidgetsFile = serde_json::from_str(said).expect("reads");
+        let marks: Vec<Widget> = file
+            .marks
+            .into_iter()
+            .map(|mark| Widget {
+                word: Box::leak(mark.mark.into_boxed_str()),
+                ramp: mark.ramp,
+                shade: mark.shade,
+                size: mark
+                    .size
+                    .filter(|size| size.iter().all(|measure| *measure > 0.0)),
+            })
+            .collect();
+
+        // A mark that says nothing is a place, and keeps the colours it always got.
+        assert_eq!(marks[0].word, "door");
+        assert!(marks[0].size.is_none(), "a plain mark now claims room");
+        assert_eq!(
+            marks[0].ramp, "bone",
+            "a plain mark lost its default colour"
+        );
+
+        // One that says how much room it has, has it.
+        assert_eq!(
+            marks[1].size,
+            Some([1.5, 1.0, 1.25]),
+            "the room was not read"
+        );
+
+        // AND A SIZE THAT SAYS NOTHING IS NO SIZE. A volume with a nought in it
+        // holds nothing, and a maker handed one could drag it to no size at all
+        // and never see what they were holding.
+        assert!(
+            marks[2].size.is_none(),
+            "a mark declaring no room in one direction is offered as a volume"
+        );
+    }
+
     #[test]
     fn a_project_learns_its_kinds() {
         let root = fresh("opificium-test-kinds");

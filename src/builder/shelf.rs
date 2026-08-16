@@ -290,7 +290,7 @@ pub(crate) fn work_shelf(
         }
     }
     for (interaction, button, _) in &widgets {
-        let kind = PartKind::Widget(button.0);
+        let kind = a_mark(button.0);
         if *interaction == Interaction::Pressed && hand.kind != Some(kind) {
             *hand = Hand::filled(kind, "widget".to_string());
             rearmed = true;
@@ -314,11 +314,7 @@ pub(crate) fn work_shelf(
         dress_shelf_border(&palette, hand.kind == Some(want), &mut border);
     }
     for (_, button, mut border) in &mut widgets {
-        dress_shelf_border(
-            &palette,
-            hand.kind == Some(PartKind::Widget(button.0)),
-            &mut border,
-        );
+        dress_shelf_border(&palette, hand.kind == Some(a_mark(button.0)), &mut border);
     }
 }
 

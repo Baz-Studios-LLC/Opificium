@@ -113,6 +113,12 @@ pub(crate) fn barn_leaves(double: bool) -> Vec<Slab> {
     body
 }
 
+/// How thick the chalk line round a marked volume is drawn.
+///
+/// One atom: thin enough to read as a boundary rather than a wall, thick enough to
+/// see across a room.
+pub(crate) const RULE: f32 = ATOM;
+
 /// A post's own section, and the lighter timber a knee brace is cut from.
 pub(crate) const POST_THICK: f32 = 0.375;
 pub(crate) const KNEE_THICK: f32 = 0.25;
@@ -2605,6 +2611,48 @@ fn shape_of(kind: &PartKind) -> Vec<Slab> {
             ),
         ],
         PartKind::Prop(_) => vec![],
+        // A MARKED VOLUME: the room a game has to fill, drawn as the room and not
+        // as a block.
+        //
+        // A pallet is not a thing standing in the building - it is where things
+        // will be - so it is drawn the way a mason chalks a floor: a rail round
+        // its footprint and a post up each corner to the height it may reach. A
+        // solid crate would hide the corner it stands in, and the corner is what a
+        // maker is judging when they put it there.
+        PartKind::Area {
+            word,
+            long,
+            deep,
+            high,
+        } => {
+            let found = crate::project::widgets()
+                .iter()
+                .find(|mark| mark.word == *word);
+            let (ramp, shade) =
+                found.map_or(("bone", 0.5), |mark| (mark.ramp.as_str(), mark.shade));
+            let (half_x, half_z) = (long * 0.5 - RULE * 0.5, deep * 0.5 - RULE * 0.5);
+            let mut body = Vec::new();
+            // The footprint, laid on the floor it stacks up from.
+            for (x, z, sx, sz) in [
+                (0.0, -half_z, *long, RULE),
+                (0.0, half_z, *long, RULE),
+                (-half_x, 0.0, RULE, *deep),
+                (half_x, 0.0, RULE, *deep),
+            ] {
+                body.push(slab(x, RULE * 0.5, z, sx, RULE, sz, ramp, shade));
+            }
+            // And a post up each corner, so the height it may reach is a thing a
+            // maker can see rather than a number they have to remember.
+            for (x, z) in [
+                (-half_x, -half_z),
+                (half_x, -half_z),
+                (-half_x, half_z),
+                (half_x, half_z),
+            ] {
+                body.push(slab(x, high * 0.5, z, RULE, *high, RULE, ramp, shade));
+            }
+            body
+        }
         PartKind::Widget(name) => {
             // A mark the project has not declared still DRAWS - as a plain
             // block in bone - because a work opened in the wrong project should

@@ -105,3 +105,70 @@ fn a_clock_bakes_its_face_and_says_how_wide() {
         "a mark that is only a place grew a width: {plain:?}"
     );
 }
+
+/// A MARKED VOLUME BAKES ITS ROOM, at the foot the stack grows off.
+///
+/// The whole point of the thing: a game filling a space has to be told how big the
+/// space is. Brett wanted "a pallet widget that I could put in the building that
+/// the food stacks into", and everything the game needs to do that is these four
+/// numbers - where the floor of it is, which way it lies, and how much room.
+///
+/// It is drawn as boxes on the bench so a maker can see it, and it must bake as
+/// NONE, because it is not there: a pallet is where goods will be, and a crate
+/// baked into the building would be a crate standing inside the pile.
+#[test]
+fn a_marked_volume_bakes_its_room_and_no_boxes() {
+    let palette = crate::look::load_palette_for_bake();
+    let pallet = Placed {
+        part: part_name(&PartKind::Area {
+            word: "pallet",
+            long: 2.0,
+            deep: 1.5,
+            high: 1.25,
+        }),
+        at: [2.0, 0.0, -1.0],
+        yaw: 0.0,
+        tilt: 0.0,
+        ramp: None,
+        shade: 0.5,
+        stage: "furnishing".to_string(),
+        flip: false,
+        loose: false,
+        material: String::new(),
+        group: None,
+    };
+    let (boxes, marks) = bake_one_phase(std::slice::from_ref(&pallet), &palette, Vec3::ZERO);
+    assert!(
+        boxes.is_empty(),
+        "a marked volume was built into the building: {} boxes",
+        boxes.len()
+    );
+    let said = marks.join("\n");
+    assert!(
+        said.contains("\"mark\": \"pallet\""),
+        "the pallet does not say what it is: {said}"
+    );
+    // Long, HIGH, deep - the order a box is measured in everywhere else in this
+    // file, so a reader that already parses `boxes` parses this the same way.
+    assert!(
+        said.contains("\"size\": [2.0000, 1.2500, 1.5000]"),
+        "the pallet does not say how much room it has: {said}"
+    );
+    // At the middle of its FOOT: a stack grows upward off a floor, so the game is
+    // given the floor rather than a point in the middle of the air.
+    assert!(
+        said.contains("\"at\": [2.0000, 0.0000, -1.0000]"),
+        "the pallet does not stand on its own foot: {said}"
+    );
+    // AND A POINT MARK IS UNCHANGED. Declaring sizes is how a game opts a mark in;
+    // every mark that has not is spelled exactly the way it always was.
+    let door = Placed {
+        part: part_name(&PartKind::Widget("door")),
+        ..pallet.clone()
+    };
+    let (_, plain) = bake_one_phase(std::slice::from_ref(&door), &palette, Vec3::ZERO);
+    assert!(
+        plain.iter().all(|line| !line.contains("size")),
+        "a mark that is only a place now claims to have room in it: {plain:?}"
+    );
+}

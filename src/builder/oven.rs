@@ -53,6 +53,14 @@ struct Mark {
     /// How wide the thing it marks is, in metres, or nought for a mark that is
     /// only a place.
     wide: f32,
+    /// HOW MUCH ROOM the place has, in metres, for a mark that is a volume rather
+    /// than a point - a pallet goods stack into, a pen, a plot.
+    ///
+    /// A game filling a space has to be told how big it is. Where `wide` is one
+    /// number about a thing that is THERE - a dial, whose hands the village draws
+    /// - this is three about room that is EMPTY, and what goes in it is the
+    /// game's to decide.
+    size: Option<Vec3>,
 }
 
 /// One phase, resolved: the boxes a game can draw, and the marks that say what the
@@ -90,12 +98,29 @@ pub(crate) fn bake_one_phase(
             yaw,
             by_hand: false,
             wide: 0.0,
+            size: None,
         };
         match kind {
             PartKind::Widget(what) => {
                 marks.push(Mark {
                     by_hand: true,
                     ..mark(what, anchor, record.yaw)
+                });
+                continue;
+            }
+            // A MARKED VOLUME says how much room it has, and stands at its own
+            // FOOT: a stack grows up off a floor, so the game is told the corner
+            // it starts from rather than a point in the middle of the air.
+            PartKind::Area {
+                word,
+                long,
+                deep,
+                high,
+            } => {
+                marks.push(Mark {
+                    by_hand: true,
+                    size: Some(Vec3::new(long, high, deep)),
+                    ..mark(word, anchor, record.yaw)
                 });
                 continue;
             }
@@ -260,8 +285,13 @@ pub(crate) fn bake_one_phase(
             } else {
                 String::new()
             };
+            // And the room, for the marks that have any. Three numbers rather than
+            // `wide`'s one, because a volume is not a diameter.
+            let size = mark
+                .size
+                .map_or_else(String::new, |size| format!(", \"size\": {}", say(size)));
             format!(
-                "    {{\"mark\": \"{}\", \"at\": {}, \"yaw\": {:.4}{wide}}}",
+                "    {{\"mark\": \"{}\", \"at\": {}, \"yaw\": {:.4}{wide}{size}}}",
                 mark.what,
                 say(mark.at),
                 mark.yaw

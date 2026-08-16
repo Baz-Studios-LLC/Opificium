@@ -3577,3 +3577,159 @@ fn a_knee_survives_being_saved() {
         );
     }
 }
+
+/// A MARKED VOLUME KEEPS THE ROOM IT WAS DRAGGED TO.
+///
+/// Brett: "when the people collect stone wood and food they stack them in
+/// pallets. It would be cool to have a pallet widget that I could put in the
+/// building that the food stacks into."
+///
+/// The size is the whole point of it - a game filling a space has to be told how
+/// big the space is - so it lives on the PART, not on the project's declaration.
+/// A project says how big a pallet starts; a maker says how big this one is; and
+/// reopening the work has to give back what the maker said.
+#[test]
+fn a_marked_volume_keeps_its_room() {
+    let pallet = PartKind::Area {
+        word: "pallet",
+        long: 2.0,
+        deep: 1.5,
+        high: 1.25,
+    };
+    let name = part_name(&pallet);
+    assert!(
+        kind_from_name(&name) == Some(pallet),
+        "{name} does not come back as itself"
+    );
+    // A WORD WITH HYPHENS IN IT still reads back whole. A game with more than one
+    // sort of pallet spells them out - `pallet-timber`, `pallet-stone` - and the
+    // three numbers on the end are the only part of the name that is the bench's.
+    let stone = PartKind::Area {
+        word: "pallet-stone",
+        long: 1.0,
+        deep: 1.0,
+        high: 1.0,
+    };
+    assert!(
+        kind_from_name(&part_name(&stone)) == Some(stone),
+        "a mark whose word has a hyphen in it loses half its name"
+    );
+    // It is a MARK, so it is drawn see-through: a maker has to see the corner they
+    // are putting it in as well as the pallet.
+    assert!(is_a_mark(&pallet), "a marked volume is not drawn as a mark");
+    // AND IT STANDS ON ITS FOOT, because a stack grows upward off a floor. Nothing
+    // it is drawn from reaches below the ground or above the height it was given.
+    let body = body_of(&pallet, None);
+    assert!(
+        !body.is_empty(),
+        "a marked volume is drawn as nothing at all"
+    );
+    for piece in &body {
+        assert!(
+            piece.at.y - piece.size.y * 0.5 > -1e-4,
+            "a marked volume reaches below the floor it stacks up from"
+        );
+        assert!(
+            piece.at.y + piece.size.y * 0.5 <= 1.25 + 1e-4,
+            "a marked volume reaches above the room it was given"
+        );
+        // And inside its own footprint, both ways.
+        assert!(
+            piece.at.x.abs() + piece.size.x * 0.5 <= 2.0 * 0.5 + 1e-4
+                && piece.at.z.abs() + piece.size.z * 0.5 <= 1.5 * 0.5 + 1e-4,
+            "a marked volume spills outside the room it was given"
+        );
+    }
+}
+
+/// AND IT WEARS THE HANDLES THAT CHANGE THAT ROOM - both halves.
+///
+/// The offer and the answer, which is where this bench keeps hurting itself: a
+/// handle offered and not answered appears and does nothing when pulled.
+#[test]
+fn a_marked_volume_is_dragged_to_size() {
+    let pallet = PartKind::Area {
+        word: "pallet",
+        long: 2.0,
+        deep: 1.5,
+        high: 1.25,
+    };
+    // The gold handle: offered at the height it stands, and answered by a taller
+    // one of the same footprint.
+    assert_eq!(
+        crate::gizmo::stands_at(&pallet),
+        Some(1.25),
+        "a marked volume offers no height handle"
+    );
+    assert!(
+        crate::gizmo::risen(pallet, 2.0)
+            == Some(PartKind::Area {
+                word: "pallet",
+                long: 2.0,
+                deep: 1.5,
+                high: 2.0,
+            }),
+        "pulling a marked volume taller does nothing, or loses its footprint"
+    );
+}
+
+/// A DECLARED SIZE IS WHAT MAKES A WORD A VOLUME - offer and answer.
+///
+/// The shelf button that fills the hand and the border that lights it up both ask
+/// `a_mark`, which is the only thing that decides. A second copy of that rule
+/// would light the wrong button the moment a project declared a size, which is
+/// the shape of half the bugs this bench has had.
+#[test]
+fn a_declared_size_is_what_makes_a_mark_a_volume() {
+    // THE RULE, asked directly. A declared size makes a volume and nothing else
+    // does - which is worth asking here because the bench's own project is the
+    // source tree, which declares no marks at all, so a test that only walked
+    // `widgets()` would pass by never running.
+    assert!(
+        a_mark_of("pallet", Some([2.0, 1.5, 1.25]))
+            == PartKind::Area {
+                word: "pallet",
+                long: 2.0,
+                deep: 1.5,
+                high: 1.25
+            },
+        "a declared size does not make a mark a volume"
+    );
+    assert!(
+        a_mark_of("door", None) == PartKind::Widget("door"),
+        "a mark with no declared size is no longer a point"
+    );
+    // And whatever THIS project declares, the same rule holds for every word in
+    // it - the same answer every time, since two callers ask it about one button.
+    // Under a test runner that is usually nothing at all, which is why the two
+    // asserts above exist; see `project::tests::a_mark_may_declare_its_room` for
+    // the reading half.
+    for mark in crate::project::widgets() {
+        let made = a_mark(mark.word);
+        assert!(
+            made == a_mark(mark.word),
+            "{} is a different part each time it is asked for",
+            mark.word
+        );
+        match mark.size {
+            Some([long, deep, high]) => assert!(
+                made == PartKind::Area {
+                    word: mark.word,
+                    long,
+                    deep,
+                    high
+                },
+                "{} declares room and is placed as a point",
+                mark.word
+            ),
+            None => assert!(
+                made == PartKind::Widget(mark.word),
+                "{} declares no room and is placed as a volume",
+                mark.word
+            ),
+        }
+        // Either way it is a mark, so it is drawn see-through and bakes as no
+        // boxes at all.
+        assert!(is_a_mark(&made), "{} is not drawn as a mark", mark.word);
+    }
+}
