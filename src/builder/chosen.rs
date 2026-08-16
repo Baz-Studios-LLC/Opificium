@@ -108,10 +108,24 @@ pub(crate) fn hang_the_chosen(
                 // Upper right of the VIEW, clear of the shelf that owns the
                 // right edge: the panel is about the thing under the cursor, and
                 // the cursor is out here rather than over on the rail.
-                right: Val::Px(222.0),
-                top: Val::Px(10.0),
+                // CLEAR OF THE SHELF, measured off the shelf's own width rather
+                // than off a number that happened to be near it: it stood at 222
+                // against a rail 232 wide, so its right edge was ten pixels under
+                // the shelf and would have gone further under the day the rail
+                // changed.
+                right: Val::Px(crate::look::PANEL_WIDE + 8.0),
+                // UNDER THE FILE BAR, like every other panel on the bench. It
+                // started ten pixels off the top of the WINDOW, which is inside
+                // the bar - so the bar sat on its head and took the line that says
+                // what has been chosen. Brett: "the group panel is too hugh and
+                // gets cut off by the top of the window... the file bar overlaps
+                // it."
+                top: Val::Px(crate::menu::BAR_HIGH + 10.0),
                 width: Val::Px(232.0),
-                max_height: Val::Px(420.0),
+                // A share of the WINDOW rather than a number of pixels: a panel
+                // four hundred tall is most of a small window and none of a large
+                // one, and the list inside it scrolls anyway.
+                max_height: Val::Vh(45.0),
                 flex_direction: FlexDirection::Column,
                 row_gap: Val::Px(3.0),
                 padding: UiRect::all(Val::Px(10.0)),
