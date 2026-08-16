@@ -671,7 +671,7 @@ pub(crate) fn dims_panel(
             // number you can read off one roof is a number you can pull another
             // to, where an angle you can only judge by eye is not.
             PartKind::GableRoof(w, d, _, pitch) => Some((part, w, Some(d), Some(pitch))),
-            PartKind::Gable(long, pitch) => Some((part, long, None, Some(pitch))),
+            PartKind::Gable { long, pitch, .. } => Some((part, long, None, Some(pitch))),
             PartKind::Chimney(drop) => Some((part, drop, None, None)),
             PartKind::Floor(w, d) | PartKind::Roof(w, d) => Some((part, w, Some(d), None)),
             PartKind::Foundation(w, d, _) => Some((part, w, Some(d), None)),

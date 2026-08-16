@@ -17,7 +17,14 @@ pub(crate) fn spoken_of(kind: &PartKind) -> String {
         PartKind::Trim { long, stone } => {
             format!("{} TRIM, {long:.2}M", if *stone { "STONE" } else { "WOOD" })
         }
-        PartKind::Gable(long, pitch) => format!("GABLE, {long:.2}M AT {pitch:.0}"),
+        PartKind::Gable {
+            long,
+            pitch,
+            framed,
+        } => format!(
+            "GABLE, {long:.2}M AT {pitch:.0}{}",
+            if *framed { ", FRAMED" } else { "" }
+        ),
         PartKind::Beam(long, high, low) => {
             if *high > 0.0 || *low > 0.0 {
                 format!("BEAM, {long:.2}M, MITRED")

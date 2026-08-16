@@ -321,7 +321,7 @@ fn handles_for(mode: ToolMode, record: &Placed) -> Vec<(Vec3, Vec3, &'static str
                 PartKind::Seg { long, .. } => Some((long, 0.0, false)),
                 PartKind::Trim { long, .. } => Some((long, 0.0, false)),
                 PartKind::Rail { long, .. } => Some((long, 0.0, false)),
-                PartKind::Gable(long, _) => Some((long, 0.0, false)),
+                PartKind::Gable { long, .. } => Some((long, 0.0, false)),
                 PartKind::Beam(long, ..) => Some((long, 0.0, false)),
                 // The chimney sizes its own reach downward.
                 PartKind::Chimney(drop) => Some((drop, 0.0, false)),
@@ -465,7 +465,8 @@ fn handles_for(mode: ToolMode, record: &Placed) -> Vec<(Vec3, Vec3, &'static str
             }
             // A gable is pulled by its peak the same way, so the wall under a
             // steepened roof can be steepened to meet it.
-            if let Some(PartKind::Gable(long, pitch)) = builder::kind_from_name(&record.part) {
+            if let Some(PartKind::Gable { long, pitch, .. }) = builder::kind_from_name(&record.part)
+            {
                 let rise = long * 0.5 * pitch.to_radians().tan();
                 handles.push((
                     spin * Vec3::Y,
@@ -755,8 +756,12 @@ fn work_gizmo(
                     Some(PartKind::GableRoof(long, span, over, _)) => (span, &move |pitch| {
                         PartKind::GableRoof(long, span, over, pitch)
                     }),
-                    Some(PartKind::Gable(long, _)) => {
-                        (long, &move |pitch| PartKind::Gable(long, pitch))
+                    Some(PartKind::Gable { long, framed, .. }) => {
+                        (long, &move |pitch| PartKind::Gable {
+                            long,
+                            pitch,
+                            framed,
+                        })
                     }
                     _ => return,
                 };
@@ -963,7 +968,11 @@ fn work_gizmo(
                     hand,
                     stone,
                 },
-                PartKind::Gable(_, pitch) => PartKind::Gable(w, pitch),
+                PartKind::Gable { pitch, framed, .. } => PartKind::Gable {
+                    long: w,
+                    pitch,
+                    framed,
+                },
                 PartKind::Beam(_, high, low) => PartKind::Beam(w, high, low),
                 PartKind::Chimney(_) => PartKind::Chimney(w.max(0.0)),
                 PartKind::Stairs {

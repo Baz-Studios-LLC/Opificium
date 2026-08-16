@@ -198,8 +198,7 @@ pub(crate) fn is_structure(kind: &PartKind) -> bool {
             | PartKind::Trim { .. }
             | PartKind::TrimRun { .. }
             | PartKind::SegRun { .. }
-            | PartKind::Gable(..)
-            | PartKind::GableRun
+            | PartKind::Gable { .. }
             | PartKind::Ridge(..)
             | PartKind::Chimney(..)
             | PartKind::RidgeRun

@@ -472,7 +472,7 @@ fn everything_sizable_can_be_trimmed() {
         },
         PartKind::Beam(4.0, 0.25, 0.0),
         PartKind::Ridge(3.0),
-        PartKind::Gable(4.0, 45.0),
+        PartKind::gable(4.0, 45.0),
         PartKind::GableRoof(6.0, 4.0, 0.25, 40.0),
         PartKind::Floor(3.0, 2.0),
         PartKind::Foundation(3.0, 2.0, 0.75),
@@ -873,8 +873,7 @@ fn every_face_lands_on_an_atom() {
                 PartKind::Roof(..)
                     | PartKind::GableRoof(..)
                     | PartKind::HipRoof(..)
-                    | PartKind::Gable(..)
-                    | PartKind::GableRun
+                    | PartKind::Gable { .. }
                     | PartKind::RoofPlan(..)
             ) {
                 continue;
@@ -938,8 +937,7 @@ fn every_part_is_drawn_in_whole_atoms() {
             PartKind::Roof(..)
                 | PartKind::GableRoof(..)
                 | PartKind::HipRoof(..)
-                | PartKind::Gable(..)
-                | PartKind::GableRun
+                | PartKind::Gable { .. }
                 | PartKind::RoofPlan(..)
         ) {
             continue;
@@ -1544,7 +1542,7 @@ fn an_angle_is_in_the_unit_its_name_says() {
 
 /// How tall a gable of this width stands at this pitch.
 fn gable_peak(long: f32, pitch: f32) -> f32 {
-    body_of(&PartKind::Gable(long, pitch), None)
+    body_of(&PartKind::gable(long, pitch), None)
         .iter()
         .map(|Slab { size, .. }| size.y)
         .fold(f32::MIN, f32::max)
@@ -2011,21 +2009,38 @@ fn a_gable_meets_the_roof_it_stands_under() {
 
 #[test]
 fn a_gable_drawn_before_pitch_existed_still_opens() {
-    let Some(PartKind::Gable(long, pitch)) = kind_from_name("gable-7.5") else {
+    let Some(PartKind::Gable {
+        long,
+        pitch,
+        framed,
+    }) = kind_from_name("gable-7.5")
+    else {
         panic!("the older gables no longer open");
     };
-    assert_eq!((long, pitch), (7.5, ROOF_PITCH_DEGREES));
-    let name = part_name(&PartKind::Gable(7.5, 45.0));
-    let Some(PartKind::Gable(back, degrees)) = kind_from_name(&name) else {
-        panic!("{name} did not come back");
-    };
-    assert_eq!((back, degrees), (7.5, 45.0));
+    assert_eq!((long, pitch, framed), (7.5, ROOF_PITCH_DEGREES, false));
+    // And a framed one survives its own name, which is a third word on the end.
+    for framed in [false, true] {
+        let name = part_name(&PartKind::Gable {
+            long: 7.5,
+            pitch: 45.0,
+            framed,
+        });
+        let Some(PartKind::Gable {
+            long: back,
+            pitch: degrees,
+            framed: still,
+        }) = kind_from_name(&name)
+        else {
+            panic!("{name} did not come back");
+        };
+        assert_eq!((back, degrees, still), (7.5, 45.0, framed));
+    }
 }
 
 #[test]
 fn a_gable_stands_the_right_way_up() {
     // Straight from the body, so it catches the sign as well as the size.
-    let tall = body_of(&PartKind::Gable(4.0, ROOF_PITCH_DEGREES), None)
+    let tall = body_of(&PartKind::gable(4.0, ROOF_PITCH_DEGREES), None)
         .iter()
         .map(|Slab { size, .. }| size.y)
         .fold(f32::MIN, f32::max);

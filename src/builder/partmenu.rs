@@ -348,7 +348,18 @@ pub(crate) fn length_of(kind: &PartKind) -> Option<(f32, Box<dyn Fn(f32) -> Part
                 stone,
             }),
         )),
-        PartKind::Gable(long, pitch) => Some((long, Box::new(move |n| PartKind::Gable(n, pitch)))),
+        PartKind::Gable {
+            long,
+            pitch,
+            framed,
+        } => Some((
+            long,
+            Box::new(move |n| PartKind::Gable {
+                long: n,
+                pitch,
+                framed,
+            }),
+        )),
         PartKind::GableRoof(long, span, over, pitch) => Some((
             long,
             Box::new(move |n| PartKind::GableRoof(n, span, over, pitch)),
@@ -492,7 +503,9 @@ pub(crate) fn deeds_for(kind: &PartKind) -> Vec<Deed> {
     // A wall can be framed or plain, offered as the thing it would BECOME. Brett:
     // "Walls should just have a right click to add the framing." It goes first because it
     // changes what the wall IS, where everything under it only changes how it looks.
-    if let PartKind::Wall { framed, .. } = kind {
+    // A GABLE the same way, which is what Brett asked for in the same breath: "Walls
+    // should just have a right click to add the framing, same with gables."
+    if let PartKind::Wall { framed, .. } | PartKind::Gable { framed, .. } = kind {
         deeds.push(Deed::Frame(!framed));
     }
     // A flight's materials, in a drawer of their own: four looks rather than two toggles.
@@ -1091,22 +1104,31 @@ pub(crate) fn work_part_menu(
         }
         Some((Deed::Frame(framed), part)) => {
             if let Ok((_, _, mut record)) = placed.get_mut(part)
-                && let Some(PartKind::Wall {
-                    long,
-                    high,
-                    openings,
-                    ..
-                }) = kind_from_name(&record.part)
+                && let Some(made) = kind_from_name(&record.part).and_then(|kind| match kind {
+                    // Its length, its height and its openings all stay. Framing decides
+                    // how the wall is FILLED - bays and studs, or plain plaster - and a
+                    // maker turning one into the other has not moved a door.
+                    PartKind::Wall {
+                        long,
+                        high,
+                        openings,
+                        ..
+                    } => Some(PartKind::Wall {
+                        long,
+                        high,
+                        framed,
+                        openings,
+                    }),
+                    // A gable keeps its length and its pitch, which are the two numbers
+                    // that make it fit the roof it closes.
+                    PartKind::Gable { long, pitch, .. } => Some(PartKind::Gable {
+                        long,
+                        pitch,
+                        framed,
+                    }),
+                    _ => None,
+                })
             {
-                // Its length, its height and its openings all stay. Framing decides how
-                // the wall is FILLED - bays and studs, or plain plaster - and a maker
-                // turning one into the other has not moved a door.
-                let made = PartKind::Wall {
-                    long,
-                    high,
-                    framed,
-                    openings,
-                };
                 record.part = part_name(&made);
                 let copy = record.clone();
                 commands.entity(part).despawn_related::<Children>();
@@ -1443,7 +1465,7 @@ pub(crate) fn pieces_of(kind: &PartKind, record: &Placed) -> Vec<(PartKind, Plac
         // The ends. A gable is drawn with its width along its own X and the
         // roof's ends stand across the span, so each one is turned a quarter
         // circle to face down the building.
-        let gable = PartKind::Gable(span, degrees);
+        let gable = PartKind::gable(span, degrees);
         born.push((
             gable,
             Placed {

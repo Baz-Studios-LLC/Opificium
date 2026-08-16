@@ -695,7 +695,11 @@ pub(crate) fn body_of(kind: &PartKind, repaint: Option<(&str, f32)>) -> Vec<Slab
             vec![slab(0.0, high * 0.5, 0.0, *w, high, *d, "stone", 0.55)]
         }
         PartKind::Roof(w, d) => vec![slab(0.0, 0.0625, 0.0, *w, 0.125, *d, "earth", 0.4)],
-        PartKind::Gable(long, degrees) => {
+        PartKind::Gable {
+            long,
+            pitch: degrees,
+            framed,
+        } => {
             // One clean slope each way, at the gable's OWN pitch.
             //
             // It used to be the bench's one pitch, with a comment promising that
@@ -709,20 +713,156 @@ pub(crate) fn body_of(kind: &PartKind, repaint: Option<(&str, f32)>) -> Vec<Slab
             // somewhere another part can meet it.
             let pitch = degrees.clamp(PITCH_LEAST, PITCH_MOST).to_radians();
             let high = ((long * 0.5 * pitch.tan()) * 16.0).round() / 16.0;
-            vec![wedge(
+            if !framed {
+                return vec![wedge(
+                    0.0,
+                    high * 0.5,
+                    0.0,
+                    *long,
+                    high,
+                    WALL_THICK,
+                    "wood",
+                    0.65,
+                )];
+            }
+
+            // HALF-TIMBERED, out of the same parts a framed wall is made of: the
+            // plaster set back an atom on each face, and the timber standing proud
+            // of it, so the shadow line down each stud is the same shadow line the
+            // wall below has. Brett: "Look at the mock up for the framing patterns."
+            //
+            // The infill is the WHOLE triangle rather than a panel per bay, which
+            // is what makes this possible without a new shape: a gable's bays are
+            // cut off by the slope, and a box cannot be a triangle. One wedge
+            // behind everything can never leave a hole, and what a maker sees
+            // between the timbers is the same plaster either way.
+            let half = long * 0.5;
+            let plate = PLATE_TALL as f32 * ATOM;
+            // THE ANGLE THE TRIANGLE ACTUALLY HAS, which is not quite the pitch it
+            // was asked for: the peak is snapped to the lattice like every other
+            // face on this bench, so a two-metre gable at thirty degrees is drawn
+            // at twenty-nine and a third. Framing it at the asked-for angle hangs
+            // the rake a few millimetres below its own foot - the same two-halves
+            // fault as ever, one number worked out twice.
+            let slope = (high / half.max(1e-3)).atan();
+            // What the rake takes out of a stud's height: a plate measured
+            // PERPENDICULAR to the slope stands taller than a plate on the level.
+            let under = plate / slope.cos();
+            let mut body = vec![wedge(
                 0.0,
                 high * 0.5,
                 0.0,
                 *long,
                 high,
-                WALL_THICK,
-                "wood",
-                0.65,
-            )]
+                WALL_THICK - (INFILL_SET * 2) as f32 * ATOM,
+                "bone",
+                0.9,
+            )];
+            // Where the triangle first has a plate's worth of room in it, measured
+            // along the foot. Everything level is held between these: past them the
+            // gable is thinner than the timber, and a plate laid the full length
+            // would stand out through the slope at both corners with the roof
+            // coming down onto it.
+            let step = plate / slope.tan().max(1e-3);
+            let level = half - step;
+            // The plate along its foot, where the gable sits on the wall head.
+            if level > 0.0 {
+                body.push(slab(
+                    0.0,
+                    plate * 0.5,
+                    0.0,
+                    level * 2.0,
+                    plate,
+                    WALL_THICK,
+                    "wood",
+                    0.62,
+                ));
+            }
+            // A RAKE up each slope, its top face on the slope itself: the board a
+            // roof's edge lands against. Laid as one timber from eave to peak,
+            // where the two of them cross in a lozenge no wider than the plate -
+            // the same tolerance the wall's braces take running into its posts,
+            // and all one wood at one shade.
+            let reach = (half * half + high * high).sqrt();
+            // Its ends are square, so it has to START up the slope: a board whose
+            // top face lies on the slope hangs its inner corner below the foot by
+            // exactly a plate's rise, and that would be a tab of timber lapping
+            // over the wall below. Stepped up by that much, its lowest corner lands
+            // ON the foot.
+            let long_enough = reach - step;
+            if long_enough > ATOM {
+                for side in [-1.0f32, 1.0] {
+                    // From this eave up to the peak: the way along, and the way
+                    // INTO the triangle, which is where the board's own thickness
+                    // has to go if its face is to lie on the slope.
+                    let along = Vec2::new(-side * half / reach, high / reach);
+                    let inward = Vec2::new(-side * high / reach, -half / reach);
+                    let middle = Vec2::new(side * half, 0.0) + along * (step + long_enough * 0.5);
+                    let seat = middle + inward * plate * 0.5;
+                    // MITRED AT THE PEAK. Both boards are as thick as a plate and
+                    // both want their outer face to reach the apex, so their inner
+                    // faces have to stop on the centreline or each one comes out
+                    // through the other slope - which at sixty degrees is a nub of
+                    // timber standing a fifth of a metre outside the roof.
+                    //
+                    // The saw travels a plate's rise along the board while crossing
+                    // it, and the cut is NEGATIVE because it is the inner face that
+                    // is shortened, not the one lying on the slope.
+                    let mitre = -plate * slope.tan();
+                    body.push(canted(
+                        seat.x,
+                        seat.y,
+                        0.0,
+                        long_enough,
+                        plate,
+                        WALL_THICK,
+                        "wood",
+                        0.62,
+                        -side * slope,
+                        // Whichever end of the board the peak is at: the one the
+                        // rotation put uphill.
+                        if side < 0.0 {
+                            Vec2::new(0.0, mitre)
+                        } else {
+                            Vec2::new(mitre, 0.0)
+                        },
+                    ));
+                }
+            }
+            // And the studs. An EVEN number of bays, always, so there is a
+            // division at the middle and a king post standing under the peak -
+            // which is what a gable is framed around, and what the drawing shows.
+            let span = (long / ATOM).round().max(1.0) as i32;
+            let bays = (((span as f32 / BAY_WANTED as f32).round() as i32).max(2) + 1) / 2 * 2;
+            let mut edge = 0;
+            for w in into_bays(span, bays) {
+                edge += w;
+                if edge >= span {
+                    break;
+                }
+                // The gable's own surface at this stud, less what the rake takes.
+                let at = (edge as f32 - span as f32 * 0.5) * ATOM;
+                let surface = high * (1.0 - (at.abs() / half).min(1.0));
+                let top = on_the_lattice(surface - under);
+                // Nothing shorter than a stub of timber nobody would cut: out at the
+                // eaves the triangle runs out of height, and a stud an atom tall reads
+                // as a mistake rather than as framing.
+                if top - plate < ATOM * 4.0 {
+                    continue;
+                }
+                body.push(slab(
+                    at,
+                    (plate + top) * 0.5,
+                    0.0,
+                    STUD_WIDE as f32 * ATOM,
+                    top - plate,
+                    WALL_THICK,
+                    "wood",
+                    0.62,
+                ));
+            }
+            body
         }
-        PartKind::GableRun => vec![wedge(
-            0.0, 0.0625, 0.0, 0.25, 0.125, WALL_THICK, "wood", 0.65,
-        )],
         PartKind::Ridge(long) => {
             // Half a metre across, a quarter tall: the bench's own pitch
             // again, so it sits down onto two 45 degree slopes.

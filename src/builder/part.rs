@@ -91,6 +91,19 @@ impl PartKind {
     /// The shorthand for what used to be `Wall(long)`, kept because most of the bench
     /// wants exactly that and spelling four fields at every one of them would bury the
     /// two places that actually care.
+    /// A plain gable of a length, at a pitch: no framing.
+    ///
+    /// The same shorthand as [`PartKind::wall`], and for the same reason - most of
+    /// the bench wants exactly this, and the two places that care about framing
+    /// should be the ones that have to say so.
+    pub const fn gable(long: f32, pitch: f32) -> PartKind {
+        PartKind::Gable {
+            long,
+            pitch,
+            framed: false,
+        }
+    }
+
     pub const fn wall(long: f32) -> PartKind {
         PartKind::Wall {
             long,
@@ -245,7 +258,18 @@ pub enum PartKind {
     },
     /// The stepped triangle that closes a pitched roof's end: courses of
     /// wall narrowing to a peak at the roof's own thirty degrees.
-    Gable(f32, f32),
+    Gable {
+        long: f32,
+        pitch: f32,
+        /// Half-timbered: rake plates up both slopes, a plate along its foot and
+        /// studs standing between, with the plaster set back behind them.
+        ///
+        /// A PROPERTY, like a wall's. Brett said so when framing became a
+        /// right-click: "Walls should just have a right click to add the framing,
+        /// same with gables." A framed gable is the same triangle with a
+        /// different infill, not another kind of thing.
+        framed: bool,
+    },
     /// A squared timber laid along its own length: the corner post's section,
     /// on its side and as long as it is drawn — and how far each end is cut
     /// back at an angle, nought for a square end.
@@ -362,7 +386,6 @@ pub enum PartKind {
         high: f32,
         lift: f32,
     },
-    GableRun,
     RidgeRun,
     /// A hip roof: four faces sloping in from the eaves to a flat deck.
     ///
@@ -381,7 +404,6 @@ impl PartKind {
             PartKind::TrimRun { .. }
             | PartKind::RailRun { .. }
             | PartKind::SegRun { .. }
-            | PartKind::GableRun
             | PartKind::RidgeRun
             | PartKind::BeamRun => Some(1),
             _ => None,
@@ -405,7 +427,6 @@ impl PartKind {
                 hand: RAIL_HIGH,
                 stone: *stone,
             },
-            PartKind::GableRun => PartKind::Gable(w, ROOF_PITCH_DEGREES),
             PartKind::RidgeRun => PartKind::Ridge(w),
             PartKind::BeamRun => PartKind::Beam(w, 0.0, 0.0),
             PartKind::SegRun { high, lift } => PartKind::Seg {
@@ -464,7 +485,13 @@ pub const STRUCTURE: &[CatalogEntry] = &[
         PartKind::Foundation(2.0, 2.0, STEP_UP),
         "footing",
     ),
-    structure("GABLE", PartKind::GableRun, "roof"),
+    // PLACED WHOLE, then pulled - the way a wall is. It was a run: a stub of a
+    // ghost you set one end of and dragged the other out from, which is a
+    // different gesture from everything else that has a length, and the one
+    // Brett wanted rid of first: "the gables use the old stretch idea where you
+    // have a tiny little ghost and stretch it. I like how the wall works where
+    // you have say a 2m wall and you place it and then stretch it."
+    structure("GABLE", PartKind::gable(2.0, ROOF_PITCH_DEGREES), "roof"),
     structure(
         "HEADER",
         PartKind::SegRun {

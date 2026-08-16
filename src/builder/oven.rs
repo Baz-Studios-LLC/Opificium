@@ -145,7 +145,7 @@ pub(crate) fn bake_one_phase(
                 Shape::Hip(..) => hip.as_str(),
             };
             let stage = match kind {
-                PartKind::Gable(..)
+                PartKind::Gable { .. }
                 | PartKind::Ridge(..)
                 | PartKind::GableRoof(..)
                 | PartKind::Roof(..)

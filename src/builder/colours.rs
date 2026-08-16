@@ -1507,6 +1507,190 @@ mod materials {
 }
 
 #[cfg(test)]
+mod gables {
+    use super::*;
+
+    /// A gable is placed whole and pulled, like a wall - not stretched out of a stub.
+    ///
+    /// Brett: "the gables use the old stretch idea where you have a tiny little ghost and
+    /// stretch it. I like how the wall works where you have say a 2m wall and you place it
+    /// and then stretch it." Two halves as always: the shelf has to hand over a real gable,
+    /// AND the handles have to be willing to size one.
+    #[test]
+    fn a_gable_is_placed_whole_and_pulled() {
+        let entry = STRUCTURE
+            .iter()
+            .find(|entry| entry.label == "GABLE")
+            .expect("the shelf has lost its gable");
+        assert!(
+            entry.kind.run_axes().is_none(),
+            "the gable is still a run: it would want stretching out of a stub"
+        );
+        let PartKind::Gable { long, .. } = entry.kind else {
+            panic!("the shelf's gable is not a gable")
+        };
+        assert!(
+            long > 1.0,
+            "the shelf's gable is {long}m - a stub, not something to place and pull"
+        );
+        // And it can be pulled to another length once it is down.
+        let Some((was, rebuild)) = length_of(&entry.kind) else {
+            panic!("a placed gable wears no length handle")
+        };
+        assert!((was - long).abs() < 1e-4);
+        let PartKind::Gable { long: now, .. } = rebuild(6.0) else {
+            panic!("pulling a gable made something else")
+        };
+        assert!(
+            (now - 6.0).abs() < 1e-4,
+            "the gable did not take the new length"
+        );
+    }
+
+    /// A framed gable is the same triangle, with the wall's own timbers on it.
+    ///
+    /// Every piece has to stay inside the outline: a rake board laid along the slope hangs
+    /// its inner corner below the foot unless it is stepped up the slope, and that would be
+    /// a tab of timber lapping over the wall underneath.
+    #[test]
+    fn a_framed_gable_keeps_inside_its_own_triangle() {
+        for long in [2.0f32, 4.0, 7.0] {
+            for degrees in [PITCH_LEAST, ROOF_PITCH_DEGREES, PITCH_MOST] {
+                let framed = PartKind::Gable {
+                    long,
+                    pitch: degrees,
+                    framed: true,
+                };
+                let plain = PartKind::gable(long, degrees);
+                // The outline, taken off the plain one: the framed gable may not exceed it.
+                let high = body_of(&plain, None)
+                    .iter()
+                    .map(|Slab { at, size, .. }| at.y + size.y * 0.5)
+                    .fold(0.0f32, f32::max);
+                // The slope the triangle ACTUALLY has, off its own measured peak: a
+                // gable's height is snapped to the lattice, so a two-metre gable asked
+                // for thirty degrees is drawn at twenty-nine and a third, and a test
+                // that restated the arithmetic would be checking a different triangle.
+                let rise = high / (long * 0.5);
+                let body = body_of(&framed, None);
+                // A gable with room in it is framed; a sliver at the shallowest pitch is
+                // barely taller than its own foot plate, and there is nothing to frame.
+                if high > WALL_HIGH * 0.25 {
+                    assert!(
+                        body.len() > 3,
+                        "a {long}m gable at {degrees} degrees is bare: {} pieces",
+                        body.len()
+                    );
+                }
+                for Slab {
+                    at,
+                    size,
+                    cant,
+                    cut,
+                    shape,
+                    ..
+                } in &body
+                {
+                    // The TIMBERS. The plaster behind them is the triangle itself - a
+                    // wedge, whose box corners are exactly the two the mesh leaves out.
+                    if !matches!(shape, Shape::Box) {
+                        continue;
+                    }
+                    // Every corner, turned the way the piece is turned - and pulled in
+                    // where the saw has been: a mitred end's corner is not its box's.
+                    let turn = Mat2::from_angle(*cant);
+                    for sx in [-0.5f32, 0.5] {
+                        for sy in [-0.5f32, 0.5] {
+                            let run = if sx < 0.0 { cut.x } else { cut.y };
+                            // A positive run cuts the top face back, a negative one the
+                            // foot - see `cut_mesh`.
+                            let sawn = if (sy > 0.0 && run > 0.0) || (sy < 0.0 && run < 0.0) {
+                                run.abs()
+                            } else {
+                                0.0
+                            };
+                            let corner = Vec2::new(at.x, at.y)
+                                + turn * Vec2::new(size.x * sx - sx.signum() * sawn, size.y * sy);
+                            assert!(
+                                corner.y > -1e-3,
+                                "a piece of a {long}m gable at {degrees} degrees hangs \
+                                 {} below its foot",
+                                -corner.y
+                            );
+                            // Inside the slope: the triangle's own edge at this x.
+                            let roof = (long * 0.5 - corner.x.abs()) * rise;
+                            assert!(
+                                corner.y <= roof.max(0.0) + 1e-3,
+                                "a piece of a {long}m gable at {degrees} degrees stands \
+                                 {} above the slope at x={}",
+                                corner.y - roof,
+                                corner.x
+                            );
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /// The framing is the wall's framing: plaster set back, timber proud of it.
+    ///
+    /// Which is what makes a framed gable read as the same building as the framed wall it
+    /// stands on - the shadow line down a stud is the same shadow line, because it is the
+    /// same two thicknesses.
+    #[test]
+    fn a_framed_gable_is_framed_like_a_wall() {
+        let framed = body_of(
+            &PartKind::Gable {
+                long: 6.0,
+                pitch: ROOF_PITCH_DEGREES,
+                framed: true,
+            },
+            None,
+        );
+        let plaster: Vec<&Slab> = framed.iter().filter(|slab| slab.ramp == "bone").collect();
+        assert_eq!(
+            plaster.len(),
+            1,
+            "a framed gable's infill is one wedge behind everything"
+        );
+        assert!(
+            (plaster[0].size.z - (WALL_THICK - (INFILL_SET * 2) as f32 * ATOM)).abs() < 1e-4,
+            "the plaster is not set back, so no timber stands proud of it"
+        );
+        for timber in framed.iter().filter(|slab| slab.ramp == "wood") {
+            assert!(
+                (timber.size.z - WALL_THICK).abs() < 1e-4,
+                "a timber is not the wall's own thickness"
+            );
+        }
+        // A KING POST under the peak, which is what a gable is framed around: an even
+        // number of bays, so there is a division at the middle.
+        let middle = framed
+            .iter()
+            .filter(|slab| slab.ramp == "wood" && slab.cant == 0.0)
+            .any(|Slab { at, size, .. }| at.x.abs() < 1e-3 && size.y > size.x);
+        assert!(middle, "a framed gable has no post under its peak");
+    }
+
+    /// And the menu offers the framing on a gable, both ways.
+    #[test]
+    fn a_gable_is_offered_the_other_state() {
+        for framed in [false, true] {
+            let gable = PartKind::Gable {
+                long: 4.0,
+                pitch: ROOF_PITCH_DEGREES,
+                framed,
+            };
+            assert!(
+                deeds_for(&gable).contains(&Deed::Frame(!framed)),
+                "a {} gable is not offered the other state",
+                if framed { "framed" } else { "plain" }
+            );
+        }
+    }
+}
+
 mod roofing {
     use super::*;
 

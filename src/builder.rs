@@ -656,7 +656,19 @@ pub fn part_name(kind: &PartKind) -> String {
         // In ATOMS, which is what it is measured in - and always a whole number
         // of panes, so `window-18x27` is two across and three up.
         PartKind::Window { wide, high } => format!("window-{wide}x{high}"),
-        PartKind::Gable(long, pitch) => format!("gable-{long}x{pitch}"),
+        PartKind::Gable {
+            long,
+            pitch,
+            framed,
+        } => {
+            // The framing is a word of its own on the end, exactly as a wall's is,
+            // so every gable drawn before this reads and writes what it always did.
+            let mut name = format!("gable-{long}x{pitch}");
+            if *framed {
+                name.push_str("xf");
+            }
+            name
+        }
         PartKind::Beam(long, high, low) => format!("beam-{long}x{high}x{low}"),
         PartKind::BeamRun => "beamrun".to_string(),
         PartKind::Ridge(long) => format!("ridge-{long}"),
@@ -706,10 +718,9 @@ pub fn part_name(kind: &PartKind) -> String {
         }
         PartKind::Foundation(w, d, high) => format!("foundation-{w}x{d}x{high}"),
         PartKind::Roof(w, d) => format!("roof-{w}x{d}"),
-        PartKind::TrimRun { .. }
-        | PartKind::SegRun { .. }
-        | PartKind::GableRun
-        | PartKind::RidgeRun => "run".to_string(),
+        PartKind::TrimRun { .. } | PartKind::SegRun { .. } | PartKind::RidgeRun => {
+            "run".to_string()
+        }
         PartKind::Prop(name) => format!("prop:{name}"),
         PartKind::Widget(name) => format!("widget:{name}"),
     }
@@ -880,7 +891,13 @@ pub fn kind_from_name(name: &str) -> Option<PartKind> {
             .next()
             .and_then(|p| p.parse().ok())
             .unwrap_or(ROOF_PITCH_DEGREES);
-        return Some(PartKind::Gable(long, pitch));
+        // And the framing, if it says so.
+        let framed = parts.next() == Some("f");
+        return Some(PartKind::Gable {
+            long,
+            pitch,
+            framed,
+        });
     }
     if let Some(rest) = name.strip_prefix("trimstone-") {
         return rest
