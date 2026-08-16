@@ -592,10 +592,46 @@ mod framing {
                     },
                     None,
                 );
+                // The course the braces stand in, from the one place that says where a
+                // wall's courses are.
+                let tall = (high / ATOM).round() as i32;
+                let (inner_foot, low_tall, ..) = courses_of(tall);
+                let (sill, rail) = (
+                    inner_foot as f32 * ATOM,
+                    (inner_foot + low_tall) as f32 * ATOM,
+                );
                 let braces = body.iter().filter(|slab| slab.cant.abs() > 1e-3);
                 let mut seen = 0;
                 for brace in braces {
                     seen += 1;
+                    // IT FILLS THE COURSE. Cutting the ends flat takes the brace's own
+                    // width off its climb, so a brace as long as the bay's diagonal
+                    // stops short at BOTH ends and leaves a line of plaster under the
+                    // rail and over the sill. Brett: "there is still a gap on the top",
+                    // and then "bottom too".
+                    let turn = Mat2::from_angle(brace.cant);
+                    let half = Vec2::new(brace.size.x, brace.size.y) * 0.5;
+                    let (mut low, mut top) = (f32::INFINITY, f32::NEG_INFINITY);
+                    for sx in [-1.0f32, 1.0] {
+                        for sy in [-1.0f32, 1.0] {
+                            let run = if sx < 0.0 { brace.cut.x } else { brace.cut.y };
+                            let sawn = if (sy > 0.0 && run > 0.0) || (sy < 0.0 && run < 0.0) {
+                                run.abs()
+                            } else {
+                                0.0
+                            };
+                            let corner = Vec2::new(brace.at.x, brace.at.y)
+                                + turn * Vec2::new(sx * (half.x - sawn), sy * half.y);
+                            low = low.min(corner.y);
+                            top = top.max(corner.y);
+                        }
+                    }
+                    assert!(
+                        (low - sill).abs() < 1e-3 && (top - rail).abs() < 1e-3,
+                        "a brace in a {long}m wall {high}m high stands {low}..{top} where \
+                         its course is {sill}..{rail} - it leaves a gap at one end or \
+                         runs past it"
+                    );
                     let turn = Mat2::from_angle(brace.cant);
                     let half = Vec2::new(brace.size.x, brace.size.y) * 0.5;
                     // Each end of the piece, as its two corners stand in the world.

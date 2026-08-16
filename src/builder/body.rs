@@ -471,9 +471,21 @@ pub(crate) fn body_of(kind: &PartKind, repaint: Option<(&str, f32)>) -> Vec<Slab
                             // third of a metre out of true and leaving a triangle of
                             // daylight in every corner.
                             let angle = up.atan2(half);
-                            let reach = (half * half + up * up).sqrt() + ATOM;
                             let wide = STUD_WIDE as f32 * ATOM;
                             let run = wide / angle.tan().max(1e-3);
+                            // LONGER BY EXACTLY WHAT THE SAW TAKES. A square-ended
+                            // brace as long as the bay's own diagonal reaches from
+                            // the sill to the rail; cut its ends flat and it loses
+                            // its own width off the climb, so it stops short at both
+                            // and leaves a line of plaster under the rail. Brett:
+                            // "This is way better but there is still a gap on the
+                            // top."
+                            //
+                            // The diagonal plus the run gives it back: the piece
+                            // spans `reach * sin - wide * cos` up the wall, which is
+                            // the course exactly when reach is the hypotenuse plus
+                            // the run.
+                            let reach = (half * half + up * up).sqrt() + run;
                             let (x, _) = across(a, b - a);
                             for side in [-1.0f32, 1.0] {
                                 body.push(canted(
