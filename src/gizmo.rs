@@ -985,10 +985,11 @@ fn work_gizmo(
                 PartKind::Ridge(_) => PartKind::Ridge(w),
                 PartKind::Floor(..) => PartKind::Floor(w, d),
                 // Pulled to a new size, and it keeps the roof it was going to raise.
-                PartKind::Ceiling { hipped, .. } => PartKind::Ceiling {
+                PartKind::Ceiling { hipped, across, .. } => PartKind::Ceiling {
                     long: w,
                     deep: d,
                     hipped,
+                    across,
                 },
                 PartKind::Foundation(_, _, high) => PartKind::Foundation(w, d, high),
                 PartKind::Roof(..) => PartKind::Roof(w, d),

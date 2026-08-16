@@ -217,6 +217,17 @@ pub enum PartKind {
         deep: f32,
         /// Hipped rather than gabled: slopes on all four sides.
         hipped: bool,
+        /// The ridge laid ACROSS the short way instead of along the long one.
+        ///
+        /// A ridge runs the long side of a building nearly always, so that is the default
+        /// and this is the exception - a cross wing whose gable faces the street wants its
+        /// ridge the other way, and is the whole reason the choice exists.
+        ///
+        /// R flips this rather than turning the ceiling. Brett: "pressing R should only
+        /// change the direction of the ridge beam, not rotate the ceiling itself" - and a
+        /// rectangle spun a quarter is the same rectangle, so the key had nothing else
+        /// worth doing.
+        across: bool,
     },
     Floor(f32, f32),
     /// A stone pad: how wide, how deep, and how TALL.
@@ -332,6 +343,7 @@ pub const STRUCTURE: &[CatalogEntry] = &[
             long: 4.0,
             deep: 4.0,
             hipped: false,
+            across: false,
         },
         "roof",
     ),

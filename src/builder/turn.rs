@@ -107,10 +107,14 @@ pub(crate) fn tilt_part(
 }
 
 pub(crate) fn turn_part(
+    mut commands: Commands,
     keys: Res<ButtonInput<KeyCode>>,
     bench: Res<Bench>,
     naming: Res<Naming>,
     dims: Res<DimsEntry>,
+    palette: Res<Palette>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
     selected: Res<crate::gizmo::Selected>,
     mut parts: Query<(&mut Transform, &mut Placed), Without<Ghost>>,
 ) {
@@ -128,6 +132,36 @@ pub(crate) fn turn_part(
     let Ok((mut transform, mut record)) = parts.get_mut(part) else {
         return;
     };
+    // A CEILING flips its ridge instead of turning, and has to be REDRAWN for it: the
+    // beam is part of its body, so unlike a yaw this changes what the part is made of.
+    if let Some(PartKind::Ceiling {
+        long,
+        deep,
+        hipped,
+        across,
+    }) = kind_from_name(&record.part)
+    {
+        let made = PartKind::Ceiling {
+            long,
+            deep,
+            hipped,
+            across: !across,
+        };
+        record.part = part_name(&made);
+        let copy = record.clone();
+        commands.entity(part).despawn_related::<Children>();
+        dress_part(
+            &mut commands,
+            &mut meshes,
+            &mut materials,
+            &palette,
+            &made,
+            &copy,
+            part,
+            false,
+        );
+        return;
+    }
     record.yaw = (record.yaw + std::f32::consts::FRAC_PI_2).rem_euclid(std::f32::consts::TAU);
     transform.rotation = pose(record.yaw, record.tilt, record.flip);
 }

@@ -35,7 +35,27 @@ pub(crate) fn steer_hand(
     }
     let mut redress = false;
     if keys.just_pressed(KeyCode::KeyR) {
-        hand.yaw += std::f32::consts::FRAC_PI_2;
+        // A CEILING turns its ridge rather than itself. Brett: "pressing R should only
+        // change the direction of the ridge beam, not rotate the ceiling itself" - a
+        // rectangle spun a quarter is the same rectangle, so the key had nothing else
+        // worth doing, and the one thing a maker does want to flip had no key at all.
+        if let Some(PartKind::Ceiling {
+            long,
+            deep,
+            hipped,
+            across,
+        }) = hand.kind
+        {
+            hand.kind = Some(PartKind::Ceiling {
+                long,
+                deep,
+                hipped,
+                across: !across,
+            });
+            redress = true;
+        } else {
+            hand.yaw += std::f32::consts::FRAC_PI_2;
+        }
     }
     if keys.just_pressed(KeyCode::KeyT) {
         // A whole turn, not a quarter. Stopping at ninety meant the tilt

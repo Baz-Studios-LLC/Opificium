@@ -275,12 +275,18 @@ pub(crate) fn length_of(kind: &PartKind) -> Option<(f32, Box<dyn Fn(f32) -> Part
         )),
         // The flat ones are sized in two, and it is their X a trim comes back
         // along - the same axis every other part is cut on.
-        PartKind::Ceiling { deep, hipped, .. } => Some((
+        PartKind::Ceiling {
+            deep,
+            hipped,
+            across,
+            ..
+        } => Some((
             0.0,
             Box::new(move |n| PartKind::Ceiling {
                 long: n,
                 deep,
                 hipped,
+                across,
             }),
         )),
         PartKind::Floor(_, deep) => Some((
@@ -867,29 +873,36 @@ pub(crate) fn work_part_menu(
         }
         Some((Deed::Hipped(hipped), part)) => {
             if let Ok((_, _, mut record)) = placed.get_mut(part)
-                && let Some(PartKind::Ceiling { long, deep, .. }) = kind_from_name(&record.part)
+                && let Some(PartKind::Ceiling {
+                    long, deep, across, ..
+                }) = kind_from_name(&record.part)
             {
-                // Nothing is rebuilt: a ceiling looks the same either way, and what changes
-                // is only what it will RAISE. The line beside it says which.
-                record.part = part_name(&PartKind::Ceiling { long, deep, hipped });
+                record.part = part_name(&PartKind::Ceiling {
+                    long,
+                    deep,
+                    hipped,
+                    across,
+                });
             }
         }
         Some((Deed::RoofOver, part)) => {
-            // The group is minted from every record before anything is touched, since the
-            // ceiling has to be read and then written and both cannot be borrowed at once.
-            let together = a_fresh_group(placed.iter().map(|(_, _, record)| record));
             let ceiling = placed.get(part).ok().and_then(|(_, at, record)| {
                 match kind_from_name(&record.part) {
-                    Some(PartKind::Ceiling { long, deep, hipped }) => {
-                        Some((at.translation, record.clone(), long, deep, hipped))
-                    }
+                    Some(PartKind::Ceiling {
+                        long,
+                        deep,
+                        hipped,
+                        across,
+                    }) => Some((at.translation, record.clone(), long, deep, hipped, across)),
                     _ => None,
                 }
             });
-            if let Some((stands, ceiling, w, d, hipped)) = ceiling {
+            if let Some((stands, ceiling, w, d, hipped, across)) = ceiling {
                 // The RIDGE RUNS THE LONG WAY, which is what a roof does and what a maker
                 // would otherwise turn it by hand to get. A square ceiling picks either.
-                let (long, span, turn) = if w >= d {
+                // The ridge the ceiling has been WEARING - the long side unless a maker
+                // pressed R - so what is raised is what the beam promised.
+                let (long, span, turn) = if (w >= d) != across {
                     (w, d, 0.0)
                 } else {
                     (d, w, std::f32::consts::FRAC_PI_2)
@@ -903,12 +916,18 @@ pub(crate) fn work_part_menu(
                 };
                 let mut roof = ceiling.clone();
                 roof.part = part_name(&made);
-                // A roof's eaves rest at its own nought, so it seats on whatever it stands
-                // on: the ceiling's TOP, which is its own origin plus its thickness.
-                roof.at = [stands.x, stands.y + FLOOR_THICK, stands.z];
+                // THE SAME SEAT THE CEILING HAS, which is the wall top - not the ceiling's
+                // top. Brett: "the gable should be flush with the edge of the ceiling and
+                // replacing its atoms so that the gable sits flush ontop of the wall."
+                //
+                // A roof's eaves rest at its own nought, so lifting it by the ceiling's
+                // thickness stood the gable a slab's depth above the wall it belongs on,
+                // with the ceiling wedged between them. Rafters and ceiling joists share a
+                // wall plate in a real building, and they share it here: the gable's first
+                // atoms stand in the same band the ceiling's do, and replace them.
+                roof.at = [stands.x, stands.y, stands.z];
                 roof.yaw = ceiling.yaw + turn;
                 roof.stage = "roof".to_string();
-                roof.group = Some(together);
                 spawn_part(
                     &mut commands,
                     &mut meshes,
@@ -918,11 +937,15 @@ pub(crate) fn work_part_menu(
                     &roof,
                     false,
                 );
-                // And the ceiling joins it, so the two travel as one thing - "they should
-                // keep their ceiling too". UNGROUP parts them again.
-                if let Ok((_, _, mut record)) = placed.get_mut(part) {
-                    record.group = Some(together);
-                }
+                // NOT GROUPED, though the first cut of this grouped them. A part chosen
+                // with others "can only be moved, since stretching six things at once has
+                // no meaning to invent" - so a grouped roof wore no handles of its own, and
+                // its UNGROUP spent its one press parting it from the ceiling instead of
+                // breaking it into slopes and gables. Brett wanted both back.
+                //
+                // The ceiling still stands where it was, which is what keeping it meant.
+                // Two parts that want to travel together can be gathered and grouped by
+                // hand, which is what that pair of commands is for.
             }
         }
         Some((Deed::Frame(framed), part)) => {

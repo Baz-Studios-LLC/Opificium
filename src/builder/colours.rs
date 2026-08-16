@@ -560,12 +560,14 @@ mod roofing {
                 long: 6.0,
                 deep: 4.0,
                 hipped,
+                across: false,
             };
             let name = part_name(&ceiling);
             let Some(PartKind::Ceiling {
                 long,
                 deep,
                 hipped: back,
+                across: false,
             }) = kind_from_name(&name)
             else {
                 panic!("a ceiling did not read back: {name}");
@@ -581,7 +583,8 @@ mod roofing {
             part_name(&PartKind::Ceiling {
                 long: 4.0,
                 deep: 4.0,
-                hipped: false
+                hipped: false,
+                across: false
             }),
             "ceiling-4x4"
         );
@@ -600,6 +603,7 @@ mod roofing {
             long: 4.0,
             deep: 4.0,
             hipped: false,
+            across: false,
         };
         assert!(
             crate::builder::is_structure(&ceiling),
@@ -617,7 +621,15 @@ mod roofing {
     fn a_ceilings_ridge_shows_what_it_will_raise() {
         // The beam is whatever the ceiling draws that is not the slab itself.
         let ridge_of = |long: f32, deep: f32, hipped: bool| {
-            let body = body_of(&PartKind::Ceiling { long, deep, hipped }, None);
+            let body = body_of(
+                &PartKind::Ceiling {
+                    long,
+                    deep,
+                    hipped,
+                    across: false,
+                },
+                None,
+            );
             let beam = body
                 .iter()
                 .find(|Slab { ramp, .. }| ramp == "wood")
@@ -650,6 +662,49 @@ mod roofing {
              ceilings look the same"
         );
         assert!(hip > 0.0, "a hipped ridge vanished");
+    }
+
+    /// R flips the ridge, and what is raised follows it.
+    ///
+    /// The beam and the roof read the same field, so they cannot disagree - but a maker
+    /// pressing R and getting a beam that swings while the roof does not would trust the
+    /// beam, which is the one thing it must never be wrong about.
+    #[test]
+    fn r_swings_the_ridge_and_the_roof_follows() {
+        let beam_along_x = |long: f32, deep: f32, across: bool| {
+            let body = body_of(
+                &PartKind::Ceiling {
+                    long,
+                    deep,
+                    hipped: false,
+                    across,
+                },
+                None,
+            );
+            let beam = body
+                .iter()
+                .find(|Slab { ramp, .. }| ramp == "wood")
+                .expect("its ridge");
+            beam.size.x > beam.size.z
+        };
+        // A long ceiling lays its ridge along itself; flipped, it lays it across.
+        assert!(
+            beam_along_x(6.0, 4.0, false),
+            "the ridge did not run the long way"
+        );
+        assert!(!beam_along_x(6.0, 4.0, true), "R did not swing the ridge");
+        // And a deep one starts across and flips to along.
+        assert!(!beam_along_x(4.0, 6.0, false));
+        assert!(beam_along_x(4.0, 6.0, true));
+
+        // What GENERATE raises, worked out the way the menu works it out.
+        let raised_long = |w: f32, d: f32, across: bool| {
+            if (w >= d) != across { (w, d) } else { (d, w) }
+        };
+        // Flipped, a 6x4 ceiling raises a roof whose ridge is the SHORT side - the cross
+        // wing whose gable faces the street, which is the whole reason for the flip.
+        assert_eq!(raised_long(6.0, 4.0, false), (6.0, 4.0));
+        assert_eq!(raised_long(6.0, 4.0, true), (4.0, 6.0));
     }
 
     /// A roof generated over a ceiling covers it, and rests ON it.

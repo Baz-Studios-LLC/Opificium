@@ -439,7 +439,12 @@ pub(crate) fn body_of(kind: &PartKind, repaint: Option<(&str, f32)>) -> Vec<Slab
         // In LIGHT BONE rather than the floor's wood: it is plaster seen from underneath,
         // and on the bench it is the one thing that tells a ceiling from a floor at a
         // glance when both are lying flat in a half-built room.
-        PartKind::Ceiling { long, deep, hipped } => {
+        PartKind::Ceiling {
+            long,
+            deep,
+            hipped,
+            across,
+        } => {
             let mut body = vec![slab(
                 0.0,
                 FLOOR_THICK * 0.5,
@@ -459,7 +464,8 @@ pub(crate) fn body_of(kind: &PartKind, repaint: Option<(&str, f32)>) -> Vec<Slab
             // AND WHICH KIND - a gable's ridge runs the whole length, a hip's stops
             // short at both ends where the slopes come in, so the two look different
             // before either is raised.
-            let along_x = long >= deep;
+            // The long side by default, and the other one when a maker has pressed R.
+            let along_x = (long >= deep) != *across;
             let (side, across) = if along_x {
                 (*long, *deep)
             } else {
