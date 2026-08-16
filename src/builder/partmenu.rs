@@ -24,6 +24,8 @@ pub(crate) enum Deed {
     RailIn(bool),
     /// Paint the bars of this wall's windows dark, or leave them as timber.
     BarsIn(bool),
+    /// Frame a wall, or take the framing off it again.
+    Frame(bool),
     /// Keep everything chosen as a PIECE, to bring into other works.
     ///
     /// Brett: "if I could save groups that I could bring into other builds."
@@ -47,6 +49,8 @@ impl Deed {
             Deed::RailIn(false) => "RAIL IN TIMBER",
             Deed::BarsIn(true) => "BARS IN BLACK",
             Deed::BarsIn(false) => "BARS IN TIMBER",
+            Deed::Frame(true) => "ADD FRAMING",
+            Deed::Frame(false) => "REMOVE FRAMING",
             Deed::KeepAsPiece => "KEEP AS A PIECE",
         }
     }
@@ -358,6 +362,12 @@ pub(crate) fn deeds_for(kind: &PartKind) -> Vec<Deed> {
         PartKind::GableRoof(..) => vec![Deed::Ungroup],
         _ => Vec::new(),
     };
+    // A wall can be framed or plain, offered as the thing it would BECOME. Brett:
+    // "Walls should just have a right click to add the framing." It goes first because it
+    // changes what the wall IS, where everything under it only changes how it looks.
+    if let PartKind::Wall { framed, .. } = kind {
+        deeds.push(Deed::Frame(!framed));
+    }
     // A flight's rail can be the other material: offered as the thing it would
     // BECOME, so the line says what pressing it does.
     if let PartKind::Stairs { rail_stone, .. } = kind {
@@ -694,6 +704,39 @@ pub(crate) fn work_part_menu(
                     &palette,
                     &made,
                     &moved,
+                    part,
+                    false,
+                );
+            }
+        }
+        Some((Deed::Frame(framed), part)) => {
+            if let Ok((_, _, mut record)) = placed.get_mut(part)
+                && let Some(PartKind::Wall {
+                    long,
+                    high,
+                    openings,
+                    ..
+                }) = kind_from_name(&record.part)
+            {
+                // Its length, its height and its openings all stay. Framing decides how
+                // the wall is FILLED - bays and studs, or plain plaster - and a maker
+                // turning one into the other has not moved a door.
+                let made = PartKind::Wall {
+                    long,
+                    high,
+                    framed,
+                    openings,
+                };
+                record.part = part_name(&made);
+                let copy = record.clone();
+                commands.entity(part).despawn_related::<Children>();
+                dress_part(
+                    &mut commands,
+                    &mut meshes,
+                    &mut materials,
+                    &palette,
+                    &made,
+                    &copy,
                     part,
                     false,
                 );

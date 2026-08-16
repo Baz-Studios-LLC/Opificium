@@ -453,3 +453,92 @@ mod bars {
         assert!(!openings[0].expect("its window").dark);
     }
 }
+
+#[cfg(test)]
+mod framing {
+    use super::*;
+
+    /// Framing a wall changes only its framing.
+    ///
+    /// The right-click rebuilds the part from a name, so anything the rebuild forgets is
+    /// silently lost - and a maker who frames a wall to see how it looks would find their
+    /// door moved or their height reset, with nothing to point at.
+    #[test]
+    fn framing_keeps_everything_else() {
+        let plain = PartKind::Wall {
+            long: 4.0,
+            high: 3.0,
+            framed: false,
+            openings: [
+                Some(Hole {
+                    what: Opening::Window,
+                    at: 0.75,
+                    wide: WINDOW_WIDE,
+                    dark: true,
+                }),
+                None,
+                None,
+                None,
+            ],
+        };
+        // What the menu does, in the one line that matters.
+        let PartKind::Wall {
+            long,
+            high,
+            openings,
+            ..
+        } = plain
+        else {
+            panic!("not a wall")
+        };
+        let framed = PartKind::Wall {
+            long,
+            high,
+            framed: true,
+            openings,
+        };
+        let back = kind_from_name(&part_name(&framed)).expect("it reads back");
+        let PartKind::Wall {
+            long,
+            high,
+            framed,
+            openings,
+        } = back
+        else {
+            panic!("not a wall")
+        };
+        assert!(framed, "it did not come back framed");
+        assert!((long - 4.0).abs() < 1e-6, "its length moved");
+        assert!((high - 3.0).abs() < 1e-6, "its height moved");
+        let hole = openings[0].expect("its window");
+        assert!((hole.at - 0.75).abs() < 1e-6, "its window moved");
+        assert!(hole.dark, "its black bars went back to timber");
+    }
+
+    /// Every wall is offered the framing line, and offered the OTHER state.
+    ///
+    /// Offering and answering are two different matches, and the last two bugs were both
+    /// one of them moving without the other - a height handle that appeared and did
+    /// nothing when pulled.
+    #[test]
+    fn every_wall_is_offered_the_other_state() {
+        for framed in [false, true] {
+            let wall = PartKind::Wall {
+                long: 3.0,
+                high: WALL_HIGH,
+                framed,
+                openings: [None; MOST_OPENINGS],
+            };
+            let deeds = deeds_for(&wall);
+            assert!(
+                deeds.contains(&Deed::Frame(!framed)),
+                "a {} wall was not offered the other state",
+                if framed { "framed" } else { "plain" }
+            );
+            assert!(
+                !deeds.contains(&Deed::Frame(framed)),
+                "a wall was offered what it already is"
+            );
+        }
+    }
+}
