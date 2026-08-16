@@ -1385,17 +1385,24 @@ fn shape_of(kind: &PartKind) -> Vec<Slab> {
             slab(0.0, 2.25, 0.0, 0.75, 0.25, 0.75, "stone", 0.45),
             slab(0.0, 2.4375, 0.0, 0.875, 0.125, 0.875, "stone", 0.6),
         ],
+        // A CHAIR IS SYMMETRICAL, which this one was not: its seat sat half an atom
+        // to the left of its middle and the block under it half an atom to the
+        // right, so the two were a whole atom out of line with each other and the
+        // back was out of line with both. Brett: "the chairs are not symmetrical."
+        //
+        // The nudges were there to land an ODD number of atoms on the lattice -
+        // seven across cannot be centred on nought, because its faces fall on a
+        // half - and they were applied in opposite directions. An EVEN width needs
+        // no nudge at all: eight atoms across the seat and six across the block sit
+        // on their own middle with every face on a whole atom, which is what makes
+        // a thing symmetrical rather than merely nearly so.
         PartKind::Prop("chair") => vec![
-            slab(
-                -0.03125, 0.40625, -0.03125, 0.4375, 0.0625, 0.4375, "wood", 0.6,
-            ),
-            slab(
-                0.03125, 0.1875, 0.03125, 0.3125, 0.375, 0.3125, "wood", 0.45,
-            ),
+            slab(0.0, 0.40625, 0.0, 0.5, 0.0625, 0.5, "wood", 0.6),
+            slab(0.0, 0.1875, 0.0, 0.375, 0.375, 0.375, "wood", 0.45),
             // The back, standing where a back actually meets a back.
             // Standing BEHIND the seat rather than in its own back edge - sharing
             // that edge put two faces at one depth down the whole width of it.
-            slab(-0.03125, 0.75, -0.28125, 0.4375, 0.75, 0.0625, "wood", 0.55),
+            slab(0.0, 0.75, -0.28125, 0.5, 0.75, 0.0625, "wood", 0.55),
         ],
         PartKind::Prop("bench") => vec![
             // Wide enough for the two bodies it claims to seat, and cut
@@ -1418,7 +1425,7 @@ fn shape_of(kind: &PartKind) -> Vec<Slab> {
                 -0.90625, 0.3125, 0.03125, 0.1875, 0.625, 0.8125, "wood", 0.55,
             ),
             slab(
-                0.96875, 0.3125, 0.03125, 0.1875, 0.625, 0.8125, "wood", 0.55,
+                0.90625, 0.3125, 0.03125, 0.1875, 0.625, 0.8125, "wood", 0.55,
             ),
             // The back's foot is buried in the plinth rather than starting level
             // with the cushions: two faces at one height is a flicker even where
@@ -1436,7 +1443,7 @@ fn shape_of(kind: &PartKind) -> Vec<Slab> {
                 0.6,
             ),
             slab(
-                0.40625,
+                0.46875,
                 0.4375,
                 0.0625,
                 0.8125,
@@ -1456,7 +1463,7 @@ fn shape_of(kind: &PartKind) -> Vec<Slab> {
                 0.5,
             ),
             slab(
-                0.40625,
+                0.46875,
                 0.71875,
                 -0.1875,
                 0.8125,

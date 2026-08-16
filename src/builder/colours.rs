@@ -3291,12 +3291,8 @@ fn a_row_of_books_is_dealt_its_own_hand() {
 /// which is worse than no line: it has to be tried before a maker learns it is nothing.
 #[test]
 fn a_mirror_is_offered_where_it_would_show() {
-    // A row of books leans one way, a chair faces one way, a flight climbs one way.
-    for kind in [
-        PartKind::Books(3),
-        PartKind::Prop("chair"),
-        PartKind::Prop("loom"),
-    ] {
+    // A row of books leans one way, a loom is worked from one side.
+    for kind in [PartKind::Books(3), PartKind::Prop("loom")] {
         assert!(
             deeds_for(&kind).contains(&Deed::Mirror),
             "{} cannot be mirrored, and it is not the same both ways",
@@ -3317,6 +3313,13 @@ fn a_mirror_is_offered_where_it_would_show() {
         // and a flight climbs along its DEPTH, so turning it about its length leaves it
         // exactly where it was.
         PartKind::Prop("desk"),
+        // A CHAIR, which was on the other list until Brett said "the chairs are not
+        // symmetrical" - and it was offered a mirror only BECAUSE it was crooked. It
+        // faces one way, but it faces along its DEPTH, and a mirror turns a part
+        // about its LENGTH: there was never anything for one to show here. A mirror
+        // that shows something only because a part is built crooked is not a reason
+        // to offer one, it is a reason to look at the part.
+        PartKind::Prop("chair"),
         PartKind::Stairs {
             rise: STEP_UP,
             wide: 1.25,
@@ -3875,6 +3878,41 @@ fn r_still_swings_a_ceilings_ridge() {
             // What `turn_part` makes of it: the same flip, read back the same way.
             let turned = ridge_along_x(long, deep, !across);
             assert_ne!(turned, was, "R no longer swings a {long}x{deep} ceiling");
+        }
+    }
+}
+
+/// THE SEATS ARE SYMMETRICAL ABOUT THEIR OWN MIDDLE.
+///
+/// Brett, of a chair standing under a table: "the chairs are not symmetrical." Its
+/// seat sat half an atom left of centre and the block under it half an atom right,
+/// so the two were a whole atom out of line and the back was out of line with
+/// both.
+///
+/// The nudge was there for a real reason - an ODD number of atoms across cannot be
+/// centred on nought, because its faces land on a half - and it was applied in
+/// opposite directions on neighbouring pieces. So this asks the thing a maker
+/// asks, which is whether the halves match, rather than whether the faces are
+/// legal: the lattice test was perfectly happy with a crooked chair.
+#[test]
+fn a_seat_is_the_same_on_both_sides() {
+    for prop in ["chair", "bench", "stool", "couch"] {
+        let body = body_of(&PartKind::Prop(prop), None);
+        if body.is_empty() {
+            continue;
+        }
+        for piece in &body {
+            let twin = body.iter().any(|other| {
+                (other.at.x + piece.at.x).abs() < 1e-4
+                    && (other.at.y - piece.at.y).abs() < 1e-4
+                    && (other.at.z - piece.at.z).abs() < 1e-4
+                    && (other.size - piece.size).length() < 1e-4
+            });
+            assert!(
+                twin,
+                "the {prop} has a piece at x={:.5} with nothing to match it on the other side",
+                piece.at.x
+            );
         }
     }
 }
