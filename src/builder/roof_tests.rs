@@ -2561,6 +2561,7 @@ fn r_turns_what_the_hand_holds() {
     app.init_resource::<DimsEntry>();
     app.insert_resource(crate::Bench::Builder);
     app.init_resource::<Hand>();
+    app.init_resource::<PieceInHand>();
     app.add_systems(Update, (turn_the_work, turn_part));
 
     let standing = |app: &App, part: Entity| app.world().get::<Placed>(part).unwrap().yaw;
@@ -2984,5 +2985,156 @@ fn copying_a_group_takes_all_of_it() {
     assert!(
         app.world().resource::<Hand>().kind.is_none(),
         "a cluster was put into the single-part hand as well"
+    );
+}
+
+/// R TURNS A GROUP AS ONE THING, about its own middle.
+///
+/// Brett: "R should rotate the group as well." Turning the lead alone would spin a
+/// table on the spot and leave its chairs sitting where they were and facing the
+/// way they were - the group coming apart on the one key most likely to be pressed
+/// while it is chosen.
+#[test]
+fn r_turns_a_group_about_its_own_middle() {
+    use bevy::asset::AssetPlugin;
+    let mut app = App::new();
+    app.add_plugins((MinimalPlugins, AssetPlugin::default()));
+    app.init_asset::<Mesh>().init_asset::<StandardMaterial>();
+    app.insert_resource(crate::look::load_palette_for_bake());
+    app.init_resource::<ButtonInput<KeyCode>>();
+    app.init_resource::<crate::gizmo::Selected>();
+    app.init_resource::<Naming>();
+    app.init_resource::<DimsEntry>();
+    app.init_resource::<Hand>();
+    app.init_resource::<PieceInHand>();
+    app.insert_resource(crate::Bench::Builder);
+    app.add_systems(Update, turn_part);
+
+    // Three in a row along X, four metres end to end: the middle is (2, 0).
+    let spots = [[0.0, 0.0, 0.0], [2.0, 0.0, 0.0], [4.0, 0.0, 0.0]];
+    let kin: Vec<Entity> = spots
+        .iter()
+        .map(|at| {
+            app.world_mut()
+                .spawn((
+                    Placed {
+                        part: part_name(&PartKind::wall(2.0)),
+                        at: *at,
+                        yaw: 0.0,
+                        tilt: 0.0,
+                        ramp: None,
+                        shade: 0.5,
+                        stage: "walls".to_string(),
+                        flip: false,
+                        group: Some(3),
+                        loose: false,
+                        material: String::new(),
+                    },
+                    Transform::from_translation(Vec3::from(*at)),
+                ))
+                .id()
+        })
+        .collect();
+    // And one standing apart, which must not move at all.
+    let alone = app
+        .world_mut()
+        .spawn((
+            Placed {
+                part: part_name(&PartKind::wall(2.0)),
+                at: [40.0, 0.0, 0.0],
+                yaw: 0.0,
+                tilt: 0.0,
+                ramp: None,
+                shade: 0.5,
+                stage: "walls".to_string(),
+                flip: false,
+                group: None,
+                loose: false,
+                material: String::new(),
+            },
+            Transform::default(),
+        ))
+        .id();
+
+    app.world_mut()
+        .resource_mut::<crate::gizmo::Selected>()
+        .toggle(kin[0]);
+    app.world_mut()
+        .resource_mut::<ButtonInput<KeyCode>>()
+        .press(KeyCode::KeyR);
+    app.update();
+
+    // EVERY MEMBER TURNED, and about the group's middle rather than its own: the
+    // row that ran along X now runs along Z, through the same middle.
+    let standing = |app: &App, part: Entity| {
+        let record = app.world().get::<Placed>(part).expect("stands");
+        (Vec3::from(record.at), record.yaw)
+    };
+    for part in &kin {
+        let (_, yaw) = standing(&app, *part);
+        assert!(
+            (yaw - std::f32::consts::FRAC_PI_2).abs() < 1e-4,
+            "a member of the group did not turn"
+        );
+    }
+    let places: Vec<Vec3> = kin.iter().map(|part| standing(&app, *part).0).collect();
+    for spot in &places {
+        assert!(
+            (spot.x - 2.0).abs() < 1e-4,
+            "the group did not turn about its own middle: {spot:?}"
+        );
+    }
+    let mut down: Vec<f32> = places.iter().map(|spot| spot.z).collect();
+    down.sort_by(|a, b| a.partial_cmp(b).unwrap());
+    assert!(
+        (down[0] + 2.0).abs() < 1e-4 && down[1].abs() < 1e-4 && (down[2] - 2.0).abs() < 1e-4,
+        "the group is no longer a row two metres apart: {down:?}"
+    );
+    // And it is STILL A GROUP - a turn that scattered the membership would leave
+    // the pieces standing right and never move together again.
+    for part in &kin {
+        assert_eq!(
+            app.world().get::<Placed>(*part).expect("stands").group,
+            Some(3),
+            "the group came apart on a turn"
+        );
+    }
+    // Nothing outside it moved.
+    let (spot, yaw) = standing(&app, alone);
+    assert!(
+        (spot.x - 40.0).abs() < 1e-4 && yaw == 0.0,
+        "turning a group turned something that was not in it"
+    );
+}
+
+/// AND R STILL BELONGS TO A HELD CLUSTER, not to what is standing behind it.
+///
+/// A pasted group goes into the PIECE hand, which leaves `Hand::kind` empty - so
+/// the guard that keeps R for a full hand did not cover it, and one press turned
+/// the cluster being placed AND whatever was still chosen from the copy.
+#[test]
+fn a_held_cluster_keeps_r_to_itself() {
+    let plain = Hand::default();
+    let mut holding = PieceInHand::default();
+    assert!(
+        !a_full_hand(&plain, &holding),
+        "an empty hand reads as a full one"
+    );
+    holding.parts.push(Placed {
+        part: part_name(&PartKind::wall(2.0)),
+        at: [0.0, 0.0, 0.0],
+        yaw: 0.0,
+        tilt: 0.0,
+        ramp: None,
+        shade: 0.5,
+        stage: "walls".to_string(),
+        flip: false,
+        group: None,
+        loose: false,
+        material: String::new(),
+    });
+    assert!(
+        a_full_hand(&plain, &holding),
+        "a hand holding a whole cluster reads as empty, so R turns the work behind it"
     );
 }

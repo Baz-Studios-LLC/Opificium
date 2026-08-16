@@ -26,6 +26,16 @@ pub(crate) fn held_fine(keys: &ButtonInput<KeyCode>) -> bool {
     keys.any_pressed([KeyCode::AltLeft, KeyCode::AltRight])
 }
 
+/// WHETHER A MAKER IS HOLDING ANYTHING - a part, or a whole cluster.
+///
+/// R belongs to what the hand holds, and the hand has two shapes: one part from
+/// the shelf, or several at once from a kept piece or a pasted group. Asking only
+/// the first let a pasted cluster be turned AND whatever was still chosen turned
+/// with it, on the one press.
+pub(crate) fn a_full_hand(hand: &Hand, piece: &PieceInHand) -> bool {
+    hand.kind.is_some() || !piece.parts.is_empty()
+}
+
 /// Shift-R turns the WHOLE work a quarter, about its own middle.
 ///
 /// A house is drawn facing whichever way the maker happened to start, and
@@ -39,6 +49,7 @@ pub(crate) fn turn_the_work(
     naming: Res<Naming>,
     dims: Res<DimsEntry>,
     hand: Res<Hand>,
+    piece: Res<PieceInHand>,
     mut parts: Query<(&mut Transform, &mut Placed), Without<Ghost>>,
 ) {
     // NOT WHILE A HAND IS FULL. R belongs to what you are holding, and shift is what
@@ -48,7 +59,7 @@ pub(crate) fn turn_the_work(
     if *bench != Bench::Builder
         || naming.0.is_some()
         || dims.0.is_some()
-        || hand.kind.is_some()
+        || a_full_hand(&hand, &piece)
         || !keys.just_pressed(KeyCode::KeyR)
         || !held_shift(&keys)
     {
@@ -63,19 +74,37 @@ pub(crate) fn turn_the_work(
     if !low.x.is_finite() {
         return;
     }
-    let middle = (low + high) * 0.5;
-    let onto = |v: f32| (v * 16.0).round() / 16.0;
-    let (mx, mz) = (onto(middle.x), onto(middle.z));
-
+    let middle = middle_of(low, high);
     for (mut transform, mut record) in &mut parts {
-        let at = Vec3::from(record.at);
-        // A quarter turn about Y sends (x, z) to (z, -x).
-        let (dx, dz) = (at.x - mx, at.z - mz);
-        record.at = [mx + dz, at.y, mz - dx];
-        record.yaw = (record.yaw + std::f32::consts::FRAC_PI_2).rem_euclid(std::f32::consts::TAU);
-        transform.translation = Vec3::from(record.at);
-        transform.rotation = pose(record.yaw, record.tilt, record.flip);
+        turn_one(&mut transform, &mut record, middle);
     }
+}
+
+/// The point a turn goes about, snapped to the lattice BEFORE anything moves.
+///
+/// A quarter turn about a point off the lattice lands every part off it, and a
+/// second turn lands them somewhere else again - so a thing spun four times would
+/// not come back to where it started. Snapping the middle first means it does,
+/// however many times it is spun.
+pub(crate) fn middle_of(low: Vec3, high: Vec3) -> Vec3 {
+    let onto = |v: f32| (v * 16.0).round() / 16.0;
+    let middle = (low + high) * 0.5;
+    Vec3::new(onto(middle.x), middle.y, onto(middle.z))
+}
+
+/// One part, a quarter turn about a point: where it stands and which way it looks.
+///
+/// The whole work turns by this, and so does a GROUP - the same arithmetic, over a
+/// different set of parts and a different middle, which is the only thing that
+/// differs between spinning a village and spinning a table with its chairs.
+pub(crate) fn turn_one(transform: &mut Transform, record: &mut Placed, middle: Vec3) {
+    let at = Vec3::from(record.at);
+    // A quarter turn about Y sends (x, z) to (z, -x).
+    let (dx, dz) = (at.x - middle.x, at.z - middle.z);
+    record.at = [middle.x + dz, at.y, middle.z - dx];
+    record.yaw = (record.yaw + std::f32::consts::FRAC_PI_2).rem_euclid(std::f32::consts::TAU);
+    transform.translation = Vec3::from(record.at);
+    transform.rotation = pose(record.yaw, record.tilt, record.flip);
 }
 
 /// T tilts the selected part a notch, the way R turns it. Tilt was the
@@ -123,7 +152,8 @@ pub(crate) fn turn_part(
     mut materials: ResMut<Assets<StandardMaterial>>,
     selected: Res<crate::gizmo::Selected>,
     hand: Res<Hand>,
-    mut parts: Query<(&mut Transform, &mut Placed), Without<Ghost>>,
+    piece: Res<PieceInHand>,
+    mut parts: Query<(Entity, &mut Transform, &mut Placed), Without<Ghost>>,
 ) {
     // The same rule: a full hand turns what it is holding and nothing else. R did BOTH
     // at once, so a maker with a part in hand and something still chosen turned the
@@ -131,7 +161,7 @@ pub(crate) fn turn_part(
     if *bench != Bench::Builder
         || naming.0.is_some()
         || dims.0.is_some()
-        || hand.kind.is_some()
+        || a_full_hand(&hand, &piece)
         || !keys.just_pressed(KeyCode::KeyR)
         || held_shift(&keys)
     {
@@ -140,7 +170,33 @@ pub(crate) fn turn_part(
     let Some(part) = selected.lead() else {
         return;
     };
-    let Ok((mut transform, mut record)) = parts.get_mut(part) else {
+    // A GROUP TURNS AS ONE, about its own middle - the same arithmetic the whole
+    // work turns by, over the group instead of the village. Brett: "R should
+    // rotate the group as well."
+    //
+    // Turning the lead alone would spin a table on the spot and leave its chairs
+    // sitting where they were and facing the way they were: the group would come
+    // apart on the one key most likely to be pressed while it is chosen.
+    if let Some(group) = parts.get(part).ok().and_then(|(_, _, record)| record.group) {
+        let mut low = Vec3::splat(f32::INFINITY);
+        let mut high = Vec3::splat(f32::NEG_INFINITY);
+        for (_, _, record) in &parts {
+            if record.group == Some(group) {
+                low = low.min(Vec3::from(record.at));
+                high = high.max(Vec3::from(record.at));
+            }
+        }
+        if low.x.is_finite() {
+            let middle = middle_of(low, high);
+            for (_, mut transform, mut record) in &mut parts {
+                if record.group == Some(group) {
+                    turn_one(&mut transform, &mut record, middle);
+                }
+            }
+        }
+        return;
+    }
+    let Ok((_, mut transform, mut record)) = parts.get_mut(part) else {
         return;
     };
     // A CEILING flips its ridge instead of turning, and has to be REDRAWN for it: the
