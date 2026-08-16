@@ -231,8 +231,17 @@ pub(crate) fn body_of(kind: &PartKind, repaint: Option<(&str, f32)>) -> Vec<Slab
                 let jamb = jamb_of(*what);
                 // A jamb runs from the opening's own foot, which for a door is
                 // the ground, up to the head plate.
-                let jamb_foot = (*hy).min(inner_foot);
-                let jamb_tall = inner_foot + inner_tall - jamb_foot;
+                //
+                // In a PLAIN wall it runs the opening and no further. Those plates are a
+                // framed wall's, and reaching for them here put a post down the wall to
+                // the floor beside every window - and z-fighting with the plaster it stood
+                // in, since the wall fills the band a jamb has no business occupying.
+                let (jamb_foot, jamb_tall) = if *framed {
+                    let foot = (*hy).min(inner_foot);
+                    (foot, inner_foot + inner_tall - foot)
+                } else {
+                    (*hy, *hh)
+                };
                 timber(&mut body, hx - jamb, jamb, jamb_foot, jamb_tall);
                 timber(&mut body, hx + hw, jamb, jamb_foot, jamb_tall);
                 // The lintel fills whatever is left between the opening's head

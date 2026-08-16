@@ -428,6 +428,15 @@ pub(crate) fn punch_wall(
     // The frame takes the wall's own line and turn.
     // The hand knows which opening it holds; `is_door` only decides
     // whether a routing widget rides along.
+    // A WINDOW THE WALL HAS ALREADY DRAWN is not placed a second time. The wall frames
+    // its own opening now - jambs, lintel, sill and panes - so setting the window part
+    // down as well stood one window inside another, a hand's breadth apart.
+    //
+    // A DOOR still hangs its leaf: the wall makes the opening and the leaf is the thing
+    // that swings in it, which no wall has ever drawn.
+    if reframed && !is_door {
+        return true;
+    }
     let frame_kind = hand.kind.unwrap_or(PartKind::Prop("window"));
     // The frame keeps the wall's own footing - a door in a wall on a
     // foundation stands on the foundation, not sunk to the ground.

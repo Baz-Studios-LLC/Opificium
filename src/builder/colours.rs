@@ -607,6 +607,46 @@ mod windows {
         );
     }
 
+    /// A plain wall's jamb frames the window and stops there.
+    ///
+    /// It used to reach for a framed wall's plates, which put a post down the wall to the
+    /// floor beside every window - and z-fighting with the plaster it stood in, because the
+    /// wall fills the band a jamb had no business occupying. Both faults, one number.
+    #[test]
+    fn a_plain_walls_jamb_stops_at_the_window() {
+        let body = a_wall_with_a_window(false);
+        // The opening's own band, read off the wall: the plaster leaves a gap there.
+        let (hole_low, hole_high) = {
+            let framed = a_wall_with_a_window(true);
+            let bars: Vec<&Slab> = framed
+                .iter()
+                .filter(|Slab { size, .. }| size.x < WALL_THICK && size.z < WALL_THICK)
+                .collect();
+            let low = bars
+                .iter()
+                .map(|Slab { at, size, .. }| at.y - size.y * 0.5)
+                .fold(f32::INFINITY, f32::min);
+            let high = bars
+                .iter()
+                .map(|Slab { at, size, .. }| at.y + size.y * 0.5)
+                .fold(f32::NEG_INFINITY, f32::max);
+            (low, high)
+        };
+        // A jamb is a narrow full-thickness timber. None of them may reach below the
+        // window they frame.
+        let lowest_jamb = body
+            .iter()
+            .filter(|Slab { size, .. }| size.z >= WALL_THICK - 1e-4 && size.x < 0.3 && size.y > 0.3)
+            .map(|Slab { at, size, .. }| at.y - size.y * 0.5)
+            .fold(f32::INFINITY, f32::min);
+        assert!(
+            lowest_jamb.is_infinite() || lowest_jamb >= hole_low - 1e-3,
+            "a jamb reaches down to {lowest_jamb} where the window starts at {hole_low}: \
+             a post beside the window, and z-fighting with the plaster around it"
+        );
+        let _ = hole_high;
+    }
+
     /// And a wall with no opening is still one plain box.
     ///
     /// The cheapest thing a wall can be, and the commonest - drawing it in pieces because
