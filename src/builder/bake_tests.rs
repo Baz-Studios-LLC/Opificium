@@ -51,7 +51,7 @@ fn bake_the_works() {
 /// so a thing that moves belongs to the game - and it leaves the village one question the
 /// boxes cannot answer: how big to draw the hands. So the mark carries it.
 #[test]
-fn a_clock_bakes_its_face_and_says_how_big() {
+fn a_clock_bakes_its_face_and_says_how_wide() {
     let palette = crate::look::load_palette_for_bake();
     let clock = Placed {
         part: part_name(&PartKind::Clock(1.25)),
@@ -75,33 +75,21 @@ fn a_clock_bakes_its_face_and_says_how_big() {
         "a clock baked {} boxes - its dial did not come through",
         boxes.len()
     );
-    // AND THE MARK SAYS HOW BIG THE DIAL IS. Without it the game must hardcode a
-    // size per word and every clock in the world is the same clock.
-    //
-    // Through `size`, which is the same field a pallet says its room with. It was
-    // a `wide` of its own, and Divus Factus asked the right question about that:
-    // one concept beats two, and a reader that had to know which parts said which
-    // was a reader with two rules for one idea.
+    // AND THE MARK SAYS HOW WIDE. Without it the game must hardcode a size per word
+    // and every clock in the world is the same clock.
     let clock_mark = marks
         .iter()
         .find(|line| line.contains("\"mark\": \"clock\""))
         .unwrap_or_else(|| panic!("no clock mark in {marks:?}"));
     assert!(
-        !clock_mark.contains("wide"),
-        "the clock still says `wide` beside its size: {clock_mark}"
+        clock_mark.contains("\"wide\": 1.2500"),
+        "the clock mark does not say how wide it is: {clock_mark}"
     );
+    // At the middle of the FACE, which is where a hand turns - not at the part's foot,
+    // where nothing turns at all.
     assert!(
-        clock_mark.contains("\"size\": [1.2500, 1.2500, 0.2500]"),
-        "the clock mark does not say how big its dial is: {clock_mark}"
-    );
-    // AT THE MIDDLE OF ITS FOOT, like every other sized mark - so one rule finds any
-    // of them in the world. A village wanting the pivot the hands turn on adds half
-    // the height, which is the arithmetic it already does for anything standing on
-    // something. The dial's foot is the part's own seat, and its case stands forward
-    // of the wall by half its depth.
-    assert!(
-        clock_mark.contains("\"at\": [2.0000, 3.0000, -0.8750]"),
-        "the clock mark is not at the middle of its own foot: {clock_mark}"
+        clock_mark.contains("3.6250"),
+        "the clock mark is not at the middle of its own face: {clock_mark}"
     );
 
     // And a mark with no size to have says nothing about size: a door's routing mark
@@ -113,46 +101,71 @@ fn a_clock_bakes_its_face_and_says_how_big() {
     };
     let (_, plain) = bake_one_phase(std::slice::from_ref(&door), &palette, Vec3::ZERO);
     assert!(
-        plain.iter().all(|line| !line.contains("size")),
+        plain
+            .iter()
+            .all(|line| !line.contains("wide") && !line.contains("size")),
         "a mark that is only a place grew a size: {plain:?}"
     );
 }
 
-/// AND THE DIAL IS AS DEEP AS THE MARK SAYS IT IS.
+/// A WIDTH AND A ROOM ARE DIFFERENT THINGS, and no mark says both.
 ///
-/// The mark's third number is a constant, and the case it describes is built out of
-/// atoms somewhere else entirely. A case rebuilt thicker would go on claiming the
-/// old depth, and the village would hang its hands a little inside the wood.
+/// This is the test I owed after tidying one into the other. Divus Factus asked
+/// whether `wide` wanted retiring now that `size` existed; I agreed, folded the
+/// clock into `size: [wide, wide, depth]`, and moved its anchor to the foot to
+/// match a pallet. Then they read the clock and put it better than the question:
+/// "a disc is not a box."
+///
+/// A dial's size is ONE number, so two of that volume's three were noise, and the
+/// hands turn about the dial's MIDDLE where a stack grows up off its FLOOR. The
+/// two anchor differently because they measure different kinds of thing, and no
+/// amount of tidiness makes them one. So the rule is written down here where a
+/// future tidy-up has to argue with it.
 #[test]
-fn a_clock_is_as_deep_as_it_says() {
-    for wide in [1.0, 1.25, 2.0] {
-        let body = body_of(&PartKind::Clock(wide), None);
-        let front = body
-            .iter()
-            .map(|piece| piece.at.z + piece.size.z * 0.5)
-            .fold(f32::NEG_INFINITY, f32::max);
-        let back = body
-            .iter()
-            .map(|piece| piece.at.z - piece.size.z * 0.5)
-            .fold(f32::INFINITY, f32::min);
-        assert!(
-            (back).abs() < 1e-4 && (front - CLOCK_DEEP).abs() < 1e-4,
-            "a {wide} m clock's case stands {back}..{front}, not 0..{CLOCK_DEEP}"
-        );
-        // And as tall and wide as it says, so all three numbers are true.
-        let top = body
-            .iter()
-            .map(|piece| piece.at.y + piece.size.y * 0.5)
-            .fold(f32::NEG_INFINITY, f32::max);
-        let side = body
-            .iter()
-            .map(|piece| piece.at.x.abs() + piece.size.x * 0.5)
-            .fold(0.0f32, f32::max);
-        assert!(
-            (top - wide).abs() < 1e-4 && (side - wide * 0.5).abs() < 1e-4,
-            "a {wide} m clock measures {side} across and {top} up"
-        );
-    }
+fn a_width_and_a_room_are_not_the_same_field() {
+    let palette = crate::look::load_palette_for_bake();
+    let stand = |part: String| Placed {
+        part,
+        at: [0.0, 0.0, 0.0],
+        yaw: 0.0,
+        tilt: 0.0,
+        ramp: None,
+        shade: 0.5,
+        stage: "furnishing".to_string(),
+        flip: false,
+        loose: false,
+        material: String::new(),
+        group: None,
+    };
+    // A DIAL says a width and no room, at the middle of its face.
+    let dial = stand(part_name(&PartKind::Clock(2.0)));
+    let (_, said) = bake_one_phase(std::slice::from_ref(&dial), &palette, Vec3::ZERO);
+    let dial_mark = said.join("\n");
+    assert!(
+        dial_mark.contains("\"wide\"") && !dial_mark.contains("\"size\""),
+        "a dial should say a width and no room: {dial_mark}"
+    );
+    assert!(
+        dial_mark.contains("\"at\": [0.0000, 1.0000, 0.0000]"),
+        "a dial's mark is not at the middle of its face: {dial_mark}"
+    );
+    // A ROOM says a room and no width, at the middle of its foot.
+    let pallet = stand(part_name(&PartKind::Area {
+        word: "pallet",
+        long: 2.0,
+        deep: 1.0,
+        high: 1.0,
+    }));
+    let (_, said) = bake_one_phase(std::slice::from_ref(&pallet), &palette, Vec3::ZERO);
+    let room_mark = said.join("\n");
+    assert!(
+        room_mark.contains("\"size\"") && !room_mark.contains("\"wide\""),
+        "a room should say a room and no width: {room_mark}"
+    );
+    assert!(
+        room_mark.contains("\"at\": [0.0000, 0.0000, 0.0000]"),
+        "a room's mark is not at the middle of its foot: {room_mark}"
+    );
 }
 
 /// A MARKED VOLUME BAKES ITS ROOM, at the foot the stack grows off.

@@ -251,8 +251,9 @@ its colour already looked up, plus the marks that say what the place is FOR.
                "form": "box", "rgb": [110,92,70], "alpha": 1.0, "cloth": "wood",
                "stage": "walls", "material": "oak" } ],
   "marks": [ { "mark": "door", "at": [3.65,0.375,0.0], "yaw": 0.0 },
-             { "mark": "clock", "at": [0.0,4.5,-1.8], "yaw": 0.0,
-               "size": [1.25,1.25,0.25] } ],
+             { "mark": "clock", "at": [0.0,4.5,-1.8], "yaw": 0.0, "wide": 1.25 },
+             { "mark": "pallet", "at": [1.2,0.0,2.4], "yaw": 0.0,
+               "size": [1.0,1.0,1.0] } ],
   "levels": [
     { "name": "", "half_w": 3.65, "half_d": 6.7, "high": 5.2,
       "phases": [ { "boxes": [ "...the footings only..." ] },
@@ -284,17 +285,22 @@ original - and holds:
   before it.
 - `marks`: what the place is FOR once that level is finished.
 
-A mark says WHAT, WHERE and WHICH WAY: `{mark, at, yaw}`. Some say ONE thing
-more - `size`, `[x, y, z]` in metres - and a reader that meets no `size` is
-reading a mark that is only a place, which is nearly all of them.
+A mark says WHAT, WHERE and WHICH WAY: `{mark, at, yaw}`. Some say one thing more,
+and a reader that meets neither extra key is reading a mark that is only a place -
+which is nearly all of them.
 
-**Where a mark has a size, `at` is the middle of its FOOT**, not its centre. One
-rule for every sized mark, whatever the size is measuring: a reader that wants a
-middle adds half the height, which is the arithmetic it already does for anything
-standing on anything. There was briefly a second field, `wide`, that only the
-clock used and that anchored on the dial's centre instead; Divus Factus asked
-whether it wanted retiring now that `size` exists, and it did. One concept beats
-two, and a reader with two rules for one idea will eventually apply the wrong one.
+- `wide`, one number in metres: how far across a ROUND thing is. `at` is the middle
+  of its FACE, because that is the point a hand turns about.
+- `size`, `[x, y, z]` in metres: how much ROOM a place has. `at` is the middle of
+  its FOOT, because a stack grows up off a floor.
+
+**No mark says both, and neither is a tidier spelling of the other.** They were
+briefly folded into one - `wide` retired, the clock written as
+`size: [wide, wide, depth]` anchored at its foot - and Divus Factus, having read
+the clock, put the objection better than the question: *a disc is not a box.* A
+dial's size is one number, so two of that volume's three were noise and a reader
+could not tell which; and the anchors differ because the things differ. Anything
+being FILLED measures from its floor. Anything TURNING measures from its middle.
 
 ### `size`: a place with room in it
 
@@ -320,19 +326,15 @@ and the drawing remembers theirs. A mark with no `size` in `widgets.json` is
 placed as a point and bakes as one, exactly as before - so declaring a size is how
 a game opts a mark in, and no existing mark changes.
 
-### `size`: a thing whose size the game must know
+### `wide`: a dial the game hangs hands on
 
-The other use of the same field, and the reason it is not called `room`. A
-`clock`'s dial is REAL - the bench builds the octagonal face out of boxes with
-everything else, because a face does not move - but its HANDS move, and nothing
-that moves can be baked. So the village is told where the dial stands, which way
-it looks and how big it is, and two hands of that size turned to the hour are its
-own to draw and its own to animate. Brett: "make it hands free and have the game
-create and animate the hands."
-
-`size` is `[wide, wide, case depth]` there, and `at` is the middle of the dial's
-foot like any other sized mark - so the pivot the hands turn on is `at` plus half
-the height, up in the mark's own frame.
+`clock` is the mark that carries it. The bench builds the FACE - an octagonal dial,
+baked as boxes with everything else, because a face does not move - and the game
+draws the HANDS, because they do. Nothing that moves can be baked, so the village
+is told where the middle of the dial is, which way it looks and how far across it
+is; two hands of that size, turned to the hour, are its own to draw and its own to
+animate. Brett: "make it hands free and have the game create and animate the
+hands."
 
 Every level is measured from ONE origin: the first level's finished footprint. An
 upgrade has to land on the building it upgrades, so it is never recentred on its

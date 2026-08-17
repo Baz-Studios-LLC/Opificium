@@ -38,7 +38,7 @@ pub(crate) fn bounds_of(parts: &[Placed]) -> (Vec3, Vec3) {
 }
 
 /// One thing the village is told about a place: what it is, where, which way it
-/// faces - and, for the marks that have one, how big.
+/// faces - and, for the marks that have one, how big: a width across, or a room.
 ///
 /// A struct rather than the four-place tuple it was, because it grew a fifth and
 /// this bench has been bitten once already by a tuple long enough that `(.., last)`
@@ -50,16 +50,26 @@ struct Mark {
     /// Set down by a maker rather than implied by furniture - a hand-placed mark
     /// wins over one a chair would have made for itself.
     by_hand: bool,
-    /// HOW BIG THE PLACE IS, in metres, for a mark that has a size at all.
+    /// HOW WIDE a round thing is, across: a dial's diameter, and nought for
+    /// anything that is not one.
     ///
-    /// Room to fill for a pallet, and a dial to hang hands on for a clock. Those
-    /// were two fields once - `size` and a `wide` that only the clock used - and
-    /// Divus Factus asked the right question about it: one concept beats two. A
-    /// reader that had to know which parts said which was a reader with two rules
-    /// for one idea, and nothing had begun depending on the second.
+    /// TWO FIELDS ON PURPOSE, and it took retiring this one to see why. Divus
+    /// Factus asked whether `wide` wanted folding into `size` now that a mark could
+    /// carry three numbers, and I agreed too quickly - then they read the clock,
+    /// and put it better than the question: "a disc is not a box." A dial's size is
+    /// ONE number. Written as a volume, two of its three are noise, and a reader
+    /// cannot tell which.
     ///
-    /// Whatever it measures, `at` is the middle of its FOOT, so there is ONE rule
-    /// for finding a sized mark in the world however it is used.
+    /// They anchor differently for the same reason, which is the real tell. A
+    /// `size` stands at the middle of its FOOT, because a stack grows up off a
+    /// floor. A `wide` stands at the middle of its FACE, because that is where
+    /// hands turn. Neither is a tidier version of the other.
+    wide: f32,
+    /// HOW MUCH ROOM a place has, in metres, for a mark that is a volume rather
+    /// than a point - a pallet goods stack into, a pen, a plot.
+    ///
+    /// A game filling a space has to be told how big the space is, and `at` is the
+    /// middle of its FOOT so the game is given the floor it fills up from.
     size: Option<Vec3>,
 }
 
@@ -97,6 +107,7 @@ pub(crate) fn bake_one_phase(
             at,
             yaw,
             by_hand: false,
+            wide: 0.0,
             size: None,
         };
         match kind {
@@ -126,23 +137,22 @@ pub(crate) fn bake_one_phase(
             // The face itself is baked with everything else: what the village adds
             // is two hands on a dial that is already there.
             //
-            // A CLOCK SAYS HOW BIG ITS DIAL IS, the same way a pallet says how much
-            // room it has. The village draws the hands - they move, and nothing that
-            // moves can be baked - so it has to be told what size to draw them, which
+            // A CLOCK SAYS HOW WIDE ITS DIAL IS, across - one number, because a dial
+            // is a disc. The village draws the hands: they move, and nothing that
+            // moves can be baked, so it has to be told what size to draw them, which
             // is the one thing it cannot measure for itself from a heap of boxes.
             // Brett: "I wonder if we should make it hands free and have the game
             // create and animate the hands?"
             //
-            // At the middle of the dial's FOOT, like every other sized mark: the
-            // case stands forward of the wall, so the middle of its foot is half a
-            // case-depth out from where the part itself sits. A village wanting the
-            // pivot the hands turn on adds half the height, which is the same
-            // arithmetic it does for anything else that stands on something.
+            // AT THE MIDDLE OF THE FACE, which is the point the hands turn about.
+            // This was briefly the foot, to match a pallet, and it was wrong for the
+            // same reason `wide` was: a stack grows up off its floor and a hand turns
+            // about its centre, so the two want different anchors and always did.
             PartKind::Clock(wide) => marks.push(Mark {
-                size: Some(Vec3::new(wide, wide, CLOCK_DEEP)),
+                wide,
                 ..mark(
                     "clock",
-                    anchor + turn * Vec3::new(0.0, 0.0, CLOCK_DEEP * 0.5),
+                    anchor + turn * Vec3::new(0.0, wide * 0.5, 0.0),
                     record.yaw,
                 )
             }),
@@ -285,13 +295,19 @@ pub(crate) fn bake_one_phase(
             // The width only where there is one to say. A mark is WHERE something
             // is; a clock is the one that is also HOW BIG, and a reader that meets
             // no `wide` is reading a mark that has no size to have.
-            // The size, only where there is one to say. A reader that meets none is
-            // reading a mark that is only a place, which is nearly all of them.
+            // A width or a room, only where there is one to say. A reader that meets
+            // neither is reading a mark that is only a place, which is nearly all of
+            // them, and no mark says both.
+            let wide = if mark.wide > 0.0 {
+                format!(", \"wide\": {:.4}", mark.wide)
+            } else {
+                String::new()
+            };
             let size = mark
                 .size
                 .map_or_else(String::new, |size| format!(", \"size\": {}", say(size)));
             format!(
-                "    {{\"mark\": \"{}\", \"at\": {}, \"yaw\": {:.4}{size}}}",
+                "    {{\"mark\": \"{}\", \"at\": {}, \"yaw\": {:.4}{wide}{size}}}",
                 mark.what,
                 say(mark.at),
                 mark.yaw
