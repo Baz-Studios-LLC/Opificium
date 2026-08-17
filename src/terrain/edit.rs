@@ -2,7 +2,7 @@
 //!
 //! Generated terrain gets you a plausible landscape; it does not get you THIS
 //! hill, HERE. This is where authored geography lives: a grid of signed height
-//! offsets in metres, laid over whatever the map and the noise produced,
+//! offsets in meters, laid over whatever the map and the noise produced,
 //! sculpted with a brush and written to the game's own folder.
 //!
 //! # Offsets, not heights
@@ -39,7 +39,7 @@ pub const EDITS: &str = "edits.bin";
 /// Below this, an offset is untouched ground.
 const SCULPT_EPSILON: f32 = 0.01;
 
-/// Metres per cell of the edit grid. Fine enough to shape one hill, coarse
+/// Meters per cell of the edit grid. Fine enough to shape one hill, coarse
 /// enough that a world's worth of it is a few megabytes.
 pub const CELL: f32 = 4.0;
 
@@ -47,10 +47,10 @@ pub const CELL: f32 = 4.0;
 /// this bounds memory by ground painted rather than by the size of the world.
 const UNDO_DEPTH: usize = 64;
 
-/// Spatial frequency of the roughening brush, in cycles per metre.
+/// Spatial frequency of the roughening brush, in cycles per meter.
 const ROUGHEN_FREQ: f64 = 0.05;
 
-/// The angle of repose, as a rise over the run between two neighbouring cells.
+/// The angle of repose, as a rise over the run between two neighboring cells.
 ///
 /// Loose material will not hold a slope steeper than this — it slides. Around
 /// 34 degrees is what sand, scree and most soils settle at, and it is why real
@@ -147,7 +147,7 @@ impl Brushing {
     /// erosion did exactly that, and its strength control moved nothing.
     pub fn rate(self, strength: f32, delta: f32) -> f32 {
         match self {
-            // Metres of vertical push per second.
+            // Meters of vertical push per second.
             Brushing::Raise | Brushing::Lower | Brushing::Roughen => strength * delta,
             // Erosion is a SPEED, not a distance: strength decides how fast the
             // ground settles, never how far it slides — where it comes to rest
@@ -190,10 +190,10 @@ pub fn smoothstep(edge0: f32, edge1: f32, x: f32) -> f32 {
 
 /// One tick of a stroke.
 pub struct Stamp<'a> {
-    pub centre: Vec2,
+    pub center: Vec2,
     pub radius: f32,
     pub how: Brushing,
-    /// Metres this tick for the directional tools, a blend fraction for the rest.
+    /// Meters this tick for the directional tools, a blend fraction for the rest.
     pub amount: f32,
     /// The height the levelling tools pull toward.
     pub target: f32,
@@ -215,7 +215,7 @@ pub struct Sculpt {
     wide: usize,
     deep: usize,
     half: Vec2,
-    /// Signed offset in metres, row-major, north row first.
+    /// Signed offset in meters, row-major, north row first.
     offsets: Vec<f32>,
     /// Running count of cells moved off zero. Kept as cells are written rather
     /// than counted on demand: the shelf asks every frame and the grid is over
@@ -460,9 +460,9 @@ impl Sculpt {
 
     /// Lays one tick of the brush down. Says what ground changed.
     pub fn apply(&mut self, stamp: &Stamp) -> Rect {
-        let (x0, x1, z0, z1) = self.cells_under(stamp.centre, stamp.radius);
+        let (x0, x1, z0, z1) = self.cells_under(stamp.center, stamp.radius);
 
-        // Smoothing reads its neighbours while writing, so it is worked out into
+        // Smoothing reads its neighbors while writing, so it is worked out into
         // a scratch list and laid down afterwards. Otherwise a cell smooths
         // against values already smoothed this tick, and the whole stroke drags
         // in whatever order the loop happened to run.
@@ -471,7 +471,7 @@ impl Sculpt {
         for z in z0..=z1 {
             for x in x0..=x1 {
                 let at = self.cell_at(x, z);
-                let away = at.distance(stamp.centre);
+                let away = at.distance(stamp.center);
                 if away > stamp.radius {
                     continue;
                 }
@@ -529,14 +529,14 @@ impl Sculpt {
 
         self.unsaved = true;
         Rect::from_corners(
-            stamp.centre - (stamp.radius + CELL),
-            stamp.centre + (stamp.radius + CELL),
+            stamp.center - (stamp.radius + CELL),
+            stamp.center + (stamp.radius + CELL),
         )
     }
 
     /// Thermal erosion: ground steeper than it can hold slides downhill.
     ///
-    /// For every cell, the height difference to each neighbour is compared
+    /// For every cell, the height difference to each neighbor is compared
     /// against the angle of repose. Whatever is steeper than that is excess, and
     /// a share of the excess MOVES — off the high cell and onto the low one.
     /// Nothing is created or destroyed, which is the whole point: a hill does
@@ -562,7 +562,7 @@ impl Sculpt {
         for z in z0..=z1 {
             for x in x0..=x1 {
                 let at = self.cell_at(x, z);
-                let away = at.distance(stamp.centre);
+                let away = at.distance(stamp.center);
                 if away > stamp.radius {
                     continue;
                 }
@@ -572,7 +572,7 @@ impl Sculpt {
                 }
 
                 let here = surface(self, x, z);
-                // The four square neighbours. Diagonals are left out on purpose:
+                // The four square neighbors. Diagonals are left out on purpose:
                 // they sit further apart, so including them at the same repose
                 // angle biases the slumping along the diagonals.
                 for (nx, nz) in [
@@ -589,7 +589,7 @@ impl Sculpt {
                     if excess <= 0.0 {
                         continue;
                     }
-                    // A quarter, because a cell may shed to four neighbours and
+                    // A quarter, because a cell may shed to four neighbors and
                     // must not give away more than it has.
                     let share = excess * 0.25 * SLUMP_RATE * stamp.amount * falloff;
                     moved[(z - z0) * wide + (x - x0)] -= share;
@@ -699,15 +699,15 @@ impl Sculpt {
     }
 
     /// The cells a brush covers, kept inside the grid.
-    fn cells_under(&self, centre: Vec2, radius: f32) -> (usize, usize, usize, usize) {
+    fn cells_under(&self, center: Vec2, radius: f32) -> (usize, usize, usize, usize) {
         let to_cell = |v: f32, half: f32, count: usize| {
             (((v + half) / CELL).floor() as isize).clamp(0, count as isize - 1) as usize
         };
         (
-            to_cell(centre.x - radius, self.half.x, self.wide),
-            to_cell(centre.x + radius + CELL, self.half.x, self.wide),
-            to_cell(centre.y - radius, self.half.y, self.deep),
-            to_cell(centre.y + radius + CELL, self.half.y, self.deep),
+            to_cell(center.x - radius, self.half.x, self.wide),
+            to_cell(center.x + radius + CELL, self.half.x, self.wide),
+            to_cell(center.y - radius, self.half.y, self.deep),
+            to_cell(center.y + radius + CELL, self.half.y, self.deep),
         )
     }
 
@@ -740,9 +740,9 @@ mod tests {
         0.0
     }
 
-    fn stamp(centre: Vec2, radius: f32, how: Brushing, amount: f32, target: f32) -> Stamp<'static> {
+    fn stamp(center: Vec2, radius: f32, how: Brushing, amount: f32, target: f32) -> Stamp<'static> {
         Stamp {
-            centre,
+            center,
             radius,
             how,
             amount,
@@ -754,14 +754,14 @@ mod tests {
     #[test]
     fn raise_lifts_the_middle_and_fades_to_nothing_at_the_rim() {
         let mut ground = Sculpt::new(HALF, SEED);
-        let centre = Vec2::new(40.0, -20.0);
+        let center = Vec2::new(40.0, -20.0);
         let radius = 60.0;
 
-        ground.apply(&stamp(centre, radius, Brushing::Raise, 10.0, 0.0));
+        ground.apply(&stamp(center, radius, Brushing::Raise, 10.0, 0.0));
 
-        let middle = ground.at(centre.x, centre.y);
-        let halfway = ground.at(centre.x + radius * 0.5, centre.y);
-        let beyond = ground.at(centre.x + radius * 1.5, centre.y);
+        let middle = ground.at(center.x, center.y);
+        let halfway = ground.at(center.x + radius * 0.5, center.y);
+        let beyond = ground.at(center.x + radius * 1.5, center.y);
 
         assert!((middle - 10.0).abs() < 0.5, "middle rose {middle:.2}");
         assert!(halfway > 0.5 && halfway < middle, "halfway {halfway:.2}");
@@ -792,7 +792,7 @@ mod tests {
     #[test]
     fn path_cuts_a_flat_bed_where_flatten_leaves_a_dish() {
         let radius = 60.0;
-        // Both level to zero on ground raised to forty metres, so the only
+        // Both level to zero on ground raised to forty meters, so the only
         // difference between them is the profile each leaves behind.
         let mut by_path = Sculpt::new(HALF, SEED);
         let mut by_flatten = Sculpt::new(HALF, SEED);

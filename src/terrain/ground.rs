@@ -6,7 +6,7 @@
 //! The bench and the game must agree about the ground EXACTLY. A maker sculpts
 //! offsets — how far the ground moved — and the game adds those to whatever it
 //! generated itself. If the two disagree about what was underneath by so much as
-//! a metre, every hill a maker placed sits at the wrong height in the game, and
+//! a meter, every hill a maker placed sits at the wrong height in the game, and
 //! nothing on screen says why.
 //!
 //! So the numbers are not written here. They arrive in `world.json`, exported by
@@ -17,8 +17,8 @@
 //!
 //! # What the map image is, and is not
 //!
-//! A **grayscale heightmap** carries real elevation. A **coloured political map**
-//! does not: its brightness is region fill colours and means nothing as terrain.
+//! A **grayscale heightmap** carries real elevation. A **colored political map**
+//! does not: its brightness is region fill colors and means nothing as terrain.
 //! It says where the continents are and nothing else. Which one it has is worked
 //! out on sight, and said in the log.
 
@@ -39,10 +39,10 @@ pub const HEIGHTMAP: &str = "heightmap.png";
 /// What the recipe is called, beside it.
 pub const RECIPE: &str = "world.json";
 
-/// How often the character of the coast changes, in cycles per metre. Low, so a
-/// beach runs the better part of a kilometre before giving way to rock.
+/// How often the character of the coast changes, in cycles per meter. Low, so a
+/// beach runs the better part of a kilometer before giving way to rock.
 ///
-/// Not in the recipe: this decides how the ground is COLOURED, and colour has no
+/// Not in the recipe: this decides how the ground is COLORED, and color has no
 /// bearing on the offsets a maker sculpts. The game keeps the same number so the
 /// two look alike, but nothing breaks if they drift.
 const SHORE_FREQ: f64 = 0.000_6;
@@ -53,7 +53,7 @@ const SHORE_FREQ: f64 = 0.000_6;
 #[derive(Deserialize, Clone, Debug)]
 #[serde(default)]
 pub struct Recipe {
-    /// How wide the world is, east to west, in metres. The one scale knob; the
+    /// How wide the world is, east to west, in meters. The one scale knob; the
     /// north-south extent comes from the map image's proportions.
     pub width: f32,
     /// Seeds every noise layer. Fixed, so the world is the same on every machine.
@@ -67,28 +67,28 @@ pub struct Recipe {
     pub clean_passes: usize,
     /// Smallest land blob kept, in map pixels.
     pub min_island_pixels: usize,
-    /// Where the coastline fade begins, as a fraction of centre-to-border.
+    /// Where the coastline fade begins, as a fraction of center-to-border.
     pub coast_fade_start: f32,
     /// Land at the shoreline, and how far it climbs to the deep interior.
     pub coast_height: f32,
     pub inland_rise: f32,
-    /// How far inland, in metres, the land takes to rise from the waterline to
+    /// How far inland, in meters, the land takes to rise from the waterline to
     /// `coast_height`, and how far out to sea the floor takes to fall to
     /// `ocean_depth`.
     ///
     /// These exist because a coast has to shelve. Without them the whole drop
     /// from land to sea floor happens across the width of the mask's blur - a
-    /// few metres - and no vertex grid can draw that: neighbouring columns land
+    /// few meters - and no vertex grid can draw that: neighboring columns land
     /// on opposite sides of it and the shoreline comes out as a picket fence of
     /// vertical slats. Spread over a beach and a shelf, the change per cell is
     /// small and the coast reads as a coast.
     pub beach_width: f32,
     pub shelf_width: f32,
-    /// Distance from the coast, in metres, counting as fully inland.
+    /// Distance from the coast, in meters, counting as fully inland.
     pub inland_full: f32,
     /// How deep the sea floor sits below the waterline.
     pub ocean_depth: f32,
-    /// Relief a grayscale map's brightness is worth. Unused on a coloured map.
+    /// Relief a grayscale map's brightness is worth. Unused on a colored map.
     pub base_elevation: f32,
     /// The mountains.
     pub range_elevation: f32,
@@ -120,7 +120,7 @@ pub struct Recipe {
     /// A very low-frequency field, thresholded: below `rugged_low` the ground is
     /// plain — flat enough for forest, farmland and walking — and only above
     /// `rugged_high` does it get the full detail and the mountains. Without this
-    /// every square metre of the map was equally lumpy, which leaves nowhere for
+    /// every square meter of the map was equally lumpy, which leaves nowhere for
     /// anything to happen.
     pub rugged_freq: f64,
     pub rugged_low: f32,
@@ -133,7 +133,7 @@ pub struct Recipe {
     /// How many of each kind of place gets ground levelled for it.
     pub cities: usize,
     pub towns: usize,
-    /// How far the level ground reaches at each, in metres.
+    /// How far the level ground reaches at each, in meters.
     pub city_radius: f32,
     pub town_radius: f32,
     /// How far apart they must stand.
@@ -151,7 +151,7 @@ pub struct Recipe {
     pub road_skirt: f32,
 
     // --------------------------------------------------------------- trees
-    /// Metres between the slots a tree may stand in.
+    /// Meters between the slots a tree may stand in.
     ///
     /// The single knob for how thick a forest is, and the one to reach for
     /// first: trees go up as the SQUARE of this, so 14 m is a quarter the trees
@@ -263,7 +263,7 @@ pub struct World {
     map: Option<MapImage>,
     map_carries_elevation: bool,
     recipe: Recipe,
-    /// Half-extents in metres. X east-west, Y north-south.
+    /// Half-extents in meters. X east-west, Y north-south.
     half: Vec2,
     ranges: Fbm<Perlin>,
     presence: Fbm<Perlin>,
@@ -364,7 +364,7 @@ impl World {
             &world.recipe,
             half,
             &|at| world.raw_height(at.x, at.y),
-            &|at| world.shore_metres(at.x, at.y),
+            &|at| world.shore_meters(at.x, at.y),
         );
         info!(
             "planned {} places and {} roads between them",
@@ -411,7 +411,7 @@ impl World {
                     continue;
                 }
 
-                let shore = self.shore_metres(at.x, at.y);
+                let shore = self.shore_meters(at.x, at.y);
                 if shore < 25.0 {
                     continue;
                 }
@@ -519,12 +519,12 @@ impl World {
 
         // Distance to the coast, positive inland and negative out to sea. The
         // whole landscape is built on this one number.
-        let shore = self.shore_metres(wx, wz);
+        let shore = self.shore_meters(wx, wz);
 
         // The coast shelves BOTH ways, each at its own rate: the land climbs a
         // beach's width to reach the shoreline height, and the floor falls a
         // shelf's width to reach the depths. They meet at zero, which is the
-        // waterline. Anything faster than this cannot be drawn - neighbouring
+        // waterline. Anything faster than this cannot be drawn - neighboring
         // vertices end up on opposite sides of the drop and the shore comes out
         // as a fence of vertical slats.
         let mut h = if shore >= 0.0 {
@@ -617,7 +617,7 @@ impl World {
     /// PRESENCE field, hard-thresholded, so ranges occupy a few regions rather
     /// than being the map's texture; distance INLAND, because a range rising
     /// straight out of the sea reads as a mistake; and a RIDGE line, where
-    /// `1 - |noise|` creases into a crest that runs for kilometres.
+    /// `1 - |noise|` creases into a crest that runs for kilometers.
     fn range_height(&self, x: f32, z: f32, inland: f32) -> f32 {
         let r = &self.recipe;
         let allowed = smoothstep(r.range_inland_start, r.range_inland_full, inland);
@@ -647,7 +647,7 @@ impl World {
     /// The surface normal, from differences either side.
     ///
     /// Worked out from the height field rather than from mesh triangles on
-    /// purpose: it depends only on world position, so two neighbouring chunks
+    /// purpose: it depends only on world position, so two neighboring chunks
     /// derive IDENTICAL normals along the edge they share and stitch together
     /// with no seam in the lighting.
     pub fn normal(&self, x: f32, z: f32, step: f32) -> Vec3 {
@@ -656,7 +656,7 @@ impl World {
         Vec3::new(-dx, 2.0 * step, -dz).normalize()
     }
 
-    /// How wet it is, 0 arid to 1 lush. Colours the ground.
+    /// How wet it is, 0 arid to 1 lush. Colors the ground.
     pub fn moisture(&self, x: f32, z: f32) -> f32 {
         let m = self.detail.get([x as f64 * 0.000_9, z as f64 * 0.000_9]) as f32;
         (m * 0.5 + 0.5).clamp(0.0, 1.0)
@@ -670,7 +670,7 @@ impl World {
     /// world where every continent is outlined in sand reads as a drawing of a
     /// map rather than as ground.
     ///
-    /// Low frequency, so a beach runs for the better part of a kilometre and
+    /// Low frequency, so a beach runs for the better part of a kilometer and
     /// then gives way, instead of speckling.
     pub fn shore_character(&self, x: f32, z: f32) -> f32 {
         let n = self
@@ -719,13 +719,13 @@ impl World {
         }
     }
 
-    /// Distance to the coast in metres: **positive inland, negative out to sea**.
+    /// Distance to the coast in meters: **positive inland, negative out to sea**.
     ///
     /// The one number the whole landscape is built on. It crosses zero exactly
     /// at the shoreline and changes smoothly through it, which is what lets the
     /// land rise and the sea floor fall at their own separate rates instead of
     /// meeting at a cliff.
-    pub fn shore_metres(&self, x: f32, z: f32) -> f32 {
+    pub fn shore_meters(&self, x: f32, z: f32) -> f32 {
         let Some(map) = &self.map else {
             // Nothing to shape: open sea everywhere.
             return -self.recipe.shelf_width;
@@ -747,21 +747,21 @@ impl World {
 pub struct MapImage {
     wide: usize,
     deep: usize,
-    /// Normalised brightness, row-major, north row first.
+    /// Normalized brightness, row-major, north row first.
     elevation: Vec<f32>,
     /// Distance to the nearest sea pixel, in map pixels. 0 at sea, rising inland.
     inland: Vec<f32>,
     /// Distance to the nearest land pixel, in map pixels. 0 on land, rising out
     /// to sea. Subtracted from `inland` this is a signed distance to the coast.
     offshore: Vec<f32>,
-    /// Whether the brightness is relief rather than region fill colours.
+    /// Whether the brightness is relief rather than region fill colors.
     carries_elevation: bool,
 }
 
-/// How different blue and red must be for an image to count as coloured, and
+/// How different blue and red must be for an image to count as colored, and
 /// the share of pixels that must manage it.
-const COLOUR_EVIDENCE: i16 = 20;
-const COLOUR_FRACTION: f32 = 0.02;
+const COLOR_EVIDENCE: i16 = 20;
+const COLOR_FRACTION: f32 = 0.02;
 
 impl MapImage {
     fn load(folder: &Path, recipe: &Recipe) -> Option<Self> {
@@ -890,7 +890,7 @@ fn luma(p: [u8; 3]) -> f32 {
 
 /// Which pixels are sea, and whether the image carries real elevation.
 ///
-/// **A coloured map is read by HUE, not brightness.** Brightness cannot tell
+/// **A colored map is read by HUE, not brightness.** Brightness cannot tell
 /// open water from a black place name, a road, or a dashed border — every one of
 /// them is dark — so a brightness threshold cuts every label on the map into the
 /// terrain as a lake. Water is the one thing on a political map that is
@@ -900,13 +900,13 @@ fn luma(p: [u8; 3]) -> f32 {
 /// A genuine grayscale heightmap has no hue to ask about, so it is spotted and
 /// thresholded on brightness instead.
 fn classify_sea(pixels: &[[u8; 3]], elevation: &[f32], recipe: &Recipe) -> (Vec<u8>, bool) {
-    let coloured = pixels
+    let colored = pixels
         .iter()
-        .filter(|p| (p[2] as i16 - p[0] as i16).abs() > COLOUR_EVIDENCE)
+        .filter(|p| (p[2] as i16 - p[0] as i16).abs() > COLOR_EVIDENCE)
         .count() as f32
         / pixels.len() as f32;
 
-    if coloured < COLOUR_FRACTION {
+    if colored < COLOR_FRACTION {
         info!("the map is grayscale - brightness is the waterline and the relief");
         let sea = elevation
             .iter()
@@ -915,7 +915,7 @@ fn classify_sea(pixels: &[[u8; 3]], elevation: &[f32], recipe: &Recipe) -> (Vec<
         return (sea, true);
     }
 
-    info!("the map is coloured - blue is the waterline, brightness means nothing");
+    info!("the map is colored - blue is the waterline, brightness means nothing");
     let sea = pixels
         .iter()
         .map(|p| u8::from(p[2] as i16 - p[0] as i16 > recipe.sea_blue_margin))
@@ -926,7 +926,7 @@ fn classify_sea(pixels: &[[u8; 3]], elevation: &[f32], recipe: &Recipe) -> (Vec<
 /// Erases what is drawn on the map but is not the map, and returns land.
 fn clean_mask(sea: &[u8], wide: usize, deep: usize, recipe: &Recipe) -> Vec<u8> {
     let mut land: Vec<u8> = sea.iter().map(|&s| 1 - s).collect();
-    // Each pixel becomes whatever most of its neighbourhood is. A river or a
+    // Each pixel becomes whatever most of its neighborhood is. A river or a
     // border a few pixels wide is outvoted by the land around it and goes; a
     // coastline has land one side and sea the other all the way along, so it
     // holds its position exactly.
@@ -940,7 +940,7 @@ fn clean_mask(sea: &[u8], wide: usize, deep: usize, recipe: &Recipe) -> Vec<u8> 
 /// Deletes land too small to be land.
 ///
 /// A map image is rarely only a map. A screenshot carries the tool's own
-/// furniture — buttons, a scale bar, a legend — and none of it is water-coloured,
+/// furniture — buttons, a scale bar, a legend — and none of it is water-colored,
 /// so it survives every test above and becomes little rectangular islands out at
 /// sea. Real islands are far larger, so size alone separates them.
 fn drop_small_islands(land: &mut [u8], wide: usize, deep: usize, floor: usize) {

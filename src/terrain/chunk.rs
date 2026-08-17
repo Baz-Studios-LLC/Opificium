@@ -1,6 +1,6 @@
 //! The ground, cut into squares and meshed a square at a time.
 //!
-//! A world is kilometres across and no machine will draw it whole, so it is
+//! A world is kilometers across and no machine will draw it whole, so it is
 //! meshed in chunks around wherever the eye is and thrown away behind. Each
 //! chunk is built on a background thread and arrives when it is ready; the old
 //! mesh stays on screen until the new one lands, so ground being re-cut under a
@@ -9,7 +9,7 @@
 //! # Why the chunks stitch
 //!
 //! Height and normal at any point depend ONLY on world position — never on
-//! which chunk is asking — so two neighbours sampling the edge they share get
+//! which chunk is asking — so two neighbors sampling the edge they share get
 //! bit-identical answers. No crack, no seam in the lighting, and no skirts.
 
 use bevy::asset::RenderAssetUsages;
@@ -22,7 +22,7 @@ use crate::look::Palette;
 use crate::terrain::edit::smoothstep;
 use crate::terrain::ground::{Ground, World};
 
-/// A chunk covers this many metres each way.
+/// A chunk covers this many meters each way.
 pub const CHUNK: f32 = 256.0;
 
 /// Quads along a chunk's edge, giving a 4 m vertex grid over a 256 m chunk.
@@ -61,28 +61,28 @@ pub struct Standing {
     pub up: HashMap<IVec2, Entity>,
 }
 
-/// One material for all of it — every colour comes from the mesh, so there is no
+/// One material for all of it — every color comes from the mesh, so there is no
 /// reason to hold a material per chunk.
 #[derive(Resource, Deref)]
 pub struct GroundMaterial(pub Handle<StandardMaterial>);
 
-/// How far above and below the waterline sand reaches, in METRES OF HEIGHT.
+/// How far above and below the waterline sand reaches, in METERS OF HEIGHT.
 ///
 /// Full sand within the first, gone by the second. Keyed to height rather than
 /// to distance along the ground on purpose: keyed to distance, a beach widens
 /// with its own gradient, so making the coast shelve gently turned the entire
-/// world's shoreline into a kilometre of sand.
+/// world's shoreline into a kilometer of sand.
 const BEACH_FULL: f32 = 1.0;
 const BEACH_GONE: f32 = 6.0;
 
-/// The game's ramps, resolved to linear colour once and carried to the threads.
+/// The game's ramps, resolved to linear color once and carried to the threads.
 ///
 /// The bench paints the ground in whatever game is open — its water, its grass,
 /// its stone — the same way every other bench paints with the game's palette.
 /// Snapshotted rather than borrowed because the meshing happens off the main
 /// thread, where a Bevy resource cannot follow.
 #[derive(Clone)]
-pub struct Colours {
+pub struct Colors {
     silt: Vec3,
     shallow: Vec3,
     sand: Vec3,
@@ -94,7 +94,7 @@ pub struct Colours {
     snow: Vec3,
 }
 
-impl Colours {
+impl Colors {
     pub fn from(palette: &Palette) -> Self {
         let of = |name: &str, step: f32| {
             let c = palette.shade(name, step).to_linear();
@@ -128,7 +128,7 @@ impl Colours {
         // Under water, by DEPTH: dark in the deep, lightening as it shallows.
         // Deliberately not sand - the beach is a separate band added below, and
         // running the sea floor to sand made every gradual shelf pale for
-        // hundreds of metres.
+        // hundreds of meters.
         let depth = sea_level - height;
         let drowned = self.silt.lerp(self.shallow, smoothstep(45.0, 3.0, depth));
 
@@ -140,7 +140,7 @@ impl Colours {
         let bare = green.lerp(self.alpine, smoothstep(125.0, 190.0, height));
         let capped = bare.lerp(self.snow, smoothstep(175.0, 225.0, height));
 
-        let mut colour = if height >= sea_level { capped } else { drowned };
+        let mut color = if height >= sea_level { capped } else { drowned };
 
         // The shoreline band: how close to the waterline this is, fading out
         // with height from both sides rather than ending at a line.
@@ -156,13 +156,13 @@ impl Colours {
         let sandy = shoreline * character * gentle;
         let stony = shoreline * (1.0 - character * gentle);
 
-        colour = colour.lerp(self.rock, stony * 0.7);
-        colour = colour.lerp(self.sand, sandy);
+        color = color.lerp(self.rock, stony * 0.7);
+        color = color.lerp(self.sand, sandy);
 
         // Steep ground is bare rock whatever else it would have been. This is
         // what makes a cliff read as stone instead of vertical lawn.
-        colour = colour.lerp(self.rock, smoothstep(0.34, 0.62, slope));
-        [colour.x, colour.y, colour.z, 1.0]
+        color = color.lerp(self.rock, smoothstep(0.34, 0.62, slope));
+        [color.x, color.y, color.z, 1.0]
     }
 }
 
@@ -180,7 +180,7 @@ pub fn square_at(place: Vec3) -> IVec2 {
 }
 
 /// Builds one chunk's mesh. Pure and thread-safe, so it runs off the frame.
-pub fn build(world: &World, colours: &Colours, square: IVec2) -> Mesh {
+pub fn build(world: &World, colors: &Colors, square: IVec2) -> Mesh {
     let quads = QUADS as usize;
     let side = quads + 1;
     let step = CHUNK / QUADS as f32;
@@ -189,7 +189,7 @@ pub fn build(world: &World, colours: &Colours, square: IVec2) -> Mesh {
     let count = side * side;
     let mut places = Vec::with_capacity(count);
     let mut normals = Vec::with_capacity(count);
-    let mut colour = Vec::with_capacity(count);
+    let mut color = Vec::with_capacity(count);
     let mut uvs = Vec::with_capacity(count);
 
     for iz in 0..side {
@@ -207,7 +207,7 @@ pub fn build(world: &World, colours: &Colours, square: IVec2) -> Mesh {
 
             places.push([local.x, height, local.y]);
             normals.push([normal.x, normal.y, normal.z]);
-            colour.push(colours.at(height, slope, moisture, character, 0.0));
+            color.push(colors.at(height, slope, moisture, character, 0.0));
             uvs.push([ix as f32 / quads as f32, iz as f32 / quads as f32]);
         }
     }
@@ -234,7 +234,7 @@ pub fn build(world: &World, colours: &Colours, square: IVec2) -> Mesh {
     .with_inserted_attribute(Mesh::ATTRIBUTE_POSITION, places)
     .with_inserted_attribute(Mesh::ATTRIBUTE_NORMAL, normals)
     .with_inserted_attribute(Mesh::ATTRIBUTE_UV_0, uvs)
-    .with_inserted_attribute(Mesh::ATTRIBUTE_COLOR, colour)
+    .with_inserted_attribute(Mesh::ATTRIBUTE_COLOR, color)
     .with_inserted_indices(Indices::U32(indices))
 }
 
@@ -247,12 +247,12 @@ pub fn set_building(
     commands: &mut Commands,
     who: Entity,
     ground: &Ground,
-    colours: &Colours,
+    colors: &Colors,
     square: IVec2,
 ) {
     let world = ground.0.clone();
-    let colours = colours.clone();
-    let task = AsyncComputeTaskPool::get().spawn(async move { build(&world, &colours, square) });
+    let colors = colors.clone();
+    let task = AsyncComputeTaskPool::get().spawn(async move { build(&world, &colors, square) });
 
     // Recorded here rather than worked out later: the chunk's own transform puts
     // it in the world, so by the time its mesh lands nothing else knows which
@@ -280,7 +280,7 @@ pub fn set_building(
 pub fn stream(
     mut commands: Commands,
     ground: Res<Ground>,
-    colours: Res<GroundColours>,
+    colors: Res<GroundColors>,
     eye: Res<crate::camera::OrbitRig>,
     mut standing: ResMut<Standing>,
     building: Query<(), With<Building>>,
@@ -326,7 +326,7 @@ pub fn stream(
         let who = commands
             .spawn((Chunk, Transform::from_xyz(at.x, 0.0, at.y)))
             .id();
-        set_building(&mut commands, who, &ground, &colours.0, square);
+        set_building(&mut commands, who, &ground, &colors.0, square);
         standing.up.insert(square, who);
         afoot += 1;
     }
@@ -334,7 +334,7 @@ pub fn stream(
 
 /// The palette, snapshotted, so the threads can have it.
 #[derive(Resource)]
-pub struct GroundColours(pub Colours);
+pub struct GroundColors(pub Colors);
 
 /// The grown trees, and what they are painted with.
 ///
@@ -461,7 +461,7 @@ pub fn collect(
 pub fn recut(
     commands: &mut Commands,
     ground: &Ground,
-    colours: &Colours,
+    colors: &Colors,
     standing: &Standing,
     building: &Query<(), With<Building>>,
     patch: Rect,
@@ -482,7 +482,7 @@ pub fn recut(
             if building.contains(who) {
                 continue;
             }
-            set_building(commands, who, ground, colours, square);
+            set_building(commands, who, ground, colors, square);
         }
     }
 }
@@ -502,12 +502,12 @@ pub fn clear(commands: &mut Commands, standing: &mut Standing, sea: &Query<Entit
 #[derive(Component)]
 pub struct Sea;
 
-/// How far the tide carries the waterline up and down, in metres.
+/// How far the tide carries the waterline up and down, in meters.
 ///
-/// **Small.** The coast shelves over hundreds of metres, so the water's
+/// **Small.** The coast shelves over hundreds of meters, so the water's
 /// horizontal travel is its vertical travel divided by a gradient of about a
-/// tenth — every centimetre of tide is ten centimetres of beach. At half a metre
-/// the sea was drawing back a good fifteen metres and stranding the shallows,
+/// tenth — every centimeter of tide is ten centimeters of beach. At half a meter
+/// the sea was drawing back a good fifteen meters and stranding the shallows,
 /// which reads as a lake emptying rather than as a shore.
 const TIDE: f32 = 0.18;
 /// How long a full tide takes, in seconds.
@@ -516,11 +516,11 @@ const TIDE_PERIOD: f32 = 20.0;
 /// Quads along the sea's edge.
 const SEA_QUADS: usize = 160;
 
-/// Swell: how tall, how far apart, and how fast, in metres and seconds.
+/// Swell: how tall, how far apart, and how fast, in meters and seconds.
 ///
 /// **The wavelengths are long because the mesh cannot hold short ones.** The sea
 /// spans several times the world, so even at this many quads its vertices sit
-/// well over a hundred metres apart, and a thirty-metre wave written onto that
+/// well over a hundred meters apart, and a thirty-meter wave written onto that
 /// grid does not come out as a wave — it comes out as noise, sampled at random
 /// points along a curve nobody can see. Anything under about four vertices per
 /// wavelength is a lie. What is left is long ocean swell, which is what you see
@@ -530,7 +530,7 @@ const SWELL: [(f32, f32, f32); 2] = [(0.20, 1800.0, 24.0), (0.12, 900.0, 15.0)];
 /// Lays the sea over the world.
 ///
 /// Without it the dark ground of the sea FLOOR reads as the water itself, and
-/// every coast looks like a cliff standing sixty metres above a dry basin -
+/// every coast looks like a cliff standing sixty meters above a dry basin -
 /// which is not what the numbers say at all, and sends you tuning heights that
 /// were never wrong. A surface at the waterline is the reference the whole
 /// landscape is judged against.
@@ -613,12 +613,12 @@ pub fn move_the_sea(
         }
         // Normals are left flat on purpose. Recomputing them across a grid this
         // size every frame costs more than the lighting gains, and a broad
-        // water surface reads off its colour and its silhouette against the
+        // water surface reads off its color and its silhouette against the
         // shore rather than off its shading.
     }
 }
 
-/// The ground's material: white, because every colour it wears comes from the
+/// The ground's material: white, because every color it wears comes from the
 /// mesh, and matte, because a landscape with a sheen on it reads as plastic.
 pub fn ground_material(materials: &mut Assets<StandardMaterial>) -> Handle<StandardMaterial> {
     materials.add(StandardMaterial {

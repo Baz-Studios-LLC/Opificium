@@ -11,9 +11,9 @@
 //! Everything else on the bench MAKES a thing that stands on the ground — boxes
 //! on a lattice, a model on the grid. This makes the ground. It has no lattice,
 //! because a hill does not snap to one; no ramp picker, because it wears the
-//! game's biome colours by height and slope rather than by choice; and no shelf
-//! of parts, because a game has exactly one world. It is measured in kilometres
-//! where every other bench is measured in metres, which on its own is enough.
+//! game's biome colors by height and slope rather than by choice; and no shelf
+//! of parts, because a game has exactly one world. It is measured in kilometers
+//! where every other bench is measured in meters, which on its own is enough.
 //!
 //! # It is opened late
 //!
@@ -33,11 +33,11 @@ mod tree;
 use bevy::prelude::*;
 
 use crate::Bench;
-use chunk::{Building, GroundColours, GroundMaterial, Standing};
+use chunk::{Building, GroundColors, GroundMaterial, Standing};
 use edit::{Brushing, Sculpt, Stamp};
 use ground::{Ground, World};
 
-/// How far the brush reaches from the eye, in metres.
+/// How far the brush reaches from the eye, in meters.
 const REACH: f32 = 4_000.0;
 /// How far the ray steps while hunting the ground. Short enough not to tunnel
 /// through a ridge, long enough that a miss is hundreds of samples and not
@@ -58,7 +58,7 @@ const STRENGTH_STEP: f32 = 1.25;
 #[derive(Resource)]
 pub struct Brush {
     pub radius: f32,
-    /// Metres a second, for the tools that push.
+    /// Meters a second, for the tools that push.
     pub strength: f32,
     pub how: Brushing,
     /// Where it rests on the ground, if it is on the ground at all.
@@ -149,7 +149,7 @@ fn ready_the_material(
 ) {
     commands.insert_resource(GroundMaterial(chunk::ground_material(&mut materials)));
     // The game's own ramps, resolved once. Every chunk is painted from these.
-    commands.insert_resource(GroundColours(chunk::Colours::from(&palette)));
+    commands.insert_resource(GroundColors(chunk::Colors::from(&palette)));
 }
 
 /// Opens the world the first time somebody walks here, and clears the stage on
@@ -175,8 +175,8 @@ fn arrive_or_leave(
         return;
     }
 
-    // How far the eye can see. A building is metres away and a coastline is
-    // kilometres, and one far plane cannot serve both: at a thousand metres the
+    // How far the eye can see. A building is meters away and a coastline is
+    // kilometers, and one far plane cannot serve both: at a thousand meters the
     // world is cut off mid-continent, and at thirty thousand a model loses its
     // depth precision to z-fighting. So it moves with the bench.
     let terrain = *bench == Bench::Terrain;
@@ -451,7 +451,7 @@ fn paint(
     keys: Res<ButtonInput<KeyCode>>,
     buttons: Res<ButtonInput<MouseButton>>,
     ground: Res<Ground>,
-    colours: Res<GroundColours>,
+    colors: Res<GroundColors>,
     standing: Res<Standing>,
     building: Query<(), With<Building>>,
     mut brush: ResMut<Brush>,
@@ -507,7 +507,7 @@ fn paint(
         chunk::recut(
             &mut commands,
             &ground,
-            &colours.0,
+            &colors.0,
             &standing,
             &building,
             patch,
@@ -564,7 +564,7 @@ fn paint(
         chunk::recut(
             &mut commands,
             &ground,
-            &colours.0,
+            &colors.0,
             &standing,
             &building,
             patch,
@@ -580,7 +580,7 @@ fn paint(
         // that would deadlock against the very lock held here.
         let under = |p: Vec2| ground.made_height(p.x, p.y);
         sculpt.apply(&Stamp {
-            centre: Vec2::new(on.x, on.z),
+            center: Vec2::new(on.x, on.z),
             radius: brush.radius,
             how,
             amount,
@@ -592,7 +592,7 @@ fn paint(
     chunk::recut(
         &mut commands,
         &ground,
-        &colours.0,
+        &colors.0,
         &standing,
         &building,
         patch,
@@ -603,7 +603,7 @@ fn history(
     mut commands: Commands,
     keys: Res<ButtonInput<KeyCode>>,
     ground: Res<Ground>,
-    colours: Res<GroundColours>,
+    colors: Res<GroundColors>,
     standing: Res<Standing>,
     building: Query<(), With<Building>>,
     mut said: ResMut<Said>,
@@ -635,7 +635,7 @@ fn history(
             chunk::recut(
                 &mut commands,
                 &ground,
-                &colours.0,
+                &colors.0,
                 &standing,
                 &building,
                 patch,
@@ -719,31 +719,31 @@ fn draw_the_brush(
     // A ring of short lines taken at ground height rather than a flat circle, so
     // on a slope it wraps the hill and shows what the stroke will actually cover.
     const AROUND: usize = 72;
-    let colour = shelf::tool_colour(brush.how, &palette);
+    let color = shelf::tool_color(brush.how, &palette);
     let point = |i: usize, radius: f32| {
         let angle = i as f32 / AROUND as f32 * std::f32::consts::TAU;
         let x = on.x + angle.cos() * radius;
         let z = on.z + angle.sin() * radius;
         Vec3::new(x, ground.height(x, z) + brush.radius * 0.01, z)
     };
-    let mut ring = |radius: f32, colour: Color| {
+    let mut ring = |radius: f32, color: Color| {
         let mut behind = point(0, radius);
         for i in 1..=AROUND {
             let next = point(i, radius);
-            gizmos.line(behind, next, colour);
+            gizmos.line(behind, next, color);
             behind = next;
         }
     };
 
-    ring(brush.radius, colour);
+    ring(brush.radius, color);
     // The path tool has a flat bed to seven tenths of its radius. Showing that
     // inner edge is the difference between laying a road and guessing at one.
     if brush.how == Brushing::Path {
-        ring(brush.radius * 0.7, colour.with_alpha(0.4));
+        ring(brush.radius * 0.7, color.with_alpha(0.4));
     }
     // A mast at the middle, so the brush is findable when the ring falls behind
     // a rise.
-    gizmos.line(on, on + Vec3::Y * brush.radius * 0.12, colour);
+    gizmos.line(on, on + Vec3::Y * brush.radius * 0.12, color);
 
     // A ramp half-placed: show where it would go before it is cut rather than
     // after. The solid line is the grade the ramp would hold; the faint one
@@ -751,9 +751,9 @@ fn draw_the_brush(
     // the ramp moves and which way.
     if let Some(from) = brush.pending {
         const STEPS: usize = 48;
-        gizmos.line(from, from + Vec3::Y * 14.0, colour);
+        gizmos.line(from, from + Vec3::Y * 14.0, color);
 
-        // The bed is as wide as the brush, so the edges are drawn too: a centre
+        // The bed is as wide as the brush, so the edges are drawn too: a center
         // line says where the ramp goes and nothing about what it eats, and the
         // width is the whole question when threading one between two hills.
         let run = Vec3::new(on.x - from.x, 0.0, on.z - from.z);
@@ -767,16 +767,16 @@ fn draw_the_brush(
         for i in 1..=STEPS {
             let at = from.lerp(on, i as f32 / STEPS as f32);
             let (left, right) = (at - side, at + side);
-            gizmos.line(behind.0, at, colour);
-            gizmos.line(behind.1, left, colour.with_alpha(0.5));
-            gizmos.line(behind.2, right, colour.with_alpha(0.5));
+            gizmos.line(behind.0, at, color);
+            gizmos.line(behind.1, left, color.with_alpha(0.5));
+            gizmos.line(behind.2, right, color.with_alpha(0.5));
             // A dropper to the ground under the grade. The gap between the two
             // is how much earth this moves, and which way — cut where the line
             // is under the ground, fill where it is above.
             gizmos.line(
                 Vec3::new(at.x, ground.height(at.x, at.z), at.z),
                 at,
-                colour.with_alpha(0.22),
+                color.with_alpha(0.22),
             );
             behind = (at, left, right);
         }
@@ -795,7 +795,7 @@ fn draw_the_sites(mut gizmos: Gizmos, ground: Res<Ground>, palette: Res<crate::l
     let town = palette.shade("bone", 0.8);
 
     for site in ground.sites() {
-        let colour = if site.city { city } else { town };
+        let color = if site.city { city } else { town };
         let point = |i: usize| {
             let angle = i as f32 / AROUND as f32 * std::f32::consts::TAU;
             let x = site.at.x + angle.cos() * site.radius;
@@ -805,13 +805,13 @@ fn draw_the_sites(mut gizmos: Gizmos, ground: Res<Ground>, palette: Res<crate::l
         let mut behind = point(0);
         for i in 1..=AROUND {
             let next = point(i);
-            gizmos.line(behind, next, colour);
+            gizmos.line(behind, next, color);
             behind = next;
         }
         // A mast, so a place is findable from across the map.
         let middle = Vec3::new(site.at.x, site.height, site.at.y);
         let tall = if site.city { 90.0 } else { 45.0 };
-        gizmos.line(middle, middle + Vec3::Y * tall, colour);
+        gizmos.line(middle, middle + Vec3::Y * tall, color);
     }
 }
 

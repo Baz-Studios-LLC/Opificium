@@ -5,7 +5,7 @@
 //! The first is worked out from the ground itself: trees want moisture, ground
 //! below the treeline, a slope they can hold on to, and somewhere that is not a
 //! beach, a road, or the levelled ground under a town. Nobody hand-plants
-//! sixteen square kilometres, so this does the whole map and does it the same
+//! sixteen square kilometers, so this does the whole map and does it the same
 //! way in both programs.
 //!
 //! The second is what a maker painted on top — a grid of signed bias, saved
@@ -37,7 +37,7 @@ const MAGIC: &[u8; 8] = b"RNGRFST1";
 /// What the painted layer is called, beside the world's other files.
 pub const FOREST: &str = "forest.bin";
 
-/// Metres per cell of the painted layer. Coarser than the sculpting grid: a
+/// Meters per cell of the painted layer. Coarser than the sculpting grid: a
 /// wood is a region, not a contour, and this keeps a world's worth under a
 /// megabyte.
 pub const CELL: f32 = 16.0;
@@ -50,7 +50,7 @@ pub struct Planted {
     pub at: Vec3,
     /// Which of the grown pool this is.
     pub variety: usize,
-    /// Turned about its own trunk, so neighbours of one variety do not line up.
+    /// Turned about its own trunk, so neighbors of one variety do not line up.
     pub turn: f32,
     /// Scaled, so a stand has young trees and old ones in it.
     pub scale: f32,
@@ -190,19 +190,19 @@ impl Painted {
 
     /// Paints, positive to plant and negative to clear. Returns the ground it
     /// changed, so the trees standing there can be grown again.
-    pub fn paint(&mut self, centre: Vec2, radius: f32, amount: f32) -> Rect {
+    pub fn paint(&mut self, center: Vec2, radius: f32, amount: f32) -> Rect {
         let to_cell = |v: f32, half: f32, count: usize| {
             (((v + half) / CELL).floor() as isize).clamp(0, count as isize - 1) as usize
         };
-        let x0 = to_cell(centre.x - radius, self.half.x, self.wide);
-        let x1 = to_cell(centre.x + radius + CELL, self.half.x, self.wide);
-        let z0 = to_cell(centre.y - radius, self.half.y, self.deep);
-        let z1 = to_cell(centre.y + radius + CELL, self.half.y, self.deep);
+        let x0 = to_cell(center.x - radius, self.half.x, self.wide);
+        let x1 = to_cell(center.x + radius + CELL, self.half.x, self.wide);
+        let z0 = to_cell(center.y - radius, self.half.y, self.deep);
+        let z1 = to_cell(center.y + radius + CELL, self.half.y, self.deep);
 
         for z in z0..=z1 {
             for x in x0..=x1 {
                 let at = Vec2::new(x as f32 * CELL - self.half.x, z as f32 * CELL - self.half.y);
-                let away = at.distance(centre);
+                let away = at.distance(center);
                 if away > radius {
                     continue;
                 }
@@ -220,7 +220,7 @@ impl Painted {
             }
         }
         self.unsaved = true;
-        Rect::from_corners(centre - (radius + CELL), centre + (radius + CELL))
+        Rect::from_corners(center - (radius + CELL), center + (radius + CELL))
     }
 }
 
@@ -381,7 +381,7 @@ mod tests {
             assert_eq!(chance(x, z, 1), chance(x, z, 1));
             assert_ne!(chance(x, z, 1), chance(x, z, 2), "salt should matter");
         }
-        // And neighbouring slots must not march in step, or the forest comes out
+        // And neighboring slots must not march in step, or the forest comes out
         // in rows.
         let row: Vec<f32> = (0..12).map(|x| chance(x, 0, 1)).collect();
         let rising = row.windows(2).filter(|w| w[1] > w[0]).count();

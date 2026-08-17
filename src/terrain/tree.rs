@@ -1,4 +1,4 @@
-//! Trees, grown rather than modelled.
+//! Trees, grown rather than modeled.
 //!
 //! A tree here is not an asset somebody drew. It is a trunk that tapers, limbs
 //! that fork off it at angles the tree itself decides, and leaves at the ends of
@@ -14,8 +14,8 @@
 //!
 //! This is worth being straight about: it is not literally a unique tree per
 //! tree. It reads as one, because what the eye picks up at any distance is
-//! outline and lean and colour rather than the arrangement of a particular
-//! branch, and no two neighbours are the same variant at the same angle. But the
+//! outline and lean and color rather than the arrangement of a particular
+//! branch, and no two neighbors are the same variant at the same angle. But the
 //! honest description is "two dozen trees, planted many times".
 //!
 //! # Why it is grown at all
@@ -37,13 +37,13 @@ pub const VARIETIES: usize = 20;
 /// How the tree is put together. Every one of these is a number the tree draws
 /// for itself from its seed, within the range given here.
 struct Habit {
-    /// Metres from root to the top of the trunk.
+    /// Meters from root to the top of the trunk.
     height: f32,
     /// Radius at the foot, and the fraction of it left at the crown.
     foot: f32,
     taper: f32,
     /// Sides to the trunk and limbs. Low: this is a forest seen from tens of
-    /// metres away, and the silhouette is doing all the work.
+    /// meters away, and the silhouette is doing all the work.
     sides: usize,
     /// How many limbs leave the trunk, and how far up it they start.
     limbs: usize,
@@ -190,7 +190,7 @@ impl Timber {
 
         let base = self.places.len() as u32;
         for ring in 0..2 {
-            let (centre, radius) = if ring == 0 {
+            let (center, radius) = if ring == 0 {
                 (foot, wide)
             } else {
                 (tip, narrow)
@@ -198,7 +198,7 @@ impl Timber {
             for side in 0..sides {
                 let turn = side as f32 / sides as f32 * std::f32::consts::TAU;
                 let out = right * turn.cos() + forward * turn.sin();
-                let at = centre + out * radius;
+                let at = center + out * radius;
                 self.places.push([at.x, at.y, at.z]);
                 self.normals.push([out.x, out.y, out.z]);
                 self.uvs.push([side as f32 / sides as f32, ring as f32]);

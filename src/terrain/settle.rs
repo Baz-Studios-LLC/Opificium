@@ -63,7 +63,7 @@ pub struct Settlements {
     half: Vec2,
 }
 
-/// How wide a grid cell is, in metres. Comfortably larger than the biggest
+/// How wide a grid cell is, in meters. Comfortably larger than the biggest
 /// feature's reach, so a lookup touches one cell.
 const CELL: f32 = 512.0;
 

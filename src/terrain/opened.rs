@@ -77,7 +77,7 @@ pub fn looks_like_a_world(folder: &Path) -> bool {
 /// Asks for a world.
 ///
 /// The map image is picked rather than the folder, because that is the thing a
-/// maker can actually see and recognise - a folder of assets all look alike in a
+/// maker can actually see and recognize - a folder of assets all look alike in a
 /// dialog, and a picture does not. The folder it sits in is the world.
 pub fn ask(from: Option<&Path>) -> Option<PathBuf> {
     let mut dialog = rfd::FileDialog::new()

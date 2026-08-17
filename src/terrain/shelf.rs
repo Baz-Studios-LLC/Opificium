@@ -16,10 +16,10 @@ use crate::terrain::{Brush, MAX_RADIUS, MAX_STRENGTH, MIN_RADIUS, MIN_STRENGTH, 
 /// The keys the tools sit on, in order.
 const KEYS: [&str; 9] = ["1", "2", "3", "4", "5", "6", "7", "8", "9"];
 
-/// Each tool wears a colour, and the ring on the ground wears the same one, so
+/// Each tool wears a color, and the ring on the ground wears the same one, so
 /// what is under the pointer always matches what is lit on the shelf. Taken from
 /// the open game's ramps like everything else here.
-pub fn tool_colour(how: Brushing, palette: &Palette) -> Color {
+pub fn tool_color(how: Brushing, palette: &Palette) -> Color {
     match how {
         Brushing::Raise => palette.shade("grass", 0.95),
         Brushing::Lower => palette.shade("cloth-rust", 0.9),
@@ -439,14 +439,14 @@ fn light_the_tool(
     }
     for (row, mut background) in &mut rows {
         background.0 = if row.0 == brush.how {
-            tool_colour(row.0, &palette).with_alpha(0.18)
+            tool_color(row.0, &palette).with_alpha(0.18)
         } else {
             Color::NONE
         };
     }
-    for (word, mut colour) in &mut words {
-        colour.0 = if word.0 == brush.how {
-            tool_colour(word.0, &palette)
+    for (word, mut color) in &mut words {
+        color.0 = if word.0 == brush.how {
+            tool_color(word.0, &palette)
         } else {
             theme::text_dim(&palette)
         };
