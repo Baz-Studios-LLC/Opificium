@@ -629,7 +629,7 @@ fn keep(keys: Res<ButtonInput<KeyCode>>, ground: Res<Ground>, mut said: ResMut<S
         let Ok(mut sculpt) = ground.sculpt().write() else {
             return;
         };
-        match sculpt.save(&folder) {
+        match edit::save(&folder, &mut sculpt) {
             Ok(road) => {
                 info!("sculpted ground kept: {}", road.display());
                 Ok(sculpt.sculpted_cells())
@@ -642,10 +642,10 @@ fn keep(keys: Res<ButtonInput<KeyCode>>, ground: Res<Ground>, mut said: ResMut<S
     };
 
     let woods_kept = {
-        let Ok(mut woods) = ground.forest().write() else {
+        let Ok(woods) = ground.forest().read() else {
             return;
         };
-        match woods.save(&folder) {
+        match forest::save(&folder, &woods) {
             Ok(road) => {
                 info!("planted woods kept: {}", road.display());
                 Ok(woods.painted_cells())

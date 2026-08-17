@@ -362,7 +362,10 @@ pub fn plant_the_grove(
     let trees = (0..crate::terrain::tree::VARIETIES as u32)
         .map(|seed| {
             let tree = crate::terrain::tree::grow(seed);
-            (meshes.add(tree.wood), meshes.add(tree.leaves))
+            (
+                meshes.add(crate::terrain::tree::as_mesh(&tree.wood)),
+                meshes.add(crate::terrain::tree::as_mesh(&tree.leaves)),
+            )
         })
         .collect();
 
@@ -464,11 +467,15 @@ pub fn recut(
     colours: &Colours,
     standing: &Standing,
     building: &Query<(), With<Building>>,
-    patch: Rect,
+    patch: crate::terrain::edit::Patch,
 ) {
+    // A pair of corners rather than a `Rect`: the brush that says what changed
+    // lives in a crate that names no engine, so it cannot hand back one of
+    // Bevy's shapes. Turning it into one is this end's job, and one line.
+    let (min, max) = patch;
     let margin = crate::terrain::edit::CELL;
-    let low = ((patch.min - margin) / CHUNK).floor().as_ivec2();
-    let high = ((patch.max + margin) / CHUNK).floor().as_ivec2();
+    let low = ((min - margin) / CHUNK).floor().as_ivec2();
+    let high = ((max + margin) / CHUNK).floor().as_ivec2();
 
     for z in low.y..=high.y {
         for x in low.x..=high.x {

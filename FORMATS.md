@@ -1,10 +1,21 @@
 # The file contract
 
-Opificium and the games that use it share no code. Everything that passes
-between them is a file described here, and this page is the single word
-on what those files mean. A game exports its truth for Opificium
-(`data/`); the maker exports work for the game (`out/`), and it is
-carried into the world from there.
+Everything that passes between Opificium and the games that use it is a
+file described here, and this page is the single word on what those files
+mean. A game exports its truth for Opificium (`data/`); the maker exports
+work for the game (`out/`), and it is carried into the world from there.
+
+One exception, and it is deliberate. The terrain bench and the games
+whose ground it shapes both link
+[`terrain-core`](https://github.com/Baz-Studios-LLC/terrain-core) — the
+world generation, the forest scatter, the tree growing and the sculpting
+brush. Both sides work a world out from scratch and only the files below
+pass between them, so those answers had to agree **exactly**; written
+twice they were kept in step by tests pinning literal numbers copied from
+one program into the other, and a digit out of place gave the bench one
+world and the game another with nothing failing. Written once, they
+cannot disagree. The crate names no engine, which is what lets a bench on
+one Bevy and a game on another link the same code.
 
 ## A project
 
@@ -122,12 +133,15 @@ a metre, every hill a maker placed sits at the wrong height in the game,
 and nothing on screen says why. So the numbers travel as data, exactly as
 the palette does, rather than being written down twice.
 
-## Opificium → game
+## Opificium ↔ game
 
 ### Sculpted ground: `edits.bin`
 
-Written by the terrain bench into the world's own folder, beside the map
-it belongs to, and read by the game at load. Little-endian throughout:
+Written into the world's own folder, beside the map it belongs to, and
+read at load. **Both ways**: the terrain bench writes it, and so does a
+game with a sculpting mode of its own — the brush is the same brush, out
+of `terrain-core`, so ground shaped in either place is shaped identically
+and the file means one thing. Little-endian throughout:
 
 ```
 "RNGREDT1"        8 bytes, names the file
@@ -149,6 +163,32 @@ A file whose grid or half-extents do not match the world being opened is
 **refused, not stretched** — offsets landing in the wrong places would be
 worse than none, because a maker would see their work smeared across the
 map with nothing to undo it with.
+
+### Planted woods: `forest.bin`
+
+Beside `edits.bin`, written and read the same way and by both sides:
+
+```
+"RNGRFST1"        8 bytes, names the file
+wide, deep        u32 each, the grid in cells
+half_x, half_y    f32 each, the world's half-extents in metres
+bias              f32 * wide * deep, row-major, north row first
+```
+
+Each cell is a signed **bias** from -1 to 1 on a 16 m grid — coarser than
+the sculpting grid, because a wood is a region and not a contour.
+Positive plants, negative clears, and **zero leaves the automatic answer
+alone**. The same choice offsets make, for the same reason: re-tune where
+trees naturally grow afterwards and hand-planted woods stay exactly where
+they were put.
+
+**No list of trees is ever written down.** Where trees stand is worked out
+from the ground and this bias, scattered by a hash of position — so both
+programs plant the identical forest without a single tree passing between
+them. A list would be megabytes, would go stale the moment the ground
+moved, and would have to be merged when two people edited it.
+
+Mismatched grids are refused here too, and for the same reason.
 
 ### Blueprints: `out/buildings/<name>.json`
 

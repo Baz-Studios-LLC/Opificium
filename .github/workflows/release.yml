@@ -34,9 +34,12 @@ jobs:
         with:
           ref: ${{ env.TAG }}
 
-      # Nothing to stand beside it. The bench depends on no studio crate -
-      # not even Ordo - and carries no game's content, so a plain checkout
-      # is the whole neighbourhood.
+      # A plain checkout is still the whole neighbourhood. The bench carries
+      # no game's content, and its one studio dependency - terrain-core, the
+      # world generation and sculpting brush it shares with the games whose
+      # ground it shapes - is a git dependency Cargo fetches itself. That is
+      # exactly why it is a git dependency and not a path one: CI checks out
+      # one repository, and a path would build on a desk and fail every tag.
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
 

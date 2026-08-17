@@ -27,6 +27,17 @@ image = "0.25"
 # Fractal noise for the terrain bench: the detail a map image cannot carry.
 noise = "0.9"
 rfd = "0.17.2"
+# The world generation and the sculpting brush the terrain bench runs — and so
+# does every game whose ground it shapes. Written once, so a bench and a game
+# cannot disagree about what the ground is.
+#
+# A git dependency and not a path one on purpose: the repositories are separate
+# on GitHub and CI checks out only one, so a path would build on a developer's
+# machine and fail every release.
+#
+# It names no engine, which is what lets this bench on Bevy 0.19 and a game on
+# 0.16 link the same code.
+terrain-core = { git = "https://github.com/Baz-Studios-LLC/terrain-core" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 ureq = { version = "3.4.0", features = ["json"] }

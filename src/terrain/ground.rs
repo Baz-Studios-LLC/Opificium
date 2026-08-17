@@ -335,10 +335,14 @@ impl World {
                 .set_frequency(1.0),
             warp_x: Perlin::new(seed.wrapping_add(3)),
             warp_z: Perlin::new(seed.wrapping_add(4)),
-            sculpt: RwLock::new(Sculpt::load(folder, half, seed.wrapping_add(11))),
+            sculpt: RwLock::new(crate::terrain::edit::load(
+                folder,
+                half,
+                seed.wrapping_add(11),
+            )),
             settlements: Settlements::nowhere(),
             massif: None,
-            forest: RwLock::new(crate::terrain::forest::Painted::load(folder, half)),
+            forest: RwLock::new(crate::terrain::forest::load(folder, half)),
             recipe,
         };
 
