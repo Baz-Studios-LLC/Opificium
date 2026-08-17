@@ -1,16 +1,16 @@
-//! SAVED PALETTES: the colours a maker used on one building, kept for the next.
+//! SAVED PALETTES: the colors a maker used on one building, kept for the next.
 //!
 //! Brett: "I build a house, paint it and save just the colors that are used in that
 //! specific house so that when I build another one I can quickly color it with the same
 //! colors."
 //!
 //! A village is not painted from twenty-four ramps at five shades each. It is painted from
-//! the eight or ten colours that make its houses look like they belong to one another, and
+//! the eight or ten colors that make its houses look like they belong to one another, and
 //! finding those again by eye across a hundred and twenty swatches is the work this saves.
 //!
 //! # Per project, because a palette is a game's own
 //!
-//! The colours name the game's own ramps, so a set saved in one game means nothing in
+//! The colors name the game's own ramps, so a set saved in one game means nothing in
 //! another - a `cloth-gold` that is not there paints nothing. They live in the project
 //! beside its kinds, which is the same rule everything game-shaped on this bench follows:
 //! the tool is universal, the vocabulary belongs to whoever is being served.
@@ -50,21 +50,21 @@ impl Default for PalettesStale {
 const FORGET: &str = "-";
 const ASKING: &str = "?";
 
-/// The button that keeps the work's colours.
+/// The button that keeps the work's colors.
 #[derive(Component)]
-pub(crate) struct KeepColoursButton;
+pub(crate) struct KeepColorsButton;
 
 /// One saved palette's row, so a click can forget it.
 #[derive(Component)]
 pub(crate) struct DropPaletteButton(pub(crate) String);
 
-/// One colour: a ramp of the game's, at a shade.
+/// One color: a ramp of the game's, at a shade.
 ///
 /// The ramp is a real name, never the bare swatch. Painting with the bare swatch strips a
-/// part back to its own colours - it is the absence of a choice, and a set of colours has
+/// part back to its own colors - it is the absence of a choice, and a set of colors has
 /// nothing to remember about it.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct Colour {
+pub struct Dye {
     pub ramp: String,
     pub shade: f32,
 }
@@ -73,7 +73,13 @@ pub struct Colour {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct SavedPalette {
     pub name: String,
-    pub colours: Vec<Colour>,
+    /// SPELLED BOTH WAYS ON PURPOSE. This field is written into a file on disk,
+    /// and the bench spelled it `colours` until the game went over to American
+    /// English and the bench followed. Without the alias every set of colors a
+    /// maker had kept would fail to parse - not one swatch lost quietly, the whole
+    /// file - and the only sign would be a palettes drawer that had gone empty.
+    #[serde(alias = "colours")]
+    pub colors: Vec<Dye>,
 }
 
 /// The file, as it sits in the project.
@@ -110,17 +116,17 @@ pub fn saved() -> Vec<SavedPalette> {
 /// REPLACING, because the name is usually the building's and a maker who paints a little
 /// more and saves again means "this is what the longhouse is now" - not "here is a second
 /// longhouse". Nothing is lost that they did not overwrite on purpose.
-pub fn keep_a_palette(name: &str, colours: Vec<Colour>) -> Result<(), String> {
+pub fn keep_a_palette(name: &str, colors: Vec<Dye>) -> Result<(), String> {
     let name = name.trim().to_string();
     if name.is_empty() {
         return Err("a palette needs a name".to_string());
     }
-    if colours.is_empty() {
-        return Err("nothing on the bench is painted, so there are no colours to keep".to_string());
+    if colors.is_empty() {
+        return Err("nothing on the bench is painted, so there are no colors to keep".to_string());
     }
     let mut known = saved();
     known.retain(|kept| !kept.name.eq_ignore_ascii_case(&name));
-    known.push(SavedPalette { name, colours });
+    known.push(SavedPalette { name, colors });
     known.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
     write_them(&known)
 }
@@ -145,23 +151,23 @@ fn write_them(all: &[SavedPalette]) -> Result<(), String> {
     std::fs::write(&road, format!("{text}\n")).map_err(|why| format!("{}: {why}", road.display()))
 }
 
-/// Every colour a work is painted with, once each, in the order they were first met.
+/// Every color a work is painted with, once each, in the order they were first met.
 ///
 /// THE WHOLE WORK, not the phase on the bench: a house is its footings, its frame, its
-/// walls and its roof, and the colours of a roof are exactly the ones a maker forgets by
+/// walls and its roof, and the colors of a roof are exactly the ones a maker forgets by
 /// the time they build the next house. Every level too, since an upgrade is part of the
 /// same building.
 ///
 /// First-met order rather than sorted, because it is the order the building was painted in
-/// and a maker recognises their own sequence. Sorting would put the shades of one ramp
+/// and a maker recognizes their own sequence. Sorting would put the shades of one ramp
 /// together, which reads tidier and means less.
 ///
-/// Only PAINTED colours. A part left alone wears whatever its own body says - a framed
+/// Only PAINTED colors. A part left alone wears whatever its own body says - a framed
 /// wall's timbers and panels - and those were never chosen, so they are not what a maker
-/// means by "the colours I used". They are also not a set that could be re-applied: there
+/// means by "the colors I used". They are also not a set that could be re-applied: there
 /// is no brush stroke to repeat.
-pub fn colours_in(work: &Workbench) -> Vec<Colour> {
-    let mut found: Vec<Colour> = Vec::new();
+pub fn colors_in(work: &Workbench) -> Vec<Dye> {
+    let mut found: Vec<Dye> = Vec::new();
     for level in levels_of(work) {
         for phase in &level.phases {
             for part in phase {
@@ -171,10 +177,10 @@ pub fn colours_in(work: &Workbench) -> Vec<Colour> {
                 if ramp.is_empty() {
                     continue;
                 }
-                if found.iter().any(|kept| same_colour(kept, ramp, part.shade)) {
+                if found.iter().any(|kept| same_color(kept, ramp, part.shade)) {
                     continue;
                 }
-                found.push(Colour {
+                found.push(Dye {
                     ramp: ramp.clone(),
                     shade: part.shade,
                 });
@@ -184,19 +190,19 @@ pub fn colours_in(work: &Workbench) -> Vec<Colour> {
     found
 }
 
-/// Whether two colours are the same one.
+/// Whether two colors are the same one.
 ///
 /// Shades are compared LOOSELY, because they are floats that arrive both from swatches and
-/// from the keys nudging between them: two strokes a maker considers the same colour can
+/// from the keys nudging between them: two strokes a maker considers the same color can
 /// differ in the last bit, and an exact comparison would keep both and show a palette with
 /// a duplicate in it.
-fn same_colour(kept: &Colour, ramp: &str, shade: f32) -> bool {
+fn same_color(kept: &Dye, ramp: &str, shade: f32) -> bool {
     kept.ramp == ramp && (kept.shade - shade).abs() < 0.001
 }
 
 /// Fills the drawer with the sets this project has saved.
 ///
-/// Each set is its name and a row of its colours, and the colours are ordinary [`Swatch`]
+/// Each set is its name and a row of its colors, and the colors are ordinary [`Dye`]
 /// entities - so clicking one arms it through the very system that arms every other swatch
 /// on the panel. Nothing here has to know what arming means.
 pub(crate) fn fill_the_palettes(
@@ -220,7 +226,7 @@ pub(crate) fn fill_the_palettes(
         // Says what the drawer is FOR while it is empty, rather than being a gap somebody
         // has to guess the meaning of.
         commands.spawn((
-            Text::new("NO SAVED COLOURS YET"),
+            Text::new("NO SAVED COLORS YET"),
             TextFont {
                 font: fonts.display.clone().into(),
                 font_size: crate::look::text_at(9.0),
@@ -294,13 +300,13 @@ pub(crate) fn fill_the_palettes(
             ChildOf(drop),
         ));
         commands.spawn((
-            crate::rail::Word("Forget this set of colours - press again to be sure"),
+            crate::rail::Word("Forget this set of colors - press again to be sure"),
             ChildOf(drop),
         ));
 
-        for colour in &set.colours {
+        for color in &set.colors {
             commands.spawn((
-                Swatch::of(&colour.ramp, colour.shade),
+                Swatch::of(&color.ramp, color.shade),
                 Interaction::default(),
                 Node {
                     width: Val::Px(20.0),
@@ -308,7 +314,7 @@ pub(crate) fn fill_the_palettes(
                     border: UiRect::all(Val::Px(1.0)),
                     ..default()
                 },
-                BackgroundColor(palette.shade(&colour.ramp, colour.shade)),
+                BackgroundColor(palette.shade(&color.ramp, color.shade)),
                 BorderColor::all(Color::BLACK.with_alpha(0.35)),
                 ChildOf(row),
             ));
@@ -316,18 +322,18 @@ pub(crate) fn fill_the_palettes(
     }
 }
 
-/// A press on KEEP THESE COLOURS asks what to call them.
+/// A press on KEEP THESE COLORS asks what to call them.
 ///
-/// The field arrives holding the WORK's name, since "the longhouse colours" is what a maker
+/// The field arrives holding the WORK's name, since "the longhouse colors" is what a maker
 /// means nine times in ten, and enter takes it.
-pub(crate) fn work_keep_colours(
+pub(crate) fn work_keep_colors(
     mut commands: Commands,
     fonts: Res<Fonts>,
     palette: Res<Palette>,
     mut naming: ResMut<Naming>,
     work_name: Res<WorkName>,
     kind: Res<CarryingKind>,
-    asked: Query<&Interaction, (Changed<Interaction>, With<KeepColoursButton>)>,
+    asked: Query<&Interaction, (Changed<Interaction>, With<KeepColorsButton>)>,
 ) {
     // Not while another card is up: two things typing into one field is one of them losing.
     if naming.0.is_some() || !asked.iter().any(|touch| *touch == Interaction::Pressed) {
@@ -392,6 +398,38 @@ pub(crate) fn work_drop_a_palette(
 
 #[cfg(test)]
 mod tests {
+
+    /// A SET OF COLORS KEPT UNDER THE OLD SPELLING STILL OPENS.
+    ///
+    /// The game went over to American English and the bench followed, which renamed
+    /// a field that is WRITTEN INTO A FILE. Without the alias, every set a maker had
+    /// kept would fail to parse - not one swatch lost quietly, the whole file, since
+    /// the field has no default - and the only sign would be a palettes drawer that
+    /// had gone empty. Nobody would connect that to a spelling.
+    #[test]
+    fn a_palette_kept_under_the_old_spelling_still_opens() {
+        let said = r#"{ "format": 1, "palettes": [
+            { "name": "the longhouse", "colours": [
+                { "ramp": "wood", "shade": 0.45 },
+                { "ramp": "bone", "shade": 0.8 } ] } ] }"#;
+        let file: PalettesFile = serde_json::from_str(said).expect("an old file still reads");
+        assert_eq!(file.palettes.len(), 1, "the set was lost");
+        assert_eq!(
+            file.palettes[0].colors.len(),
+            2,
+            "the colors were lost, and the drawer would simply look empty"
+        );
+        assert_eq!(file.palettes[0].colors[0].ramp, "wood");
+
+        // And a file written TODAY reads back as itself, under the new spelling.
+        let now = serde_json::to_string(&file.palettes[0]).expect("writes");
+        assert!(
+            now.contains("\"colors\""),
+            "a set is no longer written under the name it is read by: {now}"
+        );
+        let back: SavedPalette = serde_json::from_str(&now).expect("reads its own writing");
+        assert_eq!(back.colors, file.palettes[0].colors);
+    }
     use super::*;
 
     fn painted(ramp: Option<&str>, shade: f32) -> Placed {
@@ -410,7 +448,7 @@ mod tests {
         }
     }
 
-    /// The colours of a work are gathered once each, from every phase.
+    /// The colors of a work are gathered once each, from every phase.
     #[test]
     fn it_gathers_what_was_painted() {
         let work = Workbench {
@@ -418,44 +456,44 @@ mod tests {
                 name: String::new(),
                 phases: vec![
                     vec![painted(Some("wood"), 0.5), painted(Some("bone"), 0.75)],
-                    // A later phase - the roof - carries colours of its own, and the
+                    // A later phase - the roof - carries colors of its own, and the
                     // duplicate from the phase before must not be kept twice.
                     vec![painted(Some("wood"), 0.5), painted(Some("cloth-red"), 0.25)],
                 ],
             }],
             ..default()
         };
-        let found = colours_in(&work);
+        let found = colors_in(&work);
         assert_eq!(
             found,
             vec![
-                Colour {
+                Dye {
                     ramp: "wood".into(),
                     shade: 0.5
                 },
-                Colour {
+                Dye {
                     ramp: "bone".into(),
                     shade: 0.75
                 },
-                Colour {
+                Dye {
                     ramp: "cloth-red".into(),
                     shade: 0.25
                 },
             ],
-            "wrong colours, wrong order, or a duplicate kept"
+            "wrong colors, wrong order, or a duplicate kept"
         );
     }
 
-    /// Two shades of one ramp are two colours; a hair's difference is one.
+    /// Two shades of one ramp are two colors; a hair's difference is one.
     #[test]
-    fn a_shade_makes_a_colour() {
+    fn a_shade_makes_a_color() {
         let work = Workbench {
             levels: vec![Level {
                 name: String::new(),
                 phases: vec![vec![
                     painted(Some("wood"), 0.25),
                     painted(Some("wood"), 0.75),
-                    // The same colour arrived at by the keys rather than the swatch. An
+                    // The same color arrived at by the keys rather than the swatch. An
                     // exact comparison would keep this and show a palette with what looks
                     // like a duplicate in it.
                     painted(Some("wood"), 0.750_02),
@@ -463,15 +501,15 @@ mod tests {
             }],
             ..default()
         };
-        assert_eq!(colours_in(&work).len(), 2);
+        assert_eq!(colors_in(&work).len(), 2);
     }
 
     /// An unpainted part contributes nothing.
     ///
-    /// `ramp: None` is the absence of a choice - the part wears its own body's colours -
+    /// `ramp: None` is the absence of a choice - the part wears its own body's colors -
     /// and there is no brush stroke there to repeat on the next building.
     #[test]
-    fn what_was_never_painted_is_not_a_colour() {
+    fn what_was_never_painted_is_not_a_color() {
         let work = Workbench {
             levels: vec![Level {
                 name: String::new(),
@@ -484,8 +522,8 @@ mod tests {
             ..default()
         };
         assert_eq!(
-            colours_in(&work),
-            vec![Colour {
+            colors_in(&work),
+            vec![Dye {
                 ramp: "wood".into(),
                 shade: 0.5
             }]
@@ -499,7 +537,7 @@ mod tests {
         assert!(
             keep_a_palette(
                 "   ",
-                vec![Colour {
+                vec![Dye {
                     ramp: "wood".into(),
                     shade: 0.5
                 }]
@@ -517,12 +555,12 @@ mod tests {
             ..default()
         };
         assert_eq!(
-            colours_in(&flat),
-            vec![Colour {
+            colors_in(&flat),
+            vec![Dye {
                 ramp: "earth".into(),
                 shade: 0.5
             }]
         );
-        assert!(colours_in(&Workbench::default()).is_empty());
+        assert!(colors_in(&Workbench::default()).is_empty());
     }
 }

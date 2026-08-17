@@ -26,7 +26,7 @@ pub struct RoofsLifted(pub Cutaway);
 /// thing instead: choose it and press delete.
 ///
 /// BACKSPACE as well as Delete, and on this bench that is the important half:
-/// the key labelled "delete" on a Mac keyboard IS backspace, and the forward
+/// the key labeled "delete" on a Mac keyboard IS backspace, and the forward
 /// Delete these keyboards do not have is the one Bevy calls `Delete`.
 ///
 /// It stands aside while anything is being TYPED. Backspace belongs to whoever
@@ -215,7 +215,7 @@ pub(crate) fn turn_to_stage(
             );
         }
     }
-    let travelled = wanted != showing;
+    let traveled = wanted != showing;
     stages.showing = wanted;
     // Undo does not reach ACROSS a step. Every part on the bench has just been
     // swapped for another step's, and a history that let someone undo into that
@@ -226,7 +226,7 @@ pub(crate) fn turn_to_stage(
     // what was there - which is exactly the kind of large, destructive, ordinary
     // edit undo exists for. Forgetting there would make a mis-aimed PUT the one
     // thing in this bench that cannot be taken back.
-    if travelled {
+    if traveled {
         history.forget();
     }
 }

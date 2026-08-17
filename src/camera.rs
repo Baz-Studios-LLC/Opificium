@@ -43,12 +43,12 @@ impl OrbitRig {
 /// What the eye turns about, at the benches that lock it there.
 ///
 /// Stated by the bench rather than fixed here, because the thing being looked at decides:
-/// a body's chest is at a metre, and a model's middle is at half of whatever the model
+/// a body's chest is at a meter, and a model's middle is at half of whatever the model
 /// happens to be. The eye that orbits it needs to be told.
 #[derive(Resource)]
-pub struct Centre(pub Vec3);
+pub struct Center(pub Vec3);
 
-impl Default for Centre {
+impl Default for Center {
     fn default() -> Self {
         // Chest height on a person, which is the right guess before anything stands.
         Self(Vec3::new(0.0, 1.0, 0.0))
@@ -60,7 +60,7 @@ pub struct CameraPlugin;
 impl Plugin for CameraPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<OrbitRig>()
-            .init_resource::<Centre>()
+            .init_resource::<Center>()
             .add_systems(Startup, spawn_camera)
             // After the panes have had the wheel: they decide whether the
             // cursor is over a list, and a stale answer made the zoom
@@ -85,7 +85,7 @@ fn steer(
     dims: Res<crate::builder::DimsEntry>,
     bench: Res<crate::Bench>,
     over_pane: Res<crate::look::OverPane>,
-    centre: Res<Centre>,
+    center: Res<Center>,
     buttons: Res<ButtonInput<MouseButton>>,
     motion: Res<AccumulatedMouseMotion>,
     scroll: Res<AccumulatedMouseScroll>,
@@ -142,12 +142,12 @@ fn steer(
     // something to correct.
     if *bench == crate::Bench::Rig {
         if scroll.delta.y != 0.0 && !over_pane.0 {
-            // Closer than a body ever needed. A model can be a fifth of a metre tall,
+            // Closer than a body ever needed. A model can be a fifth of a meter tall,
             // and a floor of 1.2m would hold the eye further out than the whole thing.
             rig.distance = (rig.distance * (1.0 - scroll.delta.y * 0.08)).clamp(0.15, 20.0);
         }
-        if rig.focus.distance(centre.0) > 1e-4 {
-            rig.focus = centre.0;
+        if rig.focus.distance(center.0) > 1e-4 {
+            rig.focus = center.0;
         }
         return;
     }
@@ -183,7 +183,7 @@ fn steer(
     // The wheel draws near and pulls away - unless the cursor is over a
     // pane, where the wheel belongs to the list.
     if scroll.delta.y != 0.0 && !over_pane.0 {
-        // A world is kilometres across where a building is metres, so the eye
+        // A world is kilometers across where a building is meters, so the eye
         // has to be able to stand far enough back to see a coastline.
         let (near, far) = if terrain {
             (20.0, 6_000.0)

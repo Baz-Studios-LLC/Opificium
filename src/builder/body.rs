@@ -4,7 +4,7 @@ use super::*;
 
 /// The boxes a part is made of, in its own local space, resting on y = 0 - and
 /// wearing whatever a maker has painted it.
-/// Where the leaves of a barn door hang, in metres either side of the middle.
+/// Where the leaves of a barn door hang, in meters either side of the middle.
 ///
 /// The same shape of answer as `door_lanes`, from its own width: a barn leaf is
 /// wider than a house one, so a pair of them meet further out.
@@ -184,7 +184,7 @@ pub(crate) const PLASTER: &str = "bone";
 /// had nothing to do with baskets.
 ///
 /// The reason is CONTRAST. A half-timbered wall is timber and plaster, a clock is
-/// a case and a dial, and painting either one a single colour is not what anybody
+/// a case and a dial, and painting either one a single color is not what anybody
 /// means by painting it. So plaster stands only where there is something else for
 /// it to stand against; a part made of nothing but plaster is a part made of
 /// plaster, and the brush paints it.
@@ -298,7 +298,7 @@ fn shape_of(kind: &PartKind) -> Vec<Slab> {
         // The wall that frames itself. See `PartKind::Framed`.
         //
         // Everything is worked out in whole atoms from the left end and turned
-        // into metres once, at the very end, when the slab is cut. Nothing here
+        // into meters once, at the very end, when the slab is cut. Nothing here
         // is snapped, because nothing here is ever off.
         PartKind::Wall {
             long,
@@ -314,7 +314,7 @@ fn shape_of(kind: &PartKind) -> Vec<Slab> {
             let tall = (high / ATOM).round().max((PLATE_TALL * 3 + 8) as f32) as i32;
             let mut body = Vec::new();
 
-            // Atoms to metres, and the wall's own left end to its middle. The
+            // Atoms to meters, and the wall's own left end to its middle. The
             // one conversion in the whole solve.
             let across = |from: i32, wide: i32| -> (f32, f32) {
                 let middle = (from as f32 + wide as f32 * 0.5) - span as f32 * 0.5;
@@ -434,7 +434,7 @@ fn shape_of(kind: &PartKind) -> Vec<Slab> {
                     // clear height and the rail sits inside that band, so a rail starting
                     // at the wall's edge ran its last four atoms inside the post - two
                     // timbers of the same wood at one depth, which never showed because
-                    // they are the same colour.
+                    // they are the same color.
                     let mut from = POST_WIDE;
                     for (what, hx, hw, hy, hh, _) in &holes {
                         // It gives way to THE WHOLE OPENING - its sill, its glass and its
@@ -655,15 +655,15 @@ fn shape_of(kind: &PartKind) -> Vec<Slab> {
                             // are opposite because one end cuts the top and the
                             // other the bottom.
                             //
-                            // IN METRES, like every other cut on this bench: the run is
+                            // IN METERS, like every other cut on this bench: the run is
                             // a distance along the piece, and the mesh divides it by the
                             // piece's own length itself. Divided by that length HERE as
                             // well, it came out over by a factor of the length - which is
-                            // nothing much on a brace a metre long and grows as the wall
+                            // nothing much on a brace a meter long and grows as the wall
                             // gets squat, since a shorter brace divides by a smaller
                             // number. Brett, with a picture of one: "when framed walls get
                             // short the lines dont stay clean." Its ends were leaning a
-                            // third of a metre out of true and leaving a triangle of
+                            // third of a meter out of true and leaving a triangle of
                             // daylight in every corner.
                             let angle = up.atan2(half);
                             let wide = STUD_WIDE as f32 * ATOM;
@@ -806,7 +806,7 @@ fn shape_of(kind: &PartKind) -> Vec<Slab> {
             //
             // It used to be drawn half an atom longer and half an atom taller so
             // its seams could not open - and half an atom is off the lattice, so
-            // it stood proud of the wall top, proud of its neighbours, and proud
+            // it stood proud of the wall top, proud of its neighbors, and proud
             // of the corner it ended at. Brett found all three: "it seems to get
             // slightly taller than the other walls", then "same problem,
             // different axis", then the rule that settles it - "everything
@@ -814,10 +814,10 @@ fn shape_of(kind: &PartKind) -> Vec<Slab> {
             //
             // Which turns out to close the seams the lap was for. A sixteenth is
             // a power of two: two pieces meeting on the lattice work out the
-            // same edge bit for bit, from different centres, and there is
+            // same edge bit for bit, from different centers, and there is
             // nothing left for the rasteriser to leave a hairline in. The
             // hairline Brett photographed was a piece off the lattice, not a
-            // piece that met its neighbour too exactly.
+            // piece that met its neighbor too exactly.
             vec![slab(
                 0.0,
                 lift + high * 0.5,
@@ -849,7 +849,7 @@ fn shape_of(kind: &PartKind) -> Vec<Slab> {
             // ceiling and the gable... The ceiling should actually shrink and give way to
             // the gable."
             //
-            // Both share the wall plate now, so the ceiling's last quarter-metre at each
+            // Both share the wall plate now, so the ceiling's last quarter-meter at each
             // end of the ridge stood in the same atoms as the gable that lands there - two
             // surfaces at one depth, which is what a renderer flickers over. The ceiling
             // stops short instead, by exactly the thickness the gable will be.
@@ -964,9 +964,9 @@ fn shape_of(kind: &PartKind) -> Vec<Slab> {
             let plate = PLATE_TALL as f32 * ATOM;
             // THE ANGLE THE TRIANGLE ACTUALLY HAS, which is not quite the pitch it
             // was asked for: the peak is snapped to the lattice like every other
-            // face on this bench, so a two-metre gable at thirty degrees is drawn
+            // face on this bench, so a two-meter gable at thirty degrees is drawn
             // at twenty-nine and a third. Framing it at the asked-for angle hangs
-            // the rake a few millimetres below its own foot - the same two-halves
+            // the rake a few millimeters below its own foot - the same two-halves
             // fault as ever, one number worked out twice.
             let slope = (high / half.max(1e-3)).atan();
             // What the rake takes out of a stud's height: a plate measured
@@ -1025,9 +1025,9 @@ fn shape_of(kind: &PartKind) -> Vec<Slab> {
                     let seat = middle + inward * plate * 0.5;
                     // MITRED AT THE PEAK. Both boards are as thick as a plate and
                     // both want their outer face to reach the apex, so their inner
-                    // faces have to stop on the centreline or each one comes out
+                    // faces have to stop on the centerline or each one comes out
                     // through the other slope - which at sixty degrees is a nub of
-                    // timber standing a fifth of a metre outside the roof.
+                    // timber standing a fifth of a meter outside the roof.
                     //
                     // The saw travels a plate's rise along the board while crossing
                     // it, and the cut is NEGATIVE because it is the inner face that
@@ -1131,7 +1131,7 @@ fn shape_of(kind: &PartKind) -> Vec<Slab> {
             body
         }
         PartKind::Ridge(long) => {
-            // Half a metre across, a quarter tall: the bench's own pitch
+            // Half a meter across, a quarter tall: the bench's own pitch
             // again, so it sits down onto two 45 degree slopes.
             vec![ridge(0.0, 0.0625, 0.0, *long, 0.125, 0.5, "earth", 0.35)]
         }
@@ -1264,14 +1264,14 @@ fn shape_of(kind: &PartKind) -> Vec<Slab> {
         PartKind::Prop("bed") => vec![
             // Long enough for the villager who will lie in it: the
             // sleeper is 1.75 head to heel, so the mattress is 1.875 and
-            // the frame two metres. The old bed was a metre and a half,
+            // the frame two meters. The old bed was a meter and a half,
             // and everyone's feet hung off the end of it.
             slab(0.0, 0.25, 0.0, 0.875, 0.25, 2.0, "wood", 0.55),
             slab(0.0, 0.46875, 0.0, 0.75, 0.1875, 1.875, "bone", 0.8),
             slab(0.0, 0.5625, 0.6875, 0.5, 0.125, 0.375, "bone", 0.95),
         ],
         PartKind::Prop("bed-double") => vec![
-            // Room for two who each take three-quarters of a metre with
+            // Room for two who each take three-quarters of a meter with
             // their arms at their sides: a mattress of one and three
             // quarters, so nobody sleeps inside their spouse.
             slab(0.0, 0.25, 0.0, 1.875, 0.25, 2.0, "wood", 0.55),
@@ -1281,7 +1281,7 @@ fn shape_of(kind: &PartKind) -> Vec<Slab> {
         ],
         PartKind::Table(long, deep) => {
             // A BOARD ON LEGS, and more legs the longer it gets - the way a wall
-            // gains a bay rather than a wider one. A four-metre board on four legs
+            // gains a bay rather than a wider one. A four-meter board on four legs
             // sags in the middle and looks it.
             let long = on_the_lattice(long.max(0.5));
             let deep = on_the_lattice(deep.max(0.375));
@@ -1391,7 +1391,7 @@ fn shape_of(kind: &PartKind) -> Vec<Slab> {
         // back was out of line with both. Brett: "the chairs are not symmetrical."
         //
         // The nudges were there to land an ODD number of atoms on the lattice -
-        // seven across cannot be centred on nought, because its faces fall on a
+        // seven across cannot be centered on nought, because its faces fall on a
         // half - and they were applied in opposite directions. An EVEN width needs
         // no nudge at all: eight atoms across the seat and six across the block sit
         // on their own middle with every face on a whole atom, which is what makes
@@ -1602,7 +1602,7 @@ fn shape_of(kind: &PartKind) -> Vec<Slab> {
             // renderer settles differently every frame: the stripes Brett
             // photographed. A hoop stands out on a real barrel anyway.
             // Eleven atoms to the barrel's nine: proud by an atom all round, and
-            // ODD like the body it wraps. An even hoop on a body centred half an
+            // ODD like the body it wraps. An even hoop on a body centered half an
             // atom off lands its own faces half an atom off.
             slab(
                 0.03125, 0.15625, 0.03125, 0.6875, 0.0625, 0.6875, "stone", 0.45,
@@ -1726,7 +1726,7 @@ fn shape_of(kind: &PartKind) -> Vec<Slab> {
             //
             // NO TWO ROWS ALIKE. Brett: "could we have the books be random colors
             // when placed so every group doesnt look the same?" - so the row carries
-            // a SEED, and the colours and the heights are drawn from it. A seed
+            // a SEED, and the colors and the heights are drawn from it. A seed
             // rather than a roll of the dice at drawing time, because a part on this
             // bench is its name: the same row must come back the same every time it
             // is redrawn, saved, reopened and baked, and only a number carried in
@@ -1752,7 +1752,7 @@ fn shape_of(kind: &PartKind) -> Vec<Slab> {
                 ((roll >> 16) % most) as usize
             };
             // FIVE ATOMS AT MOST, because that is what a shelf leaves: its boards
-            // stand half a metre apart and are an atom thick, so the gap is seven,
+            // stand half a meter apart and are an atom thick, so the gap is seven,
             // and the one leaning needs room to lean in. Brett, with a picture of a
             // book standing through the board above it: "Books are slightly too big
             // to fit in shelves."
@@ -1782,7 +1782,7 @@ fn shape_of(kind: &PartKind) -> Vec<Slab> {
             // And the one put back in a hurry, leaning on the row it came out of.
             //
             // Its foot stands CLEAR of the last upright rather than inside it: a
-            // leaning book drawn through its neighbour is two solids at nearly one
+            // leaning book drawn through its neighbor is two solids at nearly one
             // angle, which is the worst kind of flicker there is. Where it stands is
             // worked out from the lean - a turned box reaches further across than it
             // is wide - so it touches the row and stops.
@@ -1997,7 +1997,7 @@ fn shape_of(kind: &PartKind) -> Vec<Slab> {
             // whatever they frame, and a leaf hung in it or not.
             //
             // A double is the single WIDENED rather than a different thing - each
-            // leaf the same metre as the single's - so a hall door reads as two of
+            // leaf the same meter as the single's - so a hall door reads as two of
             // the doors already in the village.
             // THE SIZE THIS SORT OF DOOR IS, from the table every other part of
             // the bench asks. A barn door is bigger than a house door - Brett:
@@ -2251,7 +2251,7 @@ fn shape_of(kind: &PartKind) -> Vec<Slab> {
             // no wall - which Brett saw at once.
             let head_z = run * 0.5 - post * 0.5;
             let span = head_z - foot_z;
-            // The rail stops INSIDE the newels rather than at their centres.
+            // The rail stops INSIDE the newels rather than at their centers.
             //
             // A leaning box has square ends, and a square end cut across a slope
             // reaches further at one corner than the other - so the rail poked
@@ -2425,7 +2425,7 @@ fn shape_of(kind: &PartKind) -> Vec<Slab> {
                     (self.0.min(self.1), self.0.max(self.1))
                 }
             }
-            // A piece from its own four faces, so nothing has to be centred by
+            // A piece from its own four faces, so nothing has to be centered by
             // halving anything.
             let piece_at = |x: (i32, i32), y: (i32, i32), z: (i32, i32), ramp: &str, shade: f32| {
                 slab(
@@ -2692,7 +2692,7 @@ fn shape_of(kind: &PartKind) -> Vec<Slab> {
             // which end the pillow wants to be.
             if *name == "sleep" {
                 // The village's median adult, measured from its own
-                // genome: 1.75 head to heel, a half-metre head, a torso
+                // genome: 1.75 head to heel, a half-meter head, a torso
                 // seven units across. Head at the facing end.
                 return vec![
                     slab(0.625, 0.25, 0.0, 0.5, 0.5, 0.5, ramp, shade),
@@ -2752,10 +2752,10 @@ fn shape_of(kind: &PartKind) -> Vec<Slab> {
             // by eye instead of by arithmetic.
             if *name == "sit" {
                 // The same adult, sat on a stool's own seat: hips at
-                // seven units, the crown a shade over a metre and a half.
+                // seven units, the crown a shade over a meter and a half.
                 // Knees toward the facing.
                 // The seat surface is where the THIGHS rest - seven
-                // units up, which is what every seat in this catalogue
+                // units up, which is what every seat in this catalog
                 // is cut to. The first version hung its hip joint there
                 // instead, so the thighs lay a hand's breadth inside
                 // every chair, stool and cushion in the house.

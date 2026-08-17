@@ -30,7 +30,7 @@ pull**, where only framed ones did.
 
 **Windows glaze themselves.** A pane is a size, the way a bay is: one mullion makes
 two lights, two make three. A 2.5 m cottage wall comes out two panes by two; a
-three-metre hall wall comes out two by three. **BARS IN BLACK** for dark joinery
+three-meter hall wall comes out two by three. **BARS IN BLACK** for dark joinery
 against pale plaster.
 
 ### What a part is MADE OF
@@ -38,7 +38,7 @@ against pale plaster.
 New on every part's menu, beside PART OF. Wood, stone, clay — or whatever your game
 knows, from `data/materials.json`, with **+ ANOTHER** to type one in.
 
-**It is not a colour.** `rgb` and `cloth` on a baked box are what you painted;
+**It is not a color.** `rgb` and `cloth` on a baked box are what you painted;
 `material` is what the thing is built of, and only one of those should cost your game
 anything to gather. A part nobody has spoken for writes no material at all — absent
 is not `wood`, and what that costs is your decision. See `FORMATS.md`.

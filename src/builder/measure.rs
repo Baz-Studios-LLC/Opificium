@@ -33,8 +33,8 @@ pub const PITCH_STEP: f32 = 2.5;
 const _: () = assert!(PITCH_LEAST <= ROOF_PITCH_DEGREES && ROOF_PITCH_DEGREES <= PITCH_MOST);
 
 /// Opificium's own measurements - the source of truth now; the game
-/// conforms to these when its buildings are replaced. A quarter-metre
-/// wall on a quarter-metre grid means centrelines always land on snaps.
+/// conforms to these when its buildings are replaced. A quarter-meter
+/// wall on a quarter-meter grid means centerlines always land on snaps.
 pub(crate) const WALL_THICK: f32 = 0.25;
 
 /// How thick a floor is, and so a ceiling.
@@ -69,7 +69,7 @@ pub(crate) const ROOF_OVERHANG: f32 = 0.25;
 /// How far a piece that is MEANT to butt against another is drawn past its own
 /// measure, so the two lap instead of meeting exactly. A sixty-fourth at each
 /// end. See the wall segment in `body_of`.
-/// The lattice everything is drawn on: a sixteenth of a metre, one ATOM.
+/// The lattice everything is drawn on: a sixteenth of a meter, one ATOM.
 ///
 /// Every measurement in a part is a whole number of these. Brett's rule, and the
 /// one that makes the bench's seams close by themselves - a sixteenth is a power
@@ -80,7 +80,7 @@ pub const ATOM: f32 = 0.0625;
 /// landing carries straight on from a flight.
 /// Four atoms, not three, and the reason is the whole point of the lattice.
 ///
-/// A three-atom post is an ODD number of atoms, so its centre falls half an atom
+/// A three-atom post is an ODD number of atoms, so its center falls half an atom
 /// off the grid - and the flight's rail line, which is measured in from the
 /// tread edge by a post's half-width, landed at seven and a half atoms. A flat
 /// rail placed on the grid could not reach it however carefully it was set down.
@@ -96,7 +96,7 @@ pub(crate) const RAIL_GAP: f32 = ATOM * 8.0;
 /// A baluster is TWO atoms square, not one.
 ///
 /// An odd number of atoms cannot have both its faces on the lattice while its
-/// centre is on it too - a one-atom post centred on an atom has its sides on
+/// center is on it too - a one-atom post centered on an atom has its sides on
 /// half-atoms - and it is the FACES that decide whether two parts meet.
 pub(crate) const RAIL_PIN: f32 = ATOM * 2.0;
 
@@ -109,7 +109,7 @@ pub(crate) const RAIL_PIN: f32 = ATOM * 2.0;
 /// is four treads of three, which is what the rhythm makes of it anyway.
 pub(crate) const STEP_UP: f32 = ATOM * 12.0;
 
-/// How finely a hand may place: points per metre, from the grid G sets, and
+/// How finely a hand may place: points per meter, from the grid G sets, and
 /// always whole atoms while shift is held.
 ///
 /// One function because two things have to agree about it. The ghost shows where an
@@ -139,7 +139,7 @@ pub(crate) const WALL_HIGH: f32 = 2.5;
 // edge reached by adding stud widths and a bay edge reached by dividing the
 // span have to be the SAME NUMBER, or the panel between them is a hair too
 // wide and the seam shows. Added and divided as `i32` they cannot help but
-// agree; turned into metres once at the end, they land on the lattice by
+// agree; turned into meters once at the end, they land on the lattice by
 // construction rather than by being snapped back onto it afterwards.
 
 /// A corner post's width. Visibly heavier than a stud - that contrast is most
@@ -166,8 +166,8 @@ pub(crate) const DOOR_JAMB: i32 = 2;
 /// A BARN doorway's, which is bigger, because what goes through it is a cart and
 /// not a person. Brett: "remember the barn doors are larger than normal doors."
 ///
-/// Half a metre wider each leaf and three quarters taller: a pair of them is a
-/// three-metre opening under a two-and-three-quarter-metre head, which is the
+/// Half a meter wider each leaf and three quarters taller: a pair of them is a
+/// three-meter opening under a two-and-three-quarter-meter head, which is the
 /// front of the storehouse. Whole atoms, like every other size on the bench.
 pub(crate) const BARN_WIDE: i32 = 24;
 pub(crate) const BARN_HIGH: i32 = 44;
@@ -281,8 +281,8 @@ pub(crate) fn band_of(what: Opening, tall: i32) -> Band {
     let (_, _, _, high_foot, high_tall) = courses_of(tall);
     let (rise, foot) = match what {
         // A door reaches the FLOOR. It stood on the sill plate before, which put
-        // its head two atoms above the leaf hung in it - the leaf is two metres
-        // from the ground, and the hole was two metres from the top of the plate
+        // its head two atoms above the leaf hung in it - the leaf is two meters
+        // from the ground, and the hole was two meters from the top of the plate
         // - so the door sat low in its own opening with daylight over it.
         // Nothing crosses a doorway: the plate is laid in pieces around it,
         // which is what you walk through.
@@ -318,7 +318,7 @@ pub(crate) const BAR_WIDE: i32 = 1;
 /// window in a village is glazed alike whatever wall it stands in.
 ///
 /// Nine atoms lands the ordinary 2.5 m cottage wall on two panes by two, and a hall's
-/// three-metre wall on two by three, which is what a townhall's windows look like.
+/// three-meter wall on two by three, which is what a townhall's windows look like.
 pub(crate) const PANE_WANTED: i32 = 9;
 
 /// How many panes fit across a span of atoms - the rule that divides a window.
@@ -331,7 +331,7 @@ pub(crate) fn panes_in(across: i32) -> i32 {
 /// The two are exact inverses by construction, which is the point. A maker asks
 /// for three panes up and gets a window that divides into three - not a window
 /// of some height that happens to round to three, which is what choosing a size
-/// in metres would have meant. Brett counts his windows in panes: "The three
+/// in meters would have meant. Brett counts his windows in panes: "The three
 /// high two wide windows with the black crossbars need to be made."
 pub(crate) fn panes_across(panes: i32) -> i32 {
     panes.clamp(1, MOST_PANES) * PANE_WANTED
@@ -355,7 +355,7 @@ pub(crate) const MOST_PANES: i32 = 4;
 /// Integer division leaves a remainder of up to `n - 1` atoms. Dropping it
 /// would leave a visible runt at one end of the wall, so it is spread an atom
 /// at a time across the leading parts: the widest and narrowest bay then differ
-/// by one atom - four millimetres, invisible - and the parts still tile the
+/// by one atom - four millimeters, invisible - and the parts still tile the
 /// span exactly. Straight out of Opificium's `Len::divide`, which is the piece
 /// that makes a wall gain a bay cleanly instead of gaining a seam.
 /// Where an opening actually sits in a wall of this size: its left edge, its

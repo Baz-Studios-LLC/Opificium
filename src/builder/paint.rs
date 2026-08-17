@@ -6,12 +6,12 @@ use super::*;
 #[derive(Component)]
 pub(crate) struct PalettePanel;
 
-/// The big square at the head of the palette: the colour now armed.
+/// The big square at the head of the palette: the color now armed.
 #[derive(Component)]
 pub(crate) struct BrushFace;
 
-/// One colour a maker can arm. `ramp` empty is the bare swatch: painting with
-/// it strips a part back to its own colours.
+/// One color a maker can arm. `ramp` empty is the bare swatch: painting with
+/// it strips a part back to its own colors.
 #[derive(Component, Clone)]
 pub(crate) struct Swatch {
     ramp: Option<String>,
@@ -19,7 +19,7 @@ pub(crate) struct Swatch {
 }
 
 impl Swatch {
-    /// A swatch for a named ramp at a shade, for colours that come from somewhere other
+    /// A swatch for a named ramp at a shade, for colors that come from somewhere other
     /// than the ramp rows - a saved palette's, in particular.
     pub(crate) fn of(ramp: &str, shade: f32) -> Swatch {
         Swatch {
@@ -30,7 +30,7 @@ impl Swatch {
 }
 
 /// The shades a swatch row offers, which are the shades the keys step through —
-/// so a colour picked with the mouse can be nudged with `-` and `=` and land on
+/// so a color picked with the mouse can be nudged with `-` and `=` and land on
 /// another swatch rather than between two of them.
 pub(crate) const SWATCHES: [f32; 5] = [0.0, 0.25, 0.5, 0.75, 1.0];
 
@@ -39,14 +39,14 @@ pub(crate) const SWATCHES: [f32; 5] = [0.0, 0.25, 0.5, 0.75, 1.0];
 /// Brett: "a palet comes up on the screen. You have an armed color and click a
 /// part to paint it." Which is the right shape and better than what the keys
 /// alone could do — walking `[` and `]` through twenty-four ramps is guessing at
-/// a colour, and a palette is looking at one. The keys stay for nudging a shade
+/// a color, and a palette is looking at one. The keys stay for nudging a shade
 /// once the eye is close.
 pub(crate) fn raise_palette(mut commands: Commands, fonts: Res<Fonts>, palette: Res<Palette>) {
     let panel = commands
         .spawn((
             PalettePanel,
             // In the SHELF's place, not beside it. The shelf holds what a
-            // building is made of and this holds what it is coloured with, and a
+            // building is made of and this holds what it is colored with, and a
             // maker who is painting is not placing - so one panel stands at a
             // time and neither has to be squeezed to make room for the other.
             // (The left edge is spoken for: the key rail lives there.)
@@ -92,7 +92,7 @@ pub(crate) fn raise_palette(mut commands: Commands, fonts: Res<Fonts>, palette: 
         ChildOf(panel),
     ));
 
-    // The armed colour, large, at the head of the panel. A swatch ringed in gold
+    // The armed color, large, at the head of the panel. A swatch ringed in gold
     // says which one is armed but says it in the size of a swatch; this says
     // what is actually on the brush, at a size worth glancing at.
     commands.spawn((
@@ -130,7 +130,7 @@ pub(crate) fn raise_palette(mut commands: Commands, fonts: Res<Fonts>, palette: 
         ))
         .id();
     commands.spawn((
-        Text::new("BARE - its own colours"),
+        Text::new("BARE - its own colors"),
         TextFont {
             font: fonts.display.clone().into(),
             font_size: crate::look::text_at(10.0),
@@ -192,7 +192,7 @@ pub(crate) fn raise_palette(mut commands: Commands, fonts: Res<Fonts>, palette: 
     // reached for once, at the end of a building.
     let keep = commands
         .spawn((
-            KeepColoursButton,
+            KeepColorsButton,
             Interaction::default(),
             Node {
                 margin: UiRect::top(Val::Px(10.0)),
@@ -207,7 +207,7 @@ pub(crate) fn raise_palette(mut commands: Commands, fonts: Res<Fonts>, palette: 
         ))
         .id();
     commands.spawn((
-        Text::new("KEEP THESE COLOURS"),
+        Text::new("KEEP THESE COLORS"),
         TextFont {
             font: fonts.display.clone().into(),
             font_size: crate::look::text_at(10.0),
@@ -218,7 +218,7 @@ pub(crate) fn raise_palette(mut commands: Commands, fonts: Res<Fonts>, palette: 
     ));
     commands.spawn((
         crate::rail::Word(
-            "Save every colour this building is painted with, \
+            "Save every color this building is painted with, \
              to paint another one the same way",
         ),
         ChildOf(keep),
@@ -242,7 +242,7 @@ pub(crate) fn raise_palette(mut commands: Commands, fonts: Res<Fonts>, palette: 
 }
 
 /// Shows the palette while painting, arms whatever is clicked, and rings the
-/// armed colour in gold.
+/// armed color in gold.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn work_palette(
     palette: Res<Palette>,
@@ -275,7 +275,7 @@ pub(crate) fn work_palette(
         }
     }
     // The brush's own face. An empty brush strips rather than paints, and shows
-    // as the panel's own dark rather than as a colour it does not have.
+    // as the panel's own dark rather than as a color it does not have.
     let showing = match brush.ramp.as_deref() {
         Some(ramp) => palette.shade(ramp, brush.shade),
         None => Color::BLACK.with_alpha(0.30),
@@ -289,8 +289,8 @@ pub(crate) fn work_palette(
     // What the part under the cursor is wearing, so the palette can point at
     // it. Brett's idea, and better than the eyedropper he first reached for:
     // there is no tool to arm and no modifier to hold, and once the swatch has
-    // lit up, clicking it is the whole of picking the colour up. It also tells a
-    // maker where in the ramps a colour they liked actually lives, which an
+    // lit up, clicking it is the whole of picking the color up. It also tells a
+    // maker where in the ramps a color they liked actually lives, which an
     // eyedropper never would.
     let worn = hovered
         .grab

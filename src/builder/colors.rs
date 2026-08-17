@@ -5,7 +5,7 @@ use super::*;
 /// Every ramp the bench NAMES, the bench can also PAINT.
 ///
 /// A ramp name is a string literal, so nothing in the compiler is watching:
-/// `shade` answers a ramp it does not know with the classic missing-colour,
+/// `shade` answers a ramp it does not know with the classic missing-color,
 /// which means a name with no ramp behind it is never an error anywhere. It
 /// is a magenta wall. The bench's own palette held two ramps for a while and
 /// `body_of` named fourteen, so a project with no `palette.json` came up with
@@ -13,7 +13,7 @@ use super::*;
 /// why.
 ///
 /// So the shelf is walked instead of trusted, and the answer is a list rather
-/// than a yes: the point of failing is knowing WHICH colour went missing.
+/// than a yes: the point of failing is knowing WHICH color went missing.
 #[test]
 fn the_bench_can_paint_everything_it_names() {
     let palette = crate::look::bench_palette();
@@ -31,7 +31,7 @@ fn the_bench_can_paint_everything_it_names() {
         }
     }
     // The marks are NOT walked. A mark's ramp is named in the project's own
-    // `widgets.json` now, so the bench cannot promise a colour for a word it
+    // `widgets.json` now, so the bench cannot promise a color for a word it
     // never chose - what it can promise is the `bone` it falls back to when a
     // mark names nothing, and that is asserted with the dress below.
     // And the bench's own dress, which is named in the other modules rather
@@ -42,7 +42,7 @@ fn the_bench_can_paint_everything_it_names() {
         wanted.insert(dressing.to_string());
     }
 
-    // A walk that found nothing would report no missing colours either, which
+    // A walk that found nothing would report no missing colors either, which
     // is the one way this test could pass while saying nothing at all.
     assert!(
         wanted.len() >= 10,
@@ -66,7 +66,7 @@ fn the_bench_can_paint_everything_it_names() {
 
 /// A saved work never loses a mark to a project that has not declared it.
 ///
-/// The marks a project declares are what the SHELF offers and what colour a
+/// The marks a project declares are what the SHELF offers and what color a
 /// block wears. They are not a list of what may be read: a work drawn in one
 /// game and opened in another came back with its marks silently missing, and a
 /// save would have made that permanent. The one kind of bug a maker cannot
@@ -115,7 +115,7 @@ fn every_ramp_climbs() {
     }
 }
 
-/// Snapping a picked step onto a swatch changes no colour.
+/// Snapping a picked step onto a swatch changes no color.
 ///
 /// The dropper takes the step it FINDS - an authored 0.65, a 0.4 - and moves the
 /// brush onto the nearest of the palette's five, so the armed square can wear the
@@ -123,7 +123,7 @@ fn every_ramp_climbs() {
 /// because `shade` reads the nearest of five steps anyway. Asserted rather than
 /// assumed, since the whole trick rests on it.
 #[test]
-fn a_dropped_colour_snaps_without_changing() {
+fn a_dropped_color_snaps_without_changing() {
     let palette = crate::look::bench_palette();
     for name in ["wood", "stone", "bone", "earth", "cloth-gold"] {
         // Every step that appears in a part's own body, and the awkward middles.
@@ -138,7 +138,7 @@ fn a_dropped_colour_snaps_without_changing() {
             assert_eq!(
                 palette.shade(name, shade),
                 palette.shade(name, snapped),
-                "{name} at {shade} is a different colour from {name} at {snapped}, \
+                "{name} at {shade} is a different color from {name} at {snapped}, \
                  so the dropper would change what it copied"
             );
         }
@@ -177,13 +177,13 @@ fn what_the_bench_makes_it_can_also_read() {
 /// An opening lands on the grid G sets, not on whole atoms regardless.
 ///
 /// Placing a door was the one thing that ignored the grid - so a maker laying a
-/// wall out in quarter metres had to nudge its door in sixteenths. Brett: "when
+/// wall out in quarter meters had to nudge its door in sixteenths. Brett: "when
 /// placing a door it should respect the grid settings when you press g".
 #[test]
 fn an_opening_lands_on_the_grid() {
     let along = Vec3::X;
     let wall = Vec3::ZERO;
-    // A wall four metres long, a door 1.25 wide, aimed at an awkward spot.
+    // A wall four meters long, a door 1.25 wide, aimed at an awkward spot.
     let aim = Vec3::new(0.31, 0.0, 0.0);
     for grid in [1, 2, 4, 8, 16] {
         let step = snap_step(false, grid);
@@ -494,7 +494,7 @@ fn every_part_takes_the_brush() {
 ///
 /// Which is the whole reason the brush reaches a LIST of ramps rather than everything: a
 /// half-timbered wall is timber and plaster, and the contrast between them is its entire
-/// look. Painting one a single colour is not what a maker means by painting a wall.
+/// look. Painting one a single color is not what a maker means by painting a wall.
 #[test]
 fn a_two_toned_part_keeps_its_second_tone() {
     for kind in [
@@ -516,7 +516,7 @@ fn a_two_toned_part_keeps_its_second_tone() {
             painted.iter().partition(|slab| slab.ramp == "cloth-blue");
         assert!(
             !took.is_empty() && !kept.is_empty(),
-            "{} came out all one colour: {} pieces painted, {} kept",
+            "{} came out all one color: {} pieces painted, {} kept",
             part_name(&kind),
             took.len(),
             kept.len()
@@ -1322,7 +1322,7 @@ mod windows {
             "a window made from its kind alone did not start at its kind's own band"
         );
 
-        // A metre lower, and half a metre higher than that. Whole atoms both ways.
+        // A meter lower, and half a meter higher than that. Whole atoms both ways.
         for step in [-16, 8] {
             let moved = Band {
                 foot: usual.foot + step,
@@ -1564,8 +1564,8 @@ mod windows {
     /// Aiming where a window has always gone puts it exactly there.
     ///
     /// The strides up a wall are measured from the COURSE, not from the floor, and this is
-    /// the test that says why. A quarter-metre stride off the floor cannot land on a course
-    /// an eighth of a metre up: every window placed with the ordinary grid would have missed
+    /// the test that says why. A quarter-meter stride off the floor cannot land on a course
+    /// an eighth of a meter up: every window placed with the ordinary grid would have missed
     /// the rail by two atoms, carried a band of its own in its name, and broken the rail it
     /// was meant to sit on.
     #[test]
@@ -1583,9 +1583,9 @@ mod windows {
             );
         }
         // And a stride away is a stride away, whichever stride is set - the grid counts
-        // atoms, so a grid of four moves a window a quarter-metre at a time. Downward,
+        // atoms, so a grid of four moves a window a quarter-meter at a time. Downward,
         // where an ordinary wall has room: there are three atoms over a window at its
-        // course and a metre and a half under it.
+        // course and a meter and a half under it.
         for grid in [2, 4, 8] {
             let step = snap_step(false, grid);
             let down = grid as f32 * ATOM;
@@ -1729,7 +1729,7 @@ mod windows {
         );
 
         // The same clear width, read off the bars that divide it: the ghost was a quarter
-        // metre wider than the hole it punches.
+        // meter wider than the hole it punches.
         let widest = |body: &[Slab]| {
             body.iter()
                 .filter(|Slab { size, .. }| is_bar(size))
@@ -1767,7 +1767,7 @@ mod windows {
                     None,
                 ],
             };
-            // The doorway's own clear span, in metres either side of the middle.
+            // The doorway's own clear span, in meters either side of the middle.
             let half = wide as f32 * ATOM * 0.5;
             for Slab { at, size, .. } in body_of(&wall, None) {
                 // A leaf and its furniture belong in the opening; the WALL's timbers do
@@ -1777,7 +1777,7 @@ mod windows {
                 }
                 let (low, high) = (at.x - size.x * 0.5, at.x + size.x * 0.5);
                 // A whole atom in, not a whisker: a brace is a rotated slab whose upright
-                // bounding box clips the jamb by a hundredth of a metre while its timber
+                // bounding box clips the jamb by a hundredth of a meter while its timber
                 // does not. A rail carried across a doorway intrudes by the whole width.
                 let bite = ATOM;
                 let inside = low < half - bite && high > -half + bite;
@@ -1815,7 +1815,7 @@ mod materials {
     /// stone is one the village quarries for. The bake already carried `cloth`, which is
     /// the ramp - so a game reading that as the material would charge for whitewash.
     #[test]
-    fn a_material_is_not_a_colour() {
+    fn a_material_is_not_a_color() {
         let mut record = Placed {
             part: part_name(&PartKind::wall(3.0)),
             at: [0.0, 0.0, 0.0],
@@ -2009,7 +2009,7 @@ mod gables {
                     .map(|Slab { at, size, .. }| at.y + size.y * 0.5)
                     .fold(0.0f32, f32::max);
                 // The slope the triangle ACTUALLY has, off its own measured peak: a
-                // gable's height is snapped to the lattice, so a two-metre gable asked
+                // gable's height is snapped to the lattice, so a two-meter gable asked
                 // for thirty degrees is drawn at twenty-nine and a third, and a test
                 // that restated the arithmetic would be checking a different triangle.
                 let rise = high / (long * 0.5);
@@ -2295,7 +2295,7 @@ mod roofing {
             crate::builder::is_structure(&ceiling),
             "a ceiling that is not structure never finds the wall tops"
         );
-        // And a floor is too, which is the behaviour being matched.
+        // And a floor is too, which is the behavior being matched.
         assert!(crate::builder::is_structure(&PartKind::Floor(2.0, 2.0)));
     }
 
@@ -2396,7 +2396,7 @@ mod roofing {
     /// The ceiling stops exactly where its gables begin.
     ///
     /// Both sit on the wall plate, so a ceiling reaching the full length would share its
-    /// last quarter-metre with the gable that lands there - two surfaces at one depth,
+    /// last quarter-meter with the gable that lands there - two surfaces at one depth,
     /// which a renderer flickers over. The two measurements have to agree exactly, and
     /// this is what says so: an overlap flickers, a gap shows daylight.
     #[test]
@@ -2892,7 +2892,7 @@ fn the_townhalls_furniture_stands_where_it_is_put() {
 /// group with chairs and sit widgets already there when you place it?"
 #[test]
 fn a_table_grows_legs_and_brings_its_chairs() {
-    // LEGS, a pair at each end and a pair for every stride between. A four-metre board
+    // LEGS, a pair at each end and a pair for every stride between. A four-meter board
     // on four legs sags in the middle and looks it.
     let legs_of = |long: f32| {
         body_of(&PartKind::Table(long, 0.875), None)
@@ -2903,7 +2903,7 @@ fn a_table_grows_legs_and_brings_its_chairs() {
     assert_eq!(legs_of(1.5), 4, "a village table has lost its four legs");
     assert!(
         legs_of(4.5) > legs_of(1.5),
-        "a four-and-a-half metre board stands on the same four legs as a short one"
+        "a four-and-a-half meter board stands on the same four legs as a short one"
     );
     for long in [1.5f32, 3.0, 4.5, 6.0] {
         assert_eq!(legs_of(long) % 2, 0, "a {long}m table has an odd leg");
@@ -2933,7 +2933,7 @@ fn a_table_grows_legs_and_brings_its_chairs() {
     assert_eq!(
         company.len(),
         8,
-        "a three-metre board seats {}",
+        "a three-meter board seats {}",
         company.len()
     );
     for (piece, at, facing) in &company {
@@ -3053,7 +3053,7 @@ fn a_group_its_owner_brought_can_be_stretched() {
         "a wall on its own has lost its length"
     );
 
-    // AND THE COMPANY FOLLOWS THE SIZE. A board pulled from three metres to six wants
+    // AND THE COMPANY FOLLOWS THE SIZE. A board pulled from three meters to six wants
     // more chairs down it, not the same eight further apart than a maker can reach.
     let short = crate::builder::company_of(&PartKind::Table(3.0, 0.875));
     let long = crate::builder::company_of(&PartKind::Table(6.0, 0.875));
@@ -3073,7 +3073,7 @@ fn a_group_its_owner_brought_can_be_stretched() {
     }
 }
 
-/// No two pieces of a part meet the eye at the same depth in different colours.
+/// No two pieces of a part meet the eye at the same depth in different colors.
 ///
 /// Brett: "the hearth has some z fighting." Its fire was a dark box sunk into a pale
 /// block, sharing that block's front face AND its top - two surfaces at one depth, which a
@@ -3175,7 +3175,7 @@ fn nothing_fights_for_the_same_face() {
 /// A row of books fits on the shelf it is for.
 ///
 /// Brett, with a picture of one going straight through the shelf above it: "Books are
-/// slightly too big to fit in shelves." A shelf's shelves stand half a metre apart and are
+/// slightly too big to fit in shelves." A shelf's shelves stand half a meter apart and are
 /// an atom thick, so what a book has is seven atoms - and three of them were eight.
 ///
 /// Measured off BOTH parts rather than off the numbers that made either: the shelf says how
@@ -3243,7 +3243,7 @@ fn a_row_of_books_fits_a_shelf() {
 ///
 /// Brett: "could we have the books be random colors when placed so every group doesnt look
 /// the same?" The row carries a SEED and draws its cloths and its heights from it - because
-/// a part on this bench IS its name, and a colour rolled at drawing time would be a
+/// a part on this bench IS its name, and a color rolled at drawing time would be a
 /// different shelf every time the work was reopened.
 #[test]
 fn a_row_of_books_is_dealt_its_own_hand() {
@@ -3258,7 +3258,7 @@ fn a_row_of_books_is_dealt_its_own_hand() {
     // THE SAME EVERY TIME, which is the half that matters most: a work saved and
     // reopened is the work that was saved.
     assert_eq!(cloths(7), cloths(7), "one seed dealt two different rows");
-    // AND DIFFERENT FROM ITS NEIGHBOURS. Not every pair need differ - five books from
+    // AND DIFFERENT FROM ITS NEIGHBORS. Not every pair need differ - five books from
     // nine cloths will sometimes repeat - but a room full of shelves must not be one
     // shelf drawn over and over.
     let hands: Vec<Vec<(String, i64)>> = (0..24).map(cloths).collect();
@@ -3885,13 +3885,13 @@ fn r_still_swings_a_ceilings_ridge() {
 /// THE SEATS ARE SYMMETRICAL ABOUT THEIR OWN MIDDLE.
 ///
 /// Brett, of a chair standing under a table: "the chairs are not symmetrical." Its
-/// seat sat half an atom left of centre and the block under it half an atom right,
+/// seat sat half an atom left of center and the block under it half an atom right,
 /// so the two were a whole atom out of line and the back was out of line with
 /// both.
 ///
 /// The nudge was there for a real reason - an ODD number of atoms across cannot be
-/// centred on nought, because its faces land on a half - and it was applied in
-/// opposite directions on neighbouring pieces. So this asks the thing a maker
+/// centered on nought, because its faces land on a half - and it was applied in
+/// opposite directions on neighboring pieces. So this asks the thing a maker
 /// asks, which is whether the halves match, rather than whether the faces are
 /// legal: the lattice test was perfectly happy with a crooked chair.
 #[test]

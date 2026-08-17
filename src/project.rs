@@ -269,9 +269,9 @@ file described here.
 | path                | who writes it | what it is                                        |
 | ------------------- | ------------- | ------------------------------------------------- |
 | `{MANIFEST}`   | you           | which folders this project uses. Every path has a default, so it may be nearly empty |
-| `data/palette.json` | the game      | the colour ramps the bench paints with            |
+| `data/palette.json` | the game      | the color ramps the bench paints with            |
 | `data/kinds.json`   | either        | what a finished drawing may be baked AS           |
-| `data/widgets.json` | either        | the marks the bench may place, and their colours  |
+| `data/widgets.json` | either        | the marks the bench may place, and their colors  |
 | `data/materials.json` | either      | what parts may be BUILT of - wood, stone, clay    |
 | `templates/`        | you           | starting shapes to draw from                      |
 | `out/buildings/`    | the bench     | saved drawings, `.baz` - **the source of truth**  |
@@ -283,7 +283,7 @@ A `.baz` is JSON. It is the editable drawing and the thing worth keeping.
 ## The palette, the kinds and the marks
 
 `data/palette.json` is the one file the game really must provide, or the bench
-paints in its own colours instead of the game's:
+paints in its own colors instead of the game's:
 
 ```json
 {{ "ramps": [ {{ "name": "wood", "steps": [[28,19,16], "...5 RGB steps..."] }} ] }}
@@ -323,7 +323,7 @@ A maker sets it on a part from that part's own right-click menu, under MADE OF, 
 adds words this file does not have with `+ ANOTHER`. Leave the file out and the bench
 offers wood, stone and clay; write one and it offers exactly what you wrote.
 
-**A MATERIAL IS NOT A COLOUR.** `rgb` and `cloth` on a baked box are what a maker
+**A MATERIAL IS NOT A COLOR.** `rgb` and `cloth` on a baked box are what a maker
 PAINTED. `material` is what the thing is BUILT of, and only one of those two should
 cost your game anything to gather. A box with no `material` is one nobody has spoken
 for - absent is not `wood`, and what an unspoken part costs is your decision rather
@@ -336,7 +336,7 @@ true, or have the game generate these two files the way it generates the palette
 
 ## What the bench hands the game
 
-Baking resolves a drawing into plain boxes with colours already looked up, and
+Baking resolves a drawing into plain boxes with colors already looked up, and
 writes it to **`../assets/buildings`** - the game's own assets folder, one step out
 of this one. That is the default and needs no setting; a game that keeps its assets
 elsewhere sets `install` in the manifest, and a game that wants nothing carried
@@ -368,8 +368,8 @@ anywhere sets it to `""`, which keeps bakes in `out/baked/`. That output is
 - `form` is the box's shape: `box`, `wedge`, `ridge`, `hip:<x>x<z>`, or
   `cut:<low>x<high>`. Both programs build each shape from their own code, so a new
   form must be written twice.
-- Local space is +Y up, metres, and every measurement is a whole number of
-  sixteenths of a metre.
+- Local space is +Y up, meters, and every measurement is a whole number of
+  sixteenths of a meter.
 
 Re-bake without opening a window:
 
@@ -556,7 +556,7 @@ struct KindsFile {
 /// insists on an answer will get a wrong one.
 ///
 /// So it belongs to the project, and a game with no list is offered nothing -
-/// colours are universal and a sawmill is not. A drawing baked with no kind
+/// colors are universal and a sawmill is not. A drawing baked with no kind
 /// carries none, and the game falls back to reading the drawing's NAME, which is
 /// what every drawing baked before the card existed relies on.
 ///
@@ -617,14 +617,14 @@ pub fn add_a_kind(word: &str) -> Result<(), String> {
     std::fs::write(&road, format!("{text}\n")).map_err(|why| format!("{}: {why}", road.display()))
 }
 
-/// A mark this game understands, and the colour its block wears on the bench.
+/// A mark this game understands, and the color its block wears on the bench.
 pub struct Widget {
     /// The word written into a baked file's `marks`, and it is the GAME'S word -
     /// the same contract, and the same warning, as [`Kind`].
     pub word: &'static str,
     pub ramp: String,
     pub shade: f32,
-    /// HOW BIG THE THING IT MARKS IS, in metres, when it is a place with an
+    /// HOW BIG THE THING IT MARKS IS, in meters, when it is a place with an
     /// extent rather than a point.
     ///
     /// Most marks are points: a door is walked through, a hearth is stood at,
@@ -724,7 +724,7 @@ pub fn widgets() -> &'static [Widget] {
 /// read off disk is kept here, once each, however many parts wear it.
 ///
 /// This is what stops a project's list from being able to LOSE anything. Declaring
-/// a mark says what the shelf offers and what colour its block wears; it does not
+/// a mark says what the shelf offers and what color its block wears; it does not
 /// say what may be read. Without this, a work drawn in one game and opened in
 /// another came up with its marks silently missing - and saving it again would
 /// have made that permanent, which is the one kind of bug a maker cannot undo.
@@ -788,9 +788,9 @@ pub fn palette() -> PathBuf {
         .unwrap_or_else(|| root().join("data/palette.json"))
 }
 
-/// Where the colour sets a maker saved from this game's buildings live.
+/// Where the color sets a maker saved from this game's buildings live.
 ///
-/// In the project because the colours name the GAME's own ramps: a set saved for one game
+/// In the project because the colors name the GAME's own ramps: a set saved for one game
 /// paints nothing in another. Beside the kinds, which is where everything game-shaped that
 /// the bench itself authors belongs.
 ///
@@ -803,7 +803,7 @@ pub fn saved_palettes() -> PathBuf {
 
 /// What a part may be BUILT of, as far as the game is concerned.
 ///
-/// Not its colour. Brett: "The color shouldn't have anything to do with that. That's just
+/// Not its color. Brett: "The color shouldn't have anything to do with that. That's just
 /// what you painted in the palette." A wall painted pale is a wall painted pale; a wall
 /// MADE of stone is one the village quarries for, hauls, and takes longer over. One is
 /// how a building looks and the other is what it costs, and a bench that confused them
@@ -1179,7 +1179,7 @@ mod tests {
     /// Both ways of being one: a folder with a manifest, and the bench's own
     /// folder without one. Otherwise pointing at the place the work already lives
     /// would bury a second bench folder inside it - `opificium/opificium` - and
-    /// every colour and saved work would go missing at once.
+    /// every color and saved work would go missing at once.
     #[test]
     fn a_project_folder_is_taken_as_it_stands() {
         let manifested = fresh("opificium-test-has-manifest");
@@ -1266,13 +1266,10 @@ mod tests {
             })
             .collect();
 
-        // A mark that says nothing is a place, and keeps the colours it always got.
+        // A mark that says nothing is a place, and keeps the colors it always got.
         assert_eq!(marks[0].word, "door");
         assert!(marks[0].size.is_none(), "a plain mark now claims room");
-        assert_eq!(
-            marks[0].ramp, "bone",
-            "a plain mark lost its default colour"
-        );
+        assert_eq!(marks[0].ramp, "bone", "a plain mark lost its default color");
 
         // One that says how much room it has, has it.
         assert_eq!(

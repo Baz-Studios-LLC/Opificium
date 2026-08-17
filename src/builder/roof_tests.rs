@@ -56,7 +56,7 @@ fn a_hip_roof_faces_outward() {
             panic!("a hip roof has no normals");
         };
         // Each face is four corners with one normal; its middle should lie
-        // the way its normal points, measured from the shape's own centre.
+        // the way its normal points, measured from the shape's own center.
         for face in 0..points.len() / 4 {
             let corners = &points[face * 4..face * 4 + 4];
             let middle = corners
@@ -286,7 +286,7 @@ fn a_flight_puts_its_rail_on_the_lattice() {
         let atoms = line / ATOM;
         assert!(
             (atoms - atoms.round()).abs() < 1e-3,
-            "a flight {wide} wide puts its rail {atoms:.2} atoms off centre"
+            "a flight {wide} wide puts its rail {atoms:.2} atoms off center"
         );
         // And the flat rail's own line is its origin, so the two meet when
         // the flat one is set down that many atoms across.
@@ -313,7 +313,7 @@ fn a_flight_puts_its_rail_on_the_lattice() {
 /// And a flight keeps balusters at every height it can be drawn.
 #[test]
 fn a_flight_keeps_its_balusters() {
-    // A two-tread flight is half a metre of run and a newel at each end of
+    // A two-tread flight is half a meter of run and a newel at each end of
     // it: there is no room between them and no baluster to be had. Ask of
     // the ones that have room.
     for rise in [0.75_f32, 1.5, 3.0] {
@@ -516,7 +516,7 @@ fn everything_sizable_can_be_trimmed() {
 /// barrel Brett photographed is mended, and the rest are waiting. A test
 /// that fails for work nobody has done yet stops being read.
 #[test]
-#[ignore = "a standing audit of the catalogue, not a check on today's work"]
+#[ignore = "a standing audit of the catalog, not a check on today's work"]
 fn no_part_fights_itself() {
     let mut fights: Vec<String> = Vec::new();
     for entry in STRUCTURE.iter().chain(FURNITURE).chain(DECOR) {
@@ -636,8 +636,8 @@ fn the_bays_fill_the_span_exactly() {
 /// The grid a maker sets is the grid every pull lands on.
 ///
 /// The step is `16 / grid`, which is the same expression the ghost snaps a
-/// placed part with - so a part can be put down on a quarter metre and
-/// dragged on quarter metres, rather than put down on one and dragged off
+/// placed part with - so a part can be put down on a quarter meter and
+/// dragged on quarter meters, rather than put down on one and dragged off
 /// it a sixteenth at a time.
 #[test]
 fn the_grid_is_the_step_every_pull_takes() {
@@ -704,7 +704,7 @@ fn a_framed_wall_is_solid_where_it_is_not_open() {
         ("plain", [None; MOST_OPENINGS]),
         ("a door", one(Opening::Door, 0.0)),
         ("a window", one(Opening::Window, 0.0)),
-        // Off centre, where the two spans divide differently.
+        // Off center, where the two spans divide differently.
         ("a door to one side", one(Opening::Door, -0.75)),
         // And several at once, which is the case the spans have to be
         // worked out per course to survive at all.
@@ -797,7 +797,7 @@ fn an_opening_gathers_its_own_frame() {
             },
             None,
         );
-        // Halfway up the opening, on its centre line.
+        // Halfway up the opening, on its center line.
         let y = (foot as f32 + rise as f32 * 0.5) * ATOM;
         let holds = |piece: &Slab, x: f32| {
             (piece.at.x - x).abs() < piece.size.x * 0.5 - 1e-4
@@ -805,7 +805,7 @@ fn an_opening_gathers_its_own_frame() {
         };
 
         // A quarter of the way in, not the middle: a window has a mullion
-        // and a transom crossing at its centre now, so the centre is
+        // and a transom crossing at its center now, so the center is
         // rightly full. The panes either side of them are what must be
         // clear.
         for quarter in [-0.25f32, 0.25] {
@@ -856,7 +856,7 @@ fn a_longer_wall_gains_a_bay() {
     let long = studs(6.0);
     assert!(
         long > short,
-        "six metres came out with {long} pieces against two metres' {short}",
+        "six meters came out with {long} pieces against two meters' {short}",
     );
 }
 
@@ -972,8 +972,8 @@ fn every_part_is_drawn_in_whole_atoms() {
                 continue;
             }
             for axis in 0..3 {
-                // Sizes must be whole atoms; a CENTRE may sit on a half
-                // atom, since a box of odd width is centred between two.
+                // Sizes must be whole atoms; a CENTER may sit on a half
+                // atom, since a box of odd width is centered between two.
                 let atoms = size[axis] / ATOM;
                 if (atoms - atoms.round()).abs() > 1e-3 {
                     off.push(format!(
@@ -1063,7 +1063,7 @@ fn a_wall_piece_keeps_its_own_height() {
 /// sees when a piece they are setting against something jumps on top of it.
 #[test]
 fn a_part_rests_on_what_most_of_it_stands_on() {
-    // Centre and three corners on a floor at 0.375, one corner on a 2m wall.
+    // Center and three corners on a floor at 0.375, one corner on a 2m wall.
     assert!((seated_at(&[0.375, 0.375, 0.375, 0.375, 2.0]) - 0.375).abs() < 1e-4);
     // Two corners on the wall is still not most of it.
     assert!((seated_at(&[0.375, 0.375, 0.375, 2.0, 2.0]) - 0.375).abs() < 1e-4);
@@ -1356,8 +1356,8 @@ fn a_stair_carries_a_rail_at_its_own_pitch() {
             .filter(|Slab { lean, .. }| *lean != 0.0)
             .collect();
         assert_eq!(rails.len(), 2, "a flight wants a rail on each side");
-        // The span the rail's LINE covers: from the foot newel's centre, a
-        // reveal in from the bottom tread, to the head newel's centre, which
+        // The span the rail's LINE covers: from the foot newel's center, a
+        // reveal in from the bottom tread, to the head newel's center, which
         // hangs a lap PAST the top one so the rail meets the wall. The rail
         // itself is shorter than that - it ends inside the newels - but it
         // lies along the same line at the same pitch.
@@ -1573,7 +1573,7 @@ fn a_record(part: String, at: [f32; 3], yaw: f32) -> Placed {
 
 #[test]
 fn a_trimmed_beam_stops_at_the_roof_and_keeps_its_far_end() {
-    // A four metre beam running along X through its own middle, and a wall
+    // A four meter beam running along X through its own middle, and a wall
     // of roof standing across it at x = 1. The beam must come back to that
     // wall, and its far end must not budge - a part that shortened from both
     // ends would walk out of whatever joint it was seated in.
@@ -1704,7 +1704,7 @@ fn a_tie_beam_trims_to_the_slope_and_not_to_the_gable_it_sits_in() {
     // The property rather than the number: no corner of the trimmed beam may
     // stand ABOVE the roof's outer face. Not "inside the roof" - that was
     // the first version of this check and it passed while the bug was
-    // present, because a stub poking through a panel an eighth of a metre
+    // present, because a stub poking through a panel an eighth of a meter
     // thick is on the far SIDE of it rather than within it. A green test
     // that cannot see the reported fault is worse than no test.
     let spin = pose(moved.yaw, moved.tilt, moved.flip);
@@ -2018,7 +2018,7 @@ fn a_gable_meets_the_roof_it_stands_under() {
             let gable = gable_peak(long, pitch);
             assert!(
                 (gable - roof).abs() < 0.07,
-                "a {long} metre gable at {pitch} degrees stands {gable} \
+                "a {long} meter gable at {pitch} degrees stands {gable} \
                      against a ridge at {roof}"
             );
         }
@@ -2064,11 +2064,11 @@ fn a_gable_stands_the_right_way_up() {
         .fold(f32::MIN, f32::max);
     assert!(
         tall > 0.0,
-        "a gable of four metres has a height of {tall}: it is inside out"
+        "a gable of four meters has a height of {tall}: it is inside out"
     );
     assert!(
         (tall - 1.125).abs() < 0.1,
-        "a four metre gable at thirty degrees should stand about 1.15 tall, \
+        "a four meter gable at thirty degrees should stand about 1.15 tall, \
              not {tall}"
     );
 }
@@ -2959,7 +2959,7 @@ fn copying_a_group_takes_all_of_it() {
         "copying a grouped part did not take the group with it"
     );
 
-    // CMD-V hands the whole cluster over, centred on its own middle so it lands
+    // CMD-V hands the whole cluster over, centered on its own middle so it lands
     // where the cursor is rather than where it was drawn.
     app.world_mut()
         .resource_mut::<ButtonInput<KeyCode>>()
@@ -2979,7 +2979,7 @@ fn copying_a_group_takes_all_of_it() {
     let middles: f32 = held.parts.iter().map(|record| record.at[0]).sum();
     assert!(
         middles.abs() < 1e-3,
-        "the pasted cluster is not centred on its own middle"
+        "the pasted cluster is not centered on its own middle"
     );
     // And a lone part still goes into the plain hand, as it always did.
     assert!(
@@ -3010,7 +3010,7 @@ fn r_turns_a_group_about_its_own_middle() {
     app.insert_resource(crate::Bench::Builder);
     app.add_systems(Update, turn_part);
 
-    // Three in a row along X, four metres end to end: the middle is (2, 0).
+    // Three in a row along X, four meters end to end: the middle is (2, 0).
     let spots = [[0.0, 0.0, 0.0], [2.0, 0.0, 0.0], [4.0, 0.0, 0.0]];
     let kin: Vec<Entity> = spots
         .iter()
@@ -3088,7 +3088,7 @@ fn r_turns_a_group_about_its_own_middle() {
     down.sort_by(|a, b| a.partial_cmp(b).unwrap());
     assert!(
         (down[0] + 2.0).abs() < 1e-4 && down[1].abs() < 1e-4 && (down[2] - 2.0).abs() < 1e-4,
-        "the group is no longer a row two metres apart: {down:?}"
+        "the group is no longer a row two meters apart: {down:?}"
     );
     // And it is STILL A GROUP - a turn that scattered the membership would leave
     // the pieces standing right and never move together again.

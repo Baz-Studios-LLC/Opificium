@@ -27,7 +27,7 @@ from the table below.
 | field       | default             | what it is                                      |
 | ----------- | ------------------- | ----------------------------------------------- |
 | `name`      | the folder's name   | what the bench calls this project                |
-| `palette`   | `data/palette.json` | the game's colour ramps                          |
+| `palette`   | `data/palette.json` | the game's color ramps                          |
 | `templates` | `templates`         | starting shapes to draw from                     |
 | `work`      | `out/buildings`     | the maker's own saved work                       |
 | `baked`     | `out/baked`         | exported work, ready for the game                |
@@ -53,7 +53,7 @@ it its own way. Re-run whenever the game's palette changes.
 { "ramps": [ { "name": "wood", "steps": [[26,28,36], ...5 RGB steps...] } ] }
 ```
 
-Colour in every other file is spoken as `{ "ramp": "wood", "shade": 0.7 }` —
+Color in every other file is spoken as `{ "ramp": "wood", "shade": 0.7 }` —
 a name and a 0..1 step, never raw RGB — so authored work inherits palette
 changes for free.
 
@@ -92,12 +92,12 @@ Two kinds are understood, and which one it has is worked out on sight:
 
 * A **grayscale heightmap** carries real elevation. Brightness is height,
   and the waterline is `sea_threshold`.
-* A **coloured map** — a political map from a generator, say — carries no
-  elevation at all. Its brightness is region fill colours and means
+* A **colored map** — a political map from a generator, say — carries no
+  elevation at all. Its brightness is region fill colors and means
   nothing as terrain, so it is read for its COASTLINE only, and every
   hill on it is generated or sculpted.
 
-A coloured map is read by **hue, not brightness**. Brightness cannot tell
+A colored map is read by **hue, not brightness**. Brightness cannot tell
 open water from a black place name, a road, or a dashed border — every one
 of them is dark — so a brightness threshold cuts each label on the map
 into the ground as a lake. Water is the one thing on such a map that is
@@ -118,7 +118,7 @@ Every field has a default, so a game that has not written one still opens.
 **It exists so the two programs agree.** A maker sculpts OFFSETS — how far
 the ground moved — and the game adds those to ground it generates itself.
 If the bench and the game disagree about what was underneath by so much as
-a metre, every hill a maker placed sits at the wrong height in the game,
+a meter, every hill a maker placed sits at the wrong height in the game,
 and nothing on screen says why. So the numbers travel as data, exactly as
 the palette does, rather than being written down twice.
 
@@ -132,11 +132,11 @@ it belongs to, and read by the game at load. Little-endian throughout:
 ```
 "RNGREDT1"        8 bytes, names the file
 wide, deep        u32 each, the grid in cells
-half_x, half_y    f32 each, the world's half-extents in metres
+half_x, half_y    f32 each, the world's half-extents in meters
 offsets           f32 * wide * deep, row-major, north row first
 ```
 
-Each cell is a signed height **offset in metres**, on a 4 m grid, read
+Each cell is a signed height **offset in meters**, on a 4 m grid, read
 between cells. The game's ground is whatever it generates PLUS this.
 
 Offsets rather than heights, on purpose. Re-roll the noise, redraw the map,
@@ -154,7 +154,7 @@ map with nothing to undo it with.
 
 **The lattice**: the bench speaks in UNITS, and one unit - 1/16 m - is
 the smallest measure that exists. Every coordinate and dimension is a
-whole number of them. The files below still carry metres (divide by 16)
+whole number of them. The files below still carry meters (divide by 16)
 so the game's world and old exports stay true. Coarse work steps 4/16, joints land on
 2/16, fine work on 1/16. Binary fractions carry exactly in floats, so
 two parts that should meet, meet. STRUCTURAL DIMENSIONS obey it too:
@@ -163,7 +163,7 @@ trim 0.3125 high, door openings 1.25 x 2.125, windows 1.25 x 1.25
 with the sill at 0.75. Furniture stays organic - nothing joins
 against a stool.
 
-Local space: +Y up, metres. Position and orientation on the bench are
+Local space: +Y up, meters. Position and orientation on the bench are
 FREE: the import rebases the building on its own bounds, and the door
 widget defines the front - the whole blueprint is turned so the (first)
 door faces the village. The gold sill (+X) is a working aid, not a law.
@@ -192,7 +192,7 @@ game already understands, so the carrying-in is mechanical:
 ```
 
 - `part`: `wall-<len>` (0.25 thick, 2.4 high — Opificium's truth; the game conforms),
-  `ridge-<len>` (the cap over a ridge line, half a metre across at the
+  `ridge-<len>` (the cap over a ridge line, half a meter across at the
   bench's pitch), `gable-<len>` (a wedge - a real triangular prism, peak at the
   bench's 45 degree pitch, so it stands half as tall as it is wide),
   `floor`, `roof`, `prop:<name>` (bed, table, stool, hearth, chair, bench,
@@ -209,10 +209,10 @@ game already understands, so the carrying-in is mechanical:
   do, whatever the shortage.
 - EXPORT A COPY writes `out/buildings/build-<n>.json`, never overwriting;
   the SAVED WORK drawer lists everything in that folder on launch.
-- `yaw` turns about the part's centre; `tilt` pitches roof panels.
+- `yaw` turns about the part's center; `tilt` pitches roof panels.
 - `flip`: mirrored - the body reflected across its own length and the
   tilt leaning the other way (the far half of a gable).
-- `ramp`/`shade`: a repaint, or `null` for the part's authored colours.
+- `ramp`/`shade`: a repaint, or `null` for the part's authored colors.
 - `stage`: `footing | frame | walls | roof | furnishing` — the order the
   village raises it; `widget` entries never become boxes at all.
 
@@ -222,7 +222,7 @@ A glTF binary, made at the kiln from an image and kept by the maker under a name
 Loaded WHOLE - it is not parts, not boxes, and carries its own materials and
 textures, so there is nothing in it for a game to translate.
 
-- **Metres, standing on its own origin.** The bench bakes both into the file when
+- **Meters, standing on its own origin.** The bench bakes both into the file when
   it keeps one: the maker states a height and the mesh is scaled to it, and the
   model is lifted so its lowest point sits at y=0. So `translation` is a place to
   put it on the ground and needs no offset of the game's own.
@@ -241,7 +241,7 @@ written by anything, so nothing read it. It is not deprecated; it never shipped.
 
 What the bench hands the game, written by `cargo test bake_the_works --
 --ignored`. Not parts any more but the plain boxes they resolve to, each with
-its colour already looked up, plus the marks that say what the place is FOR.
+its color already looked up, plus the marks that say what the place is FOR.
 
 ```json
 {
@@ -289,9 +289,9 @@ A mark says WHAT, WHERE and WHICH WAY: `{mark, at, yaw}`. Some say one thing mor
 and a reader that meets neither extra key is reading a mark that is only a place -
 which is nearly all of them.
 
-- `wide`, one number in metres: how far across a ROUND thing is. `at` is the middle
+- `wide`, one number in meters: how far across a ROUND thing is. `at` is the middle
   of its FACE, because that is the point a hand turns about.
-- `size`, `[x, y, z]` in metres: how much ROOM a place has. `at` is the middle of
+- `size`, `[x, y, z]` in meters: how much ROOM a place has. `at` is the middle of
   its FOOT, because a stack grows up off a floor.
 
 **No mark says both, and neither is a tidier spelling of the other.** They were
@@ -312,9 +312,9 @@ pallet widget that I could put in the building that the food stacks into."
 Goods stacking into a pallet are FILLING something, and a game filling a space has
 to be told how big the space is. So a mark may carry `size`, and where it does:
 
-- `at` is the middle of its FOOT, not its centre. A stack grows upward off a
+- `at` is the middle of its FOOT, not its center. A stack grows upward off a
   floor, so the game is given the floor it starts from.
-- `size` is `[long, high, deep]` in metres, in the mark's own frame. `yaw` turns
+- `size` is `[long, high, deep]` in meters, in the mark's own frame. `yaw` turns
   it, the same as for any other mark.
 - What goes in it, how much fits, and how it is drawn are the GAME'S. The bench
   says where the room is and how much of it there is, and nothing else.
@@ -337,7 +337,7 @@ animate. Brett: "make it hands free and have the game create and animate the
 hands."
 
 Every level is measured from ONE origin: the first level's finished footprint. An
-upgrade has to land on the building it upgrades, so it is never recentred on its
+upgrade has to land on the building it upgrades, so it is never recentered on its
 own bounds - a wing added to one end would otherwise shunt the whole building
 sideways the day it was built.
 
@@ -402,7 +402,7 @@ one a tag can imply.
   and **absent is not `wood`** — a part nobody has spoken for leaves the decision
   where it belongs, with you.
 
-  It has nothing to do with colour. `rgb` and `cloth` are what a maker PAINTED;
+  It has nothing to do with color. `rgb` and `cloth` are what a maker PAINTED;
   this is what the thing is made of, and only one of the two should cost a village
   a quarry. The materials a project offers live in `data/materials.json`, and a
   maker adds one from the part's own menu.
@@ -410,8 +410,8 @@ one a tag can imply.
 - `cloth` names the ramp a box was painted from. The bench writes it and the
   game no longer reads it: villages used to re-dye a drawing's dominant wall and
   roof cloth so a street of one blueprint was a street of different houses,
-  which was the right answer while a drawing wore whatever the catalogue handed
-  it. There is a brush on the bench now, so the colour in `rgb` is a choice, and
+  which was the right answer while a drawing wore whatever the catalog handed
+  it. There is a brush on the bench now, so the color in `rgb` is a choice, and
   the game paints exactly what it is given. Variety comes from the mirror
   instead: half of every kind is raised as its own reflection along z, which the
   game does to the numbers rather than by scaling, so nothing turns inside out.

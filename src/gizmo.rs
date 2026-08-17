@@ -3,7 +3,7 @@
 //! A mode bar rides the top of the window, the way the big 3D programs
 //! do it: NORMAL places and grabs, MOVE puts translate arrows on what
 //! you click, RESIZE puts end-handles on any sized primitive and drags
-//! its dimensions in quarter-metre steps. Tab walks the modes.
+//! its dimensions in quarter-meter steps. Tab walks the modes.
 
 use bevy::camera::visibility::RenderLayers;
 use bevy::prelude::*;
@@ -19,7 +19,7 @@ pub enum ToolMode {
     Normal,
     Move,
     Resize,
-    /// Colour what is already standing: clicking a part paints it with the
+    /// Color what is already standing: clicking a part paints it with the
     /// brush rather than merely selecting it.
     Paint,
 }
@@ -940,7 +940,7 @@ fn work_gizmo(
     // Every pull lands on the grid the bench is set to, which is what G
     // changes. It used to be whole sixteenths always - "resizing is fine work
     // by nature", which is true of most resizing and not of a maker who has
-    // just asked for quarter metres because they are laying out a building.
+    // just asked for quarter meters because they are laying out a building.
     //
     // Placing a part already worked this way. A handle that did not meant the
     // same part could be put down on a quarter and then dragged off it.
@@ -1043,7 +1043,7 @@ fn work_gizmo(
             // it upward and away from the ground it rests on.
             //
             // It used to be lifted by half the growth, on the assumption that
-            // the box was centred on the origin like most parts. That put the
+            // the box was centered on the origin like most parts. That put the
             // pad half an atom into the air for every atom it gained, and half
             // an atom is exactly what the lattice cannot have: Brett, "A
             // foundation on the ground when I stretch it up it seems to get off
@@ -1146,7 +1146,7 @@ fn work_gizmo(
         }
         Grip::Size { on_x, w0, d0, was } => {
             // Pulling outward along the handle grows the dimension; the
-            // far end stands still, so the centre walks half the growth.
+            // far end stands still, so the center walks half the growth.
             let pull = step_of(t - state.t0);
             let Some(kind) = builder::kind_from_name(&record.part) else {
                 return;

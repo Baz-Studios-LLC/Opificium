@@ -48,7 +48,7 @@ cargo run --release
 `OPIFICIUM_BENCH=rig` opens on the animation bench instead of the
 builder.
 
-## Licence
+## License
 
-© Baz Studios LLC. The bundled fonts carry their own licences, kept
+© Baz Studios LLC. The bundled fonts carry their own licenses, kept
 beside them in `assets/fonts`.

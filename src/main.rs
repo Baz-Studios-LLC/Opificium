@@ -3,7 +3,7 @@
 //! A standalone maker's bench. Buildings are authored here by hand out of boxes
 //! on a lattice and exported as JSON; models are commissioned from a picture and
 //! kept as GLB. The two programs share no code — the game exports its palette as
-//! data so Opificium paints with true colours, and Opificium exports blueprints
+//! data so Opificium paints with true colors, and Opificium exports blueprints
 //! and models the game reads at its leisure. See FORMATS.md for every file that
 //! passes between them.
 //!
@@ -43,9 +43,9 @@ pub enum Bench {
     /// benches make is a THING that stands on the ground - boxes on a lattice, a
     /// model on the grid - and this one makes the ground they stand on. It has no
     /// lattice, because a hill does not snap; no ramp, because it wears the game's
-    /// own biome colours by height and slope; and no shelf of parts, because there
-    /// is only ever one world open. It is measured in kilometres where every other
-    /// bench is measured in metres, which is reason enough on its own.
+    /// own biome colors by height and slope; and no shelf of parts, because there
+    /// is only ever one world open. It is measured in kilometers where every other
+    /// bench is measured in meters, which is reason enough on its own.
     Terrain,
     /// The kiln: an image in, a model out, by way of somebody else's machine.
     ///
@@ -149,7 +149,7 @@ fn open_a_project(road: &std::path::Path) -> Option<project::Project> {
         }
         Err(why) => {
             // A bench standing in no project still draws - it takes every default
-            // and paints in its own colours - which is a better greeting than
+            // and paints in its own colors - which is a better greeting than
             // refusing to open at all.
             warn!("could not open {}: {why}", road.display());
             None

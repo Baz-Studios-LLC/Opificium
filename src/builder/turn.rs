@@ -15,7 +15,7 @@ pub(crate) fn held_shift(keys: &ButtonInput<KeyCode>) -> bool {
 
 /// ALT: the other way of doing it.
 ///
-/// Take the colour under the cursor instead of laying one down; place on the bench's own
+/// Take the color under the cursor instead of laying one down; place on the bench's own
 /// sixteenths instead of the grid the G key set. Photoshop's eyedropper and Blender's
 /// precision drag are both this key, and both are "not the ordinary action, the other one".
 ///

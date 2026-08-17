@@ -80,13 +80,13 @@ fn every_shape_a_work_was_ever_saved_in_opens() {
 
 /// Every level is measured from the FIRST level's middle.
 ///
-/// An upgrade lands on the building it upgrades. Recentring each level on its
+/// An upgrade lands on the building it upgrades. Recentering each level on its
 /// own bounds would shunt the whole thing sideways the day a wing was added,
 /// which is the one thing about levels that cannot be seen by looking at one.
 #[test]
 fn an_upgrade_stands_where_the_building_stands() {
     let palette = crate::look::bench_palette();
-    // A base centred on the origin, and an upgrade that only adds to +X - so
+    // A base centered on the origin, and an upgrade that only adds to +X - so
     // its own middle is well away from the base's.
     let base = vec![a_part([0.0, 0.0, 0.0], "walls")];
     let upgraded = vec![

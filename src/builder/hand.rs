@@ -242,7 +242,7 @@ pub fn face_stands_up(normal: Vec3) -> bool {
     normal.y.abs() < 0.3
 }
 
-/// The carried part's footprint, spoken as sample points: its centre and
+/// The carried part's footprint, spoken as sample points: its center and
 /// four corners, drawn in slightly so edge-kisses do not flicker.
 pub(crate) fn footprint_samples(kind: &PartKind, at: Vec3, yaw: f32) -> Vec<Vec3> {
     let mut low = Vec3::splat(f32::INFINITY);
@@ -406,11 +406,11 @@ pub(crate) fn platform_rects(
     rects
 }
 
-/// Wall centrelines sit half a wall inside the platform edge, which
+/// Wall centerlines sit half a wall inside the platform edge, which
 /// puts the timber's OUTER FACE flush with the stone's: fully seated,
 /// no gap, no overhang. Corners still meet cleanly because platform
 /// corners pull walls only along their own line - the flush snap owns
-/// the sideways part - and the pole caps the centreline crossing.
+/// the sideways part - and the pole caps the centerline crossing.
 pub(crate) const PLINTH_REVEAL: f32 = WALL_THICK * 0.5;
 
 /// The ends of every standing full-height wall piece, for the magnets.
@@ -532,7 +532,7 @@ pub(crate) fn move_ghost(
             to.z = stop.z;
         }
         let reach = to - anchor;
-        let (made, centre, yaw) = if axes == 1 {
+        let (made, center, yaw) = if axes == 1 {
             let on_x = reach.x.abs() >= reach.z.abs();
             let signed = if on_x { reach.x } else { reach.z };
             let long = signed.abs().max(0.25);
@@ -574,7 +574,7 @@ pub(crate) fn move_ghost(
         };
         let record = Placed {
             part: part_name(&made),
-            at: centre.into(),
+            at: center.into(),
             yaw,
             tilt: 0.0,
             ramp: hand.ramp.clone(),
@@ -615,7 +615,7 @@ pub(crate) fn move_ghost(
             );
         } else {
             for (_, mut transform, _) in &mut ghosts {
-                transform.translation = centre;
+                transform.translation = center;
                 transform.rotation = Quat::from_rotation_y(yaw);
             }
         }
@@ -629,7 +629,7 @@ pub(crate) fn move_ghost(
     // on a foundation's top still seats flush to its edges.
     // A door or a window does not stand ON a wall, it stands IN one - and
     // it belongs to walls alone. Shown any other way the ghost clings to
-    // whatever the cursor finds, roofs included, and leaps a metre the
+    // whatever the cursor finds, roofs included, and leaps a meter the
     // instant the aim slips off the timber. It seats itself here with the
     // punch's own arithmetic, so what you see is where it goes.
     if let Some(opens) = opening_of(&kind_now) {
@@ -738,7 +738,7 @@ pub(crate) fn move_ghost(
             // edges and still clicks to the end of the wall it continues.
             on_the_face = face_seat(hit.normal, hit.point);
         } else if face_stands_up(hit.normal) {
-            // My reach along the face's normal: how far my centre must
+            // My reach along the face's normal: how far my center must
             // stand off so my body kisses the face.
             let mut low = Vec3::splat(f32::INFINITY);
             let mut high = Vec3::splat(f32::NEG_INFINITY);
@@ -757,7 +757,7 @@ pub(crate) fn move_ghost(
                     );
                 reach = reach.max(corner.dot(hit.normal).abs());
             }
-            // Along the face: quarter-metre order. Up the face: courses
+            // Along the face: quarter-meter order. Up the face: courses
             // measured from the part's own base, so trim stacks in rings.
             let per = 16.0 / snap_grid.0 as f32;
             let tangent = Vec3::Y.cross(hit.normal).normalize_or_zero();
@@ -786,8 +786,8 @@ pub(crate) fn move_ghost(
             Vec3::ZERO + point
         }
     };
-    // Quarter-metre snap by default; holding shift tightens the grid to
-    // five centimetres for the odd exact nestling.
+    // Quarter-meter snap by default; holding shift tightens the grid to
+    // five centimeters for the odd exact nestling.
     if seeded.is_none() {
         let grid = snap_step(held_fine(&keys), snap_grid.0);
         snapped = Vec3::new(
@@ -807,7 +807,7 @@ pub(crate) fn move_ghost(
     if magnetic {
         let mut ends = wall_ends(&placed);
         let platforms = platform_rects(&placed);
-        // The pole magnetizes to centreline crossings at platform corners
+        // The pole magnetizes to centerline crossings at platform corners
         // - the exact point two flush walls meet - alongside wall ends.
         if matches!(kind, PartKind::Pole { .. }) || kind.run_axes() == Some(1) {
             for platform in &platforms {
@@ -843,7 +843,7 @@ pub(crate) fn move_ghost(
                 // The joint decides the target. Perpendicular tips overlap
                 // into a full corner block, outer faces flush both ways; a
                 // continuation meets end to end; a pole takes the
-                // centreline crossing itself.
+                // centerline crossing itself.
                 let target = if *my_out == Vec3::ZERO {
                     *theirs - *their_out * half_thick
                 } else if my_out.dot(*their_out).abs() < 0.35 {
@@ -967,12 +967,12 @@ pub struct Hit {
     pub point: Vec3,
     pub normal: Vec3,
     pub base_y: f32,
-    /// The colour of the very piece under the cursor: its ramp, and its step.
+    /// The color of the very piece under the cursor: its ramp, and its step.
     ///
-    /// The colour SEEN, not the part's own field. Most of what a maker points at
+    /// The color SEEN, not the part's own field. Most of what a maker points at
     /// has never been repainted - a framed wall is wood timbers and bone panels,
     /// and its `ramp` is None - so a dropper reading the record would come up empty
-    /// on exactly the colours worth copying. `body_of` is handed the repaint before
+    /// on exactly the colors worth copying. `body_of` is handed the repaint before
     /// this is read, so a part that HAS been painted answers with the paint.
     ///
     /// The ramp is KEPT rather than owned, so a `Hit` stays `Copy` and every reader

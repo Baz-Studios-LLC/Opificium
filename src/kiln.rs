@@ -8,7 +8,7 @@
 //!
 //! # What a model is NOT
 //!
-//! Not a part. A part is a NAME the bench resolves into boxes on a sixteenth-metre
+//! Not a part. A part is a NAME the bench resolves into boxes on a sixteenth-meter
 //! lattice, painted from a ramp; a generated mesh is arbitrary triangles carrying
 //! its own PBR materials. It cannot be painted, cut to the lattice or written into a
 //! baked building's `boxes`, and pretending otherwise would break the brush, the
@@ -593,7 +593,7 @@ fn road_of(url: &str) -> &str {
     url.split('?').next().unwrap_or(url)
 }
 
-/// Enough of an unexpected answer to recognise it, and no more.
+/// Enough of an unexpected answer to recognize it, and no more.
 ///
 /// A whole HTML error page in a log is a log nobody reads, and an API key is never in
 /// one of these - the bench sends the key and never receives it.
@@ -1241,10 +1241,10 @@ struct Kiln {
     began: f32,
     /// The picture last chosen, and whether it has been put on the shelf yet.
     picture: Option<PathBuf>,
-    /// How tall the thing IS, in metres.
+    /// How tall the thing IS, in meters.
     ///
     /// A generated mesh arrives at whatever size the machine felt like, and this
-    /// bench's one promise is the sixteenth-metre lattice - so a model is fitted to a
+    /// bench's one promise is the sixteenth-meter lattice - so a model is fitted to a
     /// height a maker states rather than trusted. The number is also the only thing
     /// about scale a game could want.
     tall: f32,
@@ -1781,8 +1781,8 @@ fn hang_the_kiln(mut commands: Commands, fonts: Res<Fonts>, palette: Res<Palette
         ))
         .id();
     for (by, label, tale) in [
-        (-1, "-", "a quarter metre shorter"),
-        (1, "+", "a quarter metre taller"),
+        (-1, "-", "a quarter meter shorter"),
+        (1, "+", "a quarter meter taller"),
     ] {
         let button = commands
             .spawn((
@@ -1926,10 +1926,10 @@ fn say_the_key(
         Some(key) => (a_key_masked(&key), theme::text_dim(&palette)),
         None => ("NO KEY YET".to_string(), palette.shade("cloth-red", 0.8)),
     };
-    for (mut text, mut colour) in &mut words {
+    for (mut text, mut color) in &mut words {
         if text.0 != said {
             *text = Text::new(said.clone());
-            *colour = TextColor(dye);
+            *color = TextColor(dye);
         }
     }
 }
@@ -1955,10 +1955,10 @@ fn say_what_is_left(
         // Nothing said until there is something true to say.
         None => (String::new(), theme::text_dim(&palette)),
     };
-    for (mut text, mut colour) in &mut words {
+    for (mut text, mut color) in &mut words {
         if text.0 != said {
             *text = Text::new(said.clone());
-            *colour = TextColor(dye);
+            *color = TextColor(dye);
         }
     }
 }
@@ -2040,8 +2040,8 @@ fn keep_the_model(
 
 /// Raises and lowers the model, and says how tall it stands.
 ///
-/// In quarter metres, and on the lattice like everything else on this bench: a model
-/// is going into a game whose walls are 2.5 metres, and a fly the size of a longhouse
+/// In quarter meters, and on the lattice like everything else on this bench: a model
+/// is going into a game whose walls are 2.5 meters, and a fly the size of a longhouse
 /// is the first thing anybody notices.
 fn work_the_height(
     bench: Res<crate::Bench>,
@@ -2065,8 +2065,8 @@ fn work_the_height(
         return;
     }
     // WHAT IT ALL COMES TO, not just the number being set. A maker says a couch is a
-    // metre tall and it comes out two and a half metres long - and the length is the one
-    // they recognise as right or wrong on sight, because everybody knows how long a couch
+    // meter tall and it comes out two and a half meters long - and the length is the one
+    // they recognize as right or wrong on sight, because everybody knows how long a couch
     // is and nobody is sure how tall one is. Height alone is easy to get wrong by half.
     let said = match kiln
         .standing
@@ -2095,7 +2095,7 @@ fn work_the_height(
 /// Stands the model on the stage, and fits it to the height it was told.
 ///
 /// The height a maker states is the one fact that settles the size. Every model arrives
-/// normalised into a unit box - a fly and a sofa come back identical in size - so nothing
+/// normalized into a unit box - a fly and a sofa come back identical in size - so nothing
 /// in the file, and nothing a game could work out from it, says how big the thing is.
 /// `model::stand` does the measuring.
 fn stand_the_model(
@@ -2173,7 +2173,7 @@ fn dress_the_choices(
     }
     for (row, choice, mut border, mut fill) in &mut rows {
         // A quick look takes no options, so the three of them go quiet with it -
-        // greyed rather than hidden, since they are still what the other machine
+        // grayed rather than hidden, since they are still what the other machine
         // would do and a row that vanishes is a row a maker has to go looking for.
         let idle = recipe.maker == Maker::Quick && !matches!(choice, Choice::Maker(_));
         let standing = match choice {
@@ -2199,8 +2199,8 @@ fn dress_the_choices(
         };
         if let Ok(kids) = children.get(row) {
             for kid in kids.iter() {
-                if let Ok(mut colour) = words.get_mut(kid) {
-                    *colour = TextColor(dye);
+                if let Ok(mut color) = words.get_mut(kid) {
+                    *color = TextColor(dye);
                 }
             }
         }
@@ -2404,8 +2404,8 @@ fn dress_the_fire_button(
         return;
     }
     let ready = kiln.picture.is_some() && !matches!(kiln.firing, Firing::Working(..));
-    for mut colour in &mut words {
-        *colour = TextColor(if ready {
+    for mut color in &mut words {
+        *color = TextColor(if ready {
             theme::accent(&palette)
         } else {
             theme::text_dim(&palette).with_alpha(0.45)
@@ -2660,10 +2660,10 @@ fn say_how_it_goes(
         ),
         Firing::Failed(why) => (why.clone(), palette.shade("cloth-red", 0.85)),
     };
-    for (mut text, mut colour) in &mut words {
+    for (mut text, mut color) in &mut words {
         if text.0 != said {
             *text = Text::new(said.clone());
-            *colour = TextColor(dye);
+            *color = TextColor(dye);
         }
     }
 }

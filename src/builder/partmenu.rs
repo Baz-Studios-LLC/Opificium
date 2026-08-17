@@ -32,7 +32,7 @@ pub(crate) enum Deed {
     },
     /// A rail or a trim in the other material.
     MadeOfStone(bool),
-    /// What the village BUILDS this part out of - the game's word, not a colour.
+    /// What the village BUILDS this part out of - the game's word, not a color.
     BuiltOf(&'static str),
     /// Teach this project a material it does not know yet.
     ANewMaterial,
@@ -40,9 +40,9 @@ pub(crate) enum Deed {
     BarsIn(bool),
     /// How many panes this wall's windows are divided into, one way or the other.
     ///
-    /// In PANES rather than in metres, because that is how a maker counts a window -
+    /// In PANES rather than in meters, because that is how a maker counts a window -
     /// Brett: "The three high two wide windows with the black crossbars need to be
-    /// made" - and because a size in metres would land between two panes and round
+    /// made" - and because a size in meters would land between two panes and round
     /// to whichever it happened to be nearer.
     Panes {
         /// Up the wall rather than across it.
@@ -278,14 +278,14 @@ pub(crate) fn trim_to_roof(
     // reports a hit at no distance at all in both directions, the trim comes out
     // as nothing, and the deed silently declines - which is exactly what Brett
     // saw. His beam sits in its gable and pokes out through a slope; the slope
-    // was two and three quarter metres along the very ray that had already
+    // was two and three quarter meters along the very ray that had already
     // given up.
     let seated: Vec<&(Vec3, Vec3, Quat)> = roofs
         .iter()
         .filter(|(box_at, box_half, box_turn)| !point_in_box(at, *box_at, *box_half, *box_turn))
         .collect();
 
-    // The part's own cross-section, so its CORNERS are cast and not its centre
+    // The part's own cross-section, so its CORNERS are cast and not its center
     // line. A square beam meeting a slanted roof touches with a corner first, so
     // trimming to where the middle meets the slope leaves that corner standing
     // proud of it - a small stub above the roof, which is what Brett
@@ -672,7 +672,7 @@ fn wall_of(
     let leaf = hung_at.translation;
     // The wall whose own doorway stands where this leaf does. Measured at the HOLE
     // rather than at the wall's middle: a leaf near the end of a long wall is no
-    // nearer that wall's centre than it is to the next wall's.
+    // nearer that wall's center than it is to the next wall's.
     placed
         .iter()
         .find(|(_, at, record)| {
@@ -823,13 +823,13 @@ pub(crate) fn raise_part_menu(
     if !buttons.just_released(MouseButton::Right) {
         return;
     }
-    let travelled = std::mem::take(&mut *drift);
+    let traveled = std::mem::take(&mut *drift);
     for menu in &menus {
         commands.entity(menu).despawn();
     }
     // Four pixels of slop: a hand resting on a mouse is never quite still, and
     // an orbit that happens to end where it started is still an orbit.
-    if travelled > 4.0 || naming.0.is_some() || hand.kind.is_some() {
+    if traveled > 4.0 || naming.0.is_some() || hand.kind.is_some() {
         return;
     }
     let Some(part) = hovered.grab else {
@@ -1544,7 +1544,7 @@ pub(crate) fn work_part_menu(
                 }) = kind_from_name(&record.part)
             {
                 // EVERY window in the wall, because one wall with two windows in two
-                // colours is not a thing anybody means, and the menu acts on the part.
+                // colors is not a thing anybody means, and the menu acts on the part.
                 for hole in openings.iter_mut().flatten() {
                     if hole.what == Opening::Window {
                         hole.dark = dark;

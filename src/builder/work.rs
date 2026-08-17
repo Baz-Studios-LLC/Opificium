@@ -59,7 +59,7 @@ pub(crate) struct Level {
 /// Only the shown phase exists as entities; everything else is records waiting
 /// its turn. Switching gathers the standing parts back into their phase and sets
 /// the next one out, which is why a phase IS the bench rather than a filter over
-/// it - and a level is the same trick one storey up.
+/// it - and a level is the same trick one story up.
 #[derive(Resource)]
 pub struct Stages {
     pub(crate) levels: Vec<Level>,

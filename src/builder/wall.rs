@@ -107,10 +107,10 @@ pub(crate) fn heal_wall_at(
 
     let dressed = cloth.unwrap_or_else(|| frame_record.clone());
     let made = PartKind::wall(((high - low) * 16.0).round() / 16.0);
-    let centre = base + along * ((low + high) * 0.5);
+    let center = base + along * ((low + high) * 0.5);
     let whole = Placed {
         part: part_name(&made),
-        at: centre.into(),
+        at: center.into(),
         yaw: frame_record.yaw,
         tilt: 0.0,
         ramp: dressed.ramp.clone(),
@@ -140,7 +140,7 @@ pub(crate) fn heal_wall_at(
 /// ghost drifted off onto the roof while the door went into the wall.
 ///
 /// `clear` is the fifth thing it says, and the reason a double door used to fail on
-/// a framed wall: the first number is how far a PLAIN wall parts, in metres, which
+/// a framed wall: the first number is how far a PLAIN wall parts, in meters, which
 /// includes the frame the prop brings with it - and a framed wall brings its own
 /// frame, so what it needs is the CLEAR span the leaves must fit through, in atoms.
 /// Those are different numbers, and only one table should hold either.
@@ -164,8 +164,8 @@ pub fn opening_of(kind: &PartKind) -> Option<Opens> {
         })
     };
     match kind {
-        // One leaf a metre wide: sixteen atoms of clear. Twice the leaf, twice the
-        // hole and twice the clear - `door-double-leaf` hangs two metre-wide
+        // One leaf a meter wide: sixteen atoms of clear. Twice the leaf, twice the
+        // hole and twice the clear - `door-double-leaf` hangs two meter-wide
         // leaves either side of the middle, so a framed wall that reserved a
         // single door's sixteen atoms put them over solid timber.
         //
@@ -217,11 +217,11 @@ pub struct Opens {
     /// panes by four, glazed and silled, at door height. One flag cannot answer two
     /// questions, and the comment beside it swore it only answered one.
     pub what: Opening,
-    /// How far a PLAIN wall parts for it, in metres, frame included.
+    /// How far a PLAIN wall parts for it, in meters, frame included.
     pub wide: f32,
-    /// Where its head is, in metres off the wall's foot.
+    /// Where its head is, in meters off the wall's foot.
     pub head: f32,
-    /// How much wall is left under it, in metres.
+    /// How much wall is left under it, in meters.
     pub sill: f32,
     /// Whether a routing widget comes with it - a real door, that a villager
     /// walks through.
@@ -238,7 +238,7 @@ pub struct Opens {
 ///
 /// Brett's idea, and it needs nothing new anywhere else: the game reads EVERY
 /// mark called "door" into a building's list of doorways and steers each walker
-/// to the nearest one, so two marks a metre apart in one opening are two lanes,
+/// to the nearest one, so two marks a meter apart in one opening are two lanes,
 /// and two villagers meeting at a double door take one each instead of queueing
 /// through the same point. The part that knows it has two leaves is the part that
 /// should say where they are.
@@ -252,7 +252,7 @@ pub fn door_lanes(kind: &PartKind) -> Vec<f32> {
         } => barn_lanes(*double),
         PartKind::Prop("barn-leaf") => barn_lanes(false),
         PartKind::Prop("barn-double-leaf") => barn_lanes(true),
-        // One lane per leaf, each on its own leaf's centre.
+        // One lane per leaf, each on its own leaf's center.
         PartKind::Door { double: true, .. } | PartKind::Prop("door-double") => vec![-0.5, 0.5],
         _ => vec![0.0],
     }
@@ -305,7 +305,7 @@ pub fn opening_seat(
     // On the grid G sets, not on whole atoms always. An opening was the one thing a
     // hand placed that ignored the grid entirely - Brett: "when placing a door it
     // should respect the grid settings when you press g" - so a maker laying out a
-    // wall in quarter metres had to nudge its door by sixteenths.
+    // wall in quarter meters had to nudge its door by sixteenths.
     //
     // The step is measured from the wall's own middle, so a door moves in grid
     // strides along the timber it is going into rather than along the world.
@@ -325,8 +325,8 @@ pub fn opening_seat(
 /// THE STRIDES ARE MEASURED FROM THE COURSE the wall would have put it in, not
 /// from the wall's foot, and that is the whole difference between a window you
 /// can put anywhere and a window you can no longer put where it belongs. The
-/// course is one and an eighth of a metre up an ordinary wall; a stride of a
-/// quarter-metre off the FLOOR cannot land on it at all, so every window placed
+/// course is one and an eighth of a meter up an ordinary wall; a stride of a
+/// quarter-meter off the FLOOR cannot land on it at all, so every window placed
 /// with the ordinary grid would have missed the rail by two atoms and every
 /// wall in the village would have been spelled a new way. Off the course, the
 /// course is the stop you get for aiming at it, and a stride is a stride away.
@@ -420,10 +420,10 @@ pub(crate) fn opening_under(
             && up <= (hy + hh) as f32
         {
             // Which SLOT it is, so the caller can take that one out and leave the rest.
-            let at_metres = (hx as f32 + hw as f32 * 0.5 - span as f32 * 0.5) * ATOM;
+            let at_meters = (hx as f32 + hw as f32 * 0.5 - span as f32 * 0.5) * ATOM;
             let _ = what;
             return openings.iter().position(|slot| {
-                slot.is_some_and(|hole| (hole.at - at_metres).abs() < ATOM * 2.0)
+                slot.is_some_and(|hole| (hole.at - at_meters).abs() < ATOM * 2.0)
             });
         }
     }
@@ -475,9 +475,9 @@ pub(crate) fn punch_wall(
                 continue;
             };
             let along = Quat::from_rotation_y(record.yaw) * Vec3::X;
-            let from_centre = at - transform.translation;
-            let t = from_centre.dot(along);
-            let sideways = (from_centre - along * t).length();
+            let from_center = at - transform.translation;
+            let t = from_center.dot(along);
+            let sideways = (from_center - along * t).length();
             if sideways > 0.5 || t.abs() > length * 0.5 {
                 continue;
             }
@@ -532,7 +532,7 @@ pub(crate) fn punch_wall(
         //
         // Up to what the wall can carry: a lintel over the hole and a head plate
         // over that, both a plate deep. A barn door wants two and three quarter
-        // metres and an ordinary wall is two and a half, so one put in a wall too
+        // meters and an ordinary wall is two and a half, so one put in a wall too
         // short for it takes as much as there is rather than cutting away the
         // timber holding the roof up.
         let rise = opens.tall.min(tall - PLATE_TALL * 2);
@@ -592,7 +592,7 @@ pub(crate) fn punch_wall(
     } else {
         false
     };
-    let centre_of = |offset: f32| {
+    let center_of = |offset: f32| {
         let base = placed
             .get(wall)
             .map(|(_, tf, _, _)| tf.translation)
@@ -609,7 +609,7 @@ pub(crate) fn punch_wall(
                 high: WALL_HIGH,
                 lift: 0.0,
             },
-            centre_of(-half + left * 0.5),
+            center_of(-half + left * 0.5),
         ));
     }
     let right = half - (middle + wide * 0.5);
@@ -620,7 +620,7 @@ pub(crate) fn punch_wall(
                 high: WALL_HIGH,
                 lift: 0.0,
             },
-            centre_of(half - right * 0.5),
+            center_of(half - right * 0.5),
         ));
     }
     if WALL_HIGH - head > 0.06 {
@@ -630,7 +630,7 @@ pub(crate) fn punch_wall(
                 high: WALL_HIGH - head,
                 lift: head,
             },
-            centre_of(middle),
+            center_of(middle),
         ));
     }
     if sill > 0.06 {
@@ -640,7 +640,7 @@ pub(crate) fn punch_wall(
                 high: sill,
                 lift: 0.0,
             },
-            centre_of(middle),
+            center_of(middle),
         ));
     }
 

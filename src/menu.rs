@@ -294,7 +294,7 @@ struct MenuPanel(usize);
 /// Worn by every line, deed-carrying or glyph-wearing alike, because two things
 /// need to speak about "a line" without caring which kind it is: the hover light,
 /// and the question of whether a press landed inside a menu. Without it the light
-/// would query every interactive node in the bench that has a colour, and repaint
+/// would query every interactive node in the bench that has a color, and repaint
 /// the shelf.
 #[derive(Component)]
 struct MenuRow;
@@ -600,10 +600,10 @@ fn show_the_menus(
     }
 }
 
-/// A line that means nothing where the maker is standing goes grey, and stops
+/// A line that means nothing where the maker is standing goes gray, and stops
 /// answering.
 ///
-/// Greyed rather than removed: a menu whose lines come and go is a menu you cannot
+/// Grayed rather than removed: a menu whose lines come and go is a menu you cannot
 /// learn, and the command has not gone anywhere - the maker has.
 fn dim_what_does_not_apply(
     bench: Res<crate::Bench>,
@@ -669,7 +669,7 @@ fn work_the_lines(
         if *touch != Interaction::Pressed {
             continue;
         }
-        // Greyed above, and inert here: the dimming is what a maker SEES and this
+        // Grayed above, and inert here: the dimming is what a maker SEES and this
         // is what makes it true.
         if deed.only_at_the_builder() && *bench != crate::Bench::Builder {
             continue;

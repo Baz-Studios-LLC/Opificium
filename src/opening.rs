@@ -19,7 +19,7 @@
 //! plugins are being built, which is before any Bevy interface could exist to ask a
 //! question. So this runs as an app of its own - a window, a camera and a card,
 //! nothing else - and when a game is chosen it relaunches the bench pointed at it.
-//! A fresh process cannot have read one game's colours and then be handed another's,
+//! A fresh process cannot have read one game's colors and then be handed another's,
 //! which is the same reason the rail's own switcher relaunches.
 //!
 //! It paints in the bench's own ramps, because no game has been chosen yet and
@@ -107,7 +107,7 @@ fn raise_the_question(mut commands: Commands, fonts: Res<Fonts>, palette: Res<Pa
         ChildOf(sheet),
     ));
 
-    // The list, which is the whole point: a maker recognises a game by NAME, and
+    // The list, which is the whole point: a maker recognizes a game by NAME, and
     // the bench has been keeping this list all along.
     let worked_in = crate::project::recent();
     commands.spawn((

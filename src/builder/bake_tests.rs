@@ -3,12 +3,12 @@
 use super::*;
 
 /// Bakes every saved work into what the game can eat: plain boxes
-/// with resolved colours, and the marks that say what the place is
+/// with resolved colors, and the marks that say what the place is
 /// FOR. Run by hand when a building is ready to be carried in:
 /// `cargo test bake_the_works -- --ignored --nocapture`
 ///
 /// The game shares no code with the bench, so the bench resolves its
-/// own catalogue and palette here and hands over the result.
+/// own catalog and palette here and hands over the result.
 #[test]
 #[ignore = "a hand-run export, not a check"]
 fn bake_the_works() {

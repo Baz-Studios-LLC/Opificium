@@ -37,7 +37,7 @@ pub(crate) fn raise_shelf(mut commands: Commands, fonts: Res<Fonts>, palette: Re
     // think it should be bigger and maybe in the upper lefthand of the view area?"
     //
     // The upper left of the VIEW, which begins where the rail ends - see
-    // `look::PANEL_WIDE` - and below the menu bar. The mode buttons are centred, so
+    // `look::PANEL_WIDE` - and below the menu bar. The mode buttons are centered, so
     // this corner is empty at every window width.
     let word = commands
         .spawn((
@@ -215,7 +215,7 @@ pub(crate) fn show_shelf(
         return;
     }
     // The snap word follows the BENCH alone, not the tool. It used to ride on the
-    // shelf and so vanished whenever the colours came out - but F and G work in
+    // shelf and so vanished whenever the colors came out - but F and G work in
     // every mode of the building bench, and a line that blinks off while its keys
     // still work reads as a fault.
     for mut visibility in &mut words {
@@ -225,7 +225,7 @@ pub(crate) fn show_shelf(
             Visibility::Hidden
         };
     }
-    // Painting is not placing: the parts go away while the colours are out.
+    // Painting is not placing: the parts go away while the colors are out.
     let standing = *bench == Bench::Builder
         && *mode != crate::gizmo::ToolMode::Paint
         && showing.wanted(crate::look::Tool::Shelf);

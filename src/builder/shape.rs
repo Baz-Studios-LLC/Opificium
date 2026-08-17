@@ -187,7 +187,7 @@ pub(crate) fn cut_mesh(low: f32, high: f32) -> Mesh {
 
     // Normals from the corners themselves, and wound to face outward.
     //
-    // The shape is convex and centred on the origin, so a face's own middle
+    // The shape is convex and centered on the origin, so a face's own middle
     // points the way that face does - which settles both the normal's sign and
     // the winding without anyone having to reason about which end is cut. The
     // slanted ends are where doing it by hand goes wrong, and they are the

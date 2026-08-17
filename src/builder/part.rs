@@ -52,7 +52,7 @@ pub(crate) const PUNCHED: [&str; 5] = [
 #[derive(Clone, Copy, PartialEq)]
 pub struct Hole {
     pub what: Opening,
-    /// How far along the wall from its middle, in metres.
+    /// How far along the wall from its middle, in meters.
     pub at: f32,
     pub wide: i32,
     /// Whether this window's bars are painted dark rather than left as timber.
@@ -163,7 +163,7 @@ impl Hole {
 /// means until it is chosen again.
 ///
 /// Not where the size LIVES: that is on the part, and on the hole it punches.
-/// This is only what the shelf reaches for, the way a brush remembers the colour
+/// This is only what the shelf reaches for, the way a brush remembers the color
 /// it was last dipped in.
 #[derive(Resource, Clone, Copy)]
 pub struct WindowPanes {
@@ -388,7 +388,7 @@ pub enum Leaf {
     /// that never wanted a door, and which carry no routing mark because a gap in
     /// a wall run is a portal found by walking it.
     Gone,
-    /// The boarded leaf of a house, a metre across and two metres tall.
+    /// The boarded leaf of a house, a meter across and two meters tall.
     Plain,
     /// A BARN leaf: taller and wider than a house door, because what goes through
     /// it is a cart. Braced with a Z - a rail top and bottom and a diagonal
@@ -514,7 +514,7 @@ pub enum PartKind {
         deep: f32,
         high: f32,
     },
-    /// A ROW OF BOOKS, and the SEED its colours are drawn from.
+    /// A ROW OF BOOKS, and the SEED its colors are drawn from.
     ///
     /// Brett: "could we have the books be random colors when placed so every group
     /// doesnt look the same?" A seed rather than a roll of the dice at drawing
@@ -530,7 +530,7 @@ pub enum PartKind {
     /// a second line on the shelf saying TABLE, LONG. The same answer the gable and
     /// the beam and the post all got.
     ///
-    /// It gains LEGS as it grows, the way a wall gains bays: a four-metre board on
+    /// It gains LEGS as it grows, the way a wall gains bays: a four-meter board on
     /// four legs sags in the middle, and looks it.
     Table(f32, f32),
     /// A CLOCK'S FACE, as wide as it is drawn - and no hands.
@@ -551,7 +551,7 @@ pub enum PartKind {
     /// Brett: "pole should be exactly like the beam only verticle" - and then, of
     /// the fixed-height corner post it replaces, "pole, corner is obsolete once we
     /// make the new pole." It was a prop: one height, forever, with no handle on
-    /// it, so a post for a two-metre wall and a post for a tower were the same
+    /// it, so a post for a two-meter wall and a post for a tower were the same
     /// part and neither could be made.
     ///
     /// It grows from its FOOT, on the gold handle a foundation and a wall already

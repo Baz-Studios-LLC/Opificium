@@ -121,15 +121,15 @@ fn put_the_furniture_out(
 }
 
 pub fn raise_rail(mut commands: Commands, fonts: Res<Fonts>, palette: Res<Palette>) {
-    // The mode bar, top centre, the way the big programs wear it.
+    // The mode bar, top center, the way the big programs wear it.
     //
-    // Centred by a full-width row rather than by arithmetic. It used to be three
+    // Centered by a full-width row rather than by arithmetic. It used to be three
     // hundred and twenty pixels wide with a hundred and sixty of negative margin
     // pulling it back over the middle - true only while the buttons happened to
     // add up to that, and the fourth one spilled straight out of the panel it
     // was supposed to be inside. A hard-coded width is a measurement of the
     // contents kept somewhere the contents cannot reach.
-    let centring = commands
+    let centering = commands
         .spawn((
             ModeBar,
             Node {
@@ -160,7 +160,7 @@ pub fn raise_rail(mut commands: Commands, fonts: Res<Fonts>, palette: Res<Palett
             },
             BackgroundColor(theme::panel_bg()),
             BorderColor::all(theme::panel_border(&palette)),
-            ChildOf(centring),
+            ChildOf(centering),
         ))
         .id();
     /// The width every mode button takes, whatever its word.
@@ -285,7 +285,7 @@ pub fn raise_rail(mut commands: Commands, fonts: Res<Fonts>, palette: Res<Palett
     // WHICH GAME.
     //
     // The bench holds no game's content, so this is the largest thing on the
-    // screen that can be wrong: every colour, every body and every saved work
+    // screen that can be wrong: every color, every body and every saved work
     // comes out of the project named here. It could only be said on the command
     // line until now, and the window's title bar was the one place it was written
     // down at all - Brett: "this app should support multiple programs, How do I
@@ -497,7 +497,7 @@ of an L",
         ("- =", "darker and brighter"),
         (
             "PAINT",
-            "colour what is already
+            "color what is already
 standing: click a part,
 shift-click the lot,
 \\ empties the brush",
@@ -505,7 +505,7 @@ shift-click the lot,
         (
             "alt-click",
             "the dropper: the brush
-takes the colour of the
+takes the color of the
 piece under the cursor,
 painted or authored",
         ),
@@ -992,8 +992,8 @@ fn follow_with_a_word(
         .iter()
         .find(|(touch, _)| **touch != Interaction::None)
         .map(|(_, word)| word.0);
-    // The rest has to be on ONE thing: crossing from a button to its neighbour
-    // starts the count again, or a hand travelling the row would arrive at the
+    // The rest has to be on ONE thing: crossing from a button to its neighbor
+    // starts the count again, or a hand traveling the row would arrive at the
     // far end with a card already up for something it passed.
     *resting = match (under, *showing) {
         (Some(word), Some(shown)) if word == shown => *resting + time.delta_secs(),
@@ -1059,7 +1059,7 @@ fn follow_with_a_word(
 ///
 /// One width, because the row is one row: buttons sized to their own words step in
 /// and out as the eye runs along them, and a bare "+" beside "STAGE 10" would make
-/// the smallest and the largest of them neighbours. The glyphs are the narrowest
+/// the smallest and the largest of them neighbors. The glyphs are the narrowest
 /// things on it now, which is exactly why they are not allowed to shrink.
 const STAGE_BUTTON_WIDTH: f32 = 80.0;
 
@@ -1270,12 +1270,12 @@ fn work_mode_bar(
             *border = dress;
         }
         // Every mode button says the same thing the same way: the fill means
-        // STANDING and nothing else. PAINT used to wear the brush's own colour,
+        // STANDING and nothing else. PAINT used to wear the brush's own color,
         // which made it look chosen while another tool was in hand - Brett:
         // "Paint wasnt active, but the button isnt following the other buttons
         // conventions". The brush has a square of its own at the head of the
         // palette, which is a better place for it anyway: it is only wanted
-        // while painting, and there it can be the size of a colour rather than
+        // while painting, and there it can be the size of a color rather than
         // the size of a word.
         let wanted = BackgroundColor(if standing {
             Color::srgb(0.075, 0.082, 0.102)

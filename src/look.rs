@@ -42,7 +42,7 @@ impl Palette {
     /// `palette::shade`, re-derived from the data.
     pub fn shade(&self, name: &str, t: f32) -> Color {
         let Some(ramp) = self.ramp(name) else {
-            return Color::srgb(0.8, 0.2, 0.8); // the classic missing-colour
+            return Color::srgb(0.8, 0.2, 0.8); // the classic missing-color
         };
         let idx = ((t.clamp(0.0, 1.0) * 4.0).round() as usize).min(4);
         let [r, g, b] = ramp[idx];
@@ -55,7 +55,7 @@ impl Palette {
     }
 }
 
-/// Opificium wears the codex's colours.
+/// Opificium wears the codex's colors.
 pub mod theme {
     use super::Palette;
     use bevy::prelude::*;
@@ -222,9 +222,9 @@ pub fn scroll_panes(
             continue;
         }
         let scale = computed.inverse_scale_factor();
-        let centre = Vec2::new(transform.translation.x, transform.translation.y) * scale;
+        let center = Vec2::new(transform.translation.x, transform.translation.y) * scale;
         let half = computed.size() * scale * 0.5;
-        if (cursor.x - centre.x).abs() <= half.x && (cursor.y - centre.y).abs() <= half.y {
+        if (cursor.x - center.x).abs() <= half.x && (cursor.y - center.y).abs() <= half.y {
             over_pane.0 = true;
             if wheel.delta.y != 0.0 {
                 // A line's worth per notch, and trackpads send small
@@ -275,10 +275,10 @@ fn load_fonts(mut commands: Commands, assets: Res<AssetServer>) {
     });
 }
 
-/// The palette, for the bake to resolve colours with.
+/// The palette, for the bake to resolve colors with.
 ///
 /// No longer test-only: the headless bake in [`crate::bake`] is ordinary code
-/// and needs the same colours the button does.
+/// and needs the same colors the button does.
 pub fn load_palette_for_bake() -> Palette {
     load_palette()
 }
@@ -287,7 +287,7 @@ pub fn load_palette_for_bake() -> Palette {
 /// anywhere), then the working directory, then gives up gracefully.
 fn load_palette() -> Palette {
     // The open project's own palette first: every game paints in its own
-    // colours, and that file is the one thing the game must hand the
+    // colors, and that file is the one thing the game must hand the
     // bench before any authored work means anything.
     let mut roads = vec![crate::project::palette()];
     if let Ok(exe) = std::env::current_exe()
@@ -325,7 +325,7 @@ fn load_palette() -> Palette {
     bench_palette()
 }
 
-/// The colours the bench wears when no game has handed it any.
+/// The colors the bench wears when no game has handed it any.
 ///
 /// A game's palette is that game's own truth and arrives as data. These are not
 /// that. They are the BENCH's own dress: what it paints with while a project is
@@ -334,11 +334,11 @@ fn load_palette() -> Palette {
 ///
 /// It used to be two ramps, bone and gold. They dressed the rail and the grid,
 /// and left everything else MAGENTA: `shade` answers a ramp it does not know
-/// with the classic missing-colour, and `body_of` names fourteen. So a maker who
+/// with the classic missing-color, and `body_of` names fourteen. So a maker who
 /// pointed the bench at a fresh project got a shelf of parts that all drew in
 /// magenta, a paint palette holding two rows, and nothing on the screen to say
 /// why. Brett, on exactly that: "This used to have way more colors before I
-/// separated it. What happened?" — the colours had gone home with the game they
+/// separated it. What happened?" — the colors had gone home with the game they
 /// belonged to, correctly, and nothing had taken their place.
 ///
 /// A standalone bench carries its own. Every one of these loses, name for name,

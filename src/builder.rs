@@ -88,7 +88,7 @@ pub struct Placed {
     /// What the village BUILDS this out of: wood, stone, clay, or whatever else the
     /// game knows.
     ///
-    /// Not its colour, which is `ramp` and `shade` above and is only what a maker painted.
+    /// Not its color, which is `ramp` and `shade` above and is only what a maker painted.
     /// This is what the thing is made of, and it is the game's business what that costs -
     /// a stone wall is quarried and hauled where a timber one is felled.
     ///
@@ -103,7 +103,7 @@ pub struct Placed {
     /// A plain number, shared by everything grouped together, and that is the
     /// whole mechanism: parts wearing one move, paint, delete and travel as one.
     /// It replaces a GUESS with a fact. A part used to carry the marks that
-    /// happened to sit within a metre of it, nearest owner winning, which works
+    /// happened to sit within a meter of it, nearest owner winning, which works
     /// until two beds are pushed together or a mark stands between a door and a
     /// wall. A group says which pieces belong to which and stops the bench
     /// inferring it.
@@ -181,7 +181,7 @@ pub fn a_fresh_seed(at: Vec3, standing: usize) -> u32 {
 
 /// How far a mark may sit from a part and still be carried by it.
 ///
-/// A metre: a double door's two marks stand half a metre either side of its
+/// A meter: a double door's two marks stand half a meter either side of its
 /// middle, and nothing else a maker places sits that close to a part it does
 /// not belong to.
 const CARRIES_WITHIN: f32 = 1.0;
@@ -405,7 +405,7 @@ pub enum NamingFor {
     Carrying,
     /// Keeping what is chosen as a piece, to bring into other works.
     AsAPiece,
-    /// Naming the colours the work on the bench is painted with, to paint another
+    /// Naming the colors the work on the bench is painted with, to paint another
     /// building the same way later.
     APalette,
     /// Naming a material this project does not know yet.
@@ -549,7 +549,7 @@ impl Plugin for BuilderPlugin {
                         paint_the_work,
                         work_palette,
                         fill_the_palettes,
-                        work_keep_colours,
+                        work_keep_colors,
                         work_drop_a_palette,
                         raise_part_menu,
                         turn_to_stage,
@@ -620,7 +620,7 @@ impl Plugin for BuilderPlugin {
 /// A mark's word, kept alive for a `PartKind` to hold.
 ///
 /// ANY word, declared or not. What the project declares is what the shelf offers
-/// and what colour a block wears - never what a saved work is allowed to contain.
+/// and what color a block wears - never what a saved work is allowed to contain.
 /// A drawing opened in a game that has not declared its marks keeps every one of
 /// them, and saving it keeps them still.
 fn a_word(said: &str) -> &'static str {
@@ -925,7 +925,7 @@ pub fn kind_from_name(name: &str) -> Option<PartKind> {
         return rest.parse::<u32>().ok().map(PartKind::Books);
     }
     if name == "prop:books" {
-        // The rows drawn before one carried a seed, at the colours they all had.
+        // The rows drawn before one carried a seed, at the colors they all had.
         return Some(PartKind::Books(0));
     }
     if let Some(rest) = name.strip_prefix("table-") {
@@ -1217,7 +1217,7 @@ pub fn company_of(kind: &PartKind) -> Vec<(PartKind, Vec3, f32)> {
             std::f32::consts::PI,
         )],
         PartKind::Table(long, deep) => {
-            // A seat every three quarters of a metre, which is elbow room, and at
+            // A seat every three quarters of a meter, which is elbow room, and at
             // least one a side however short the board is.
             let seats = ((long / 0.75).round() as i32).clamp(1, 10);
             let mut company = Vec::new();
@@ -1456,7 +1456,7 @@ fn pieces_home() -> std::path::PathBuf {
     bench_home().join("out/pieces")
 }
 
-/// Centres a cluster on its own middle, so a piece is set down where the cursor
+/// Centers a cluster on its own middle, so a piece is set down where the cursor
 /// is rather than wherever it happened to be drawn.
 ///
 /// Middle on the ground, FOOT in the air: a porch put down at head height would
@@ -1608,7 +1608,7 @@ pub(crate) fn place_grab_remove(
                 // chairs drawn up to it, and the lot moves as one thing.
                 let mut record = record;
                 // AND WHAT IS DEALT AFRESH: a row of books gets its own hand of
-                // colours, so no two shelves in a village are the same shelf.
+                // colors, so no two shelves in a village are the same shelf.
                 let kind = match kind {
                     PartKind::Books(_) => {
                         PartKind::Books(a_fresh_seed(Vec3::from(record.at), placed.iter().count()))
@@ -1802,7 +1802,7 @@ pub(crate) fn place_grab_remove(
 #[cfg(test)]
 mod bake_tests;
 #[cfg(test)]
-mod colours;
+mod colors;
 #[cfg(test)]
 mod levels;
 #[cfg(test)]

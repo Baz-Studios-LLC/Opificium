@@ -5,7 +5,7 @@ use bevy::prelude::*;
 use crate::Bench;
 use crate::look::Palette;
 
-/// The grid spans this many metres each way from the origin.
+/// The grid spans this many meters each way from the origin.
 const REACH: f32 = 14.0;
 
 /// Stage furniture that belongs to the builder's bench.
@@ -16,7 +16,7 @@ pub struct BuilderFurniture;
 #[derive(Component)]
 pub struct RigFurniture;
 
-/// The measuring post: one band per decimetre, a brighter one per metre.
+/// The measuring post: one band per decimeter, a brighter one per meter.
 #[derive(Component)]
 pub struct Ruler;
 
@@ -78,7 +78,7 @@ fn dress_stage(
         })
     };
 
-    // The bench floor: near-black, so authored colour reads true against it.
+    // The bench floor: near-black, so authored color reads true against it.
     let floor = matte(&mut materials, Color::srgb(0.05, 0.055, 0.065));
     commands.spawn((
         Mesh3d(cube.clone()),
@@ -90,7 +90,7 @@ fn dress_stage(
         )),
     ));
 
-    // The metre grid, drawn in dim bone. Every fourth line stands brighter,
+    // The meter grid, drawn in dim bone. Every fourth line stands brighter,
     // which is enough structure to count cells by eye.
     let faint = matte(&mut materials, palette.shade("bone", 0.3).with_alpha(1.0));
     let strong = matte(&mut materials, palette.shade("bone", 0.55));
@@ -113,9 +113,9 @@ fn dress_stage(
         ));
     }
 
-    // The plot centre, marked with a gold cross: the origin every exported
-    // part is measured from. Buildings need not be centred perfectly - the
-    // god recentres on import - but the mark keeps the eye honest.
+    // The plot center, marked with a gold cross: the origin every exported
+    // part is measured from. Buildings need not be centered perfectly - the
+    // god recenters on import - but the mark keeps the eye honest.
     for (sx, sz) in [(1.4, 0.05), (0.05, 1.4)] {
         commands.spawn((
             Mesh3d(cube.clone()),
@@ -139,23 +139,23 @@ fn dress_stage(
 
     // No pedestal at the rig bench. It had one when it held a body, and a model stands
     // on the GRID instead: the whole point of looking at a model here is judging its
-    // true size, and a plinth a fifth of a metre high makes every reading off the metre
-    // lines wrong by a fifth of a metre. `RigFurniture` is worn by the model itself now.
+    // true size, and a plinth a fifth of a meter high makes every reading off the meter
+    // lines wrong by a fifth of a meter. `RigFurniture` is worn by the model itself now.
 }
 
-/// How tall the post stands, in metres. Two is a doorway, which is as much as anything
+/// How tall the post stands, in meters. Two is a doorway, which is as much as anything
 /// on this bench has ever needed and still short enough to see past.
 const POST: i32 = 20;
 
 /// Raises the measuring post.
 ///
-/// Bands of a decimetre each, alternating, with every metre wearing a wider gold collar -
+/// Bands of a decimeter each, alternating, with every meter wearing a wider gold collar -
 /// the same trick the floor grid uses, and for the same reason: you can count a stack of
 /// ten by eye without counting at all.
 ///
 /// It stands OFF to one side rather than at the origin, because a post through the middle
 /// of the model is a post you cannot see past and the model cannot be judged around. Half
-/// a metre out on both axes puts it clear of anything small and against the corner of
+/// a meter out on both axes puts it clear of anything small and against the corner of
 /// anything large.
 fn raise_the_ruler(
     commands: &mut Commands,
@@ -177,17 +177,17 @@ fn raise_the_ruler(
     let gold = matte(materials, palette.shade("cloth-gold", 0.8));
     let (at_x, at_z) = (0.5, 0.5);
     for band in 0..POST {
-        let metre = band % 10 == 0;
-        let material = if metre {
+        let meter = band % 10 == 0;
+        let material = if meter {
             gold.clone()
         } else if band % 2 == 0 {
             pale.clone()
         } else {
             dark.clone()
         };
-        // A metre's collar stands proud of the post, so it reads as a mark rather than as
+        // A meter's collar stands proud of the post, so it reads as a mark rather than as
         // one more stripe among ten.
-        let thick = if metre { 0.075 } else { 0.05 };
+        let thick = if meter { 0.075 } else { 0.05 };
         commands.spawn((
             Ruler,
             Mesh3d(cube.clone()),

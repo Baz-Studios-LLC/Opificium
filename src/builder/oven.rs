@@ -3,7 +3,7 @@
 use super::*;
 
 /// Bakes one work into what the game can eat: plain boxes with resolved
-/// colours, and the marks that say what the place is FOR.
+/// colors, and the marks that say what the place is FOR.
 ///
 /// This used to live inside a `#[test]`, which meant a maker could only carry a
 /// building into the game from a source tree with cargo on it. The bench in the
@@ -13,7 +13,7 @@ use super::*;
 /// The bounds of one drawing, ignoring the scale reference.
 pub(crate) fn bounds_of(parts: &[Placed]) -> (Vec3, Vec3) {
     // The bounds of everything that is not a scale reference, so
-    // the building can be recentred on its own footprint.
+    // the building can be recentered on its own footprint.
     let mut low = Vec3::splat(f32::INFINITY);
     let mut high = Vec3::splat(f32::NEG_INFINITY);
     for record in parts {
@@ -28,10 +28,10 @@ pub(crate) fn bounds_of(parts: &[Placed]) -> (Vec3, Vec3) {
             if record.flip {
                 at.x = -at.x;
             }
-            let centre = Vec3::from(record.at) + turn * at;
+            let center = Vec3::from(record.at) + turn * at;
             let reach = (turn * (size * 0.5)).abs();
-            low = low.min(centre - reach);
-            high = high.max(centre + reach);
+            low = low.min(center - reach);
+            high = high.max(center + reach);
         }
     }
     (low, high)
@@ -65,7 +65,7 @@ struct Mark {
     /// floor. A `wide` stands at the middle of its FACE, because that is where
     /// hands turn. Neither is a tidier version of the other.
     wide: f32,
-    /// HOW MUCH ROOM a place has, in metres, for a mark that is a volume rather
+    /// HOW MUCH ROOM a place has, in meters, for a mark that is a volume rather
     /// than a point - a pallet goods stack into, a pen, a plot.
     ///
     /// A game filling a space has to be told how big the space is, and `at` is the
@@ -147,7 +147,7 @@ pub(crate) fn bake_one_phase(
             // AT THE MIDDLE OF THE FACE, which is the point the hands turn about.
             // This was briefly the foot, to match a pallet, and it was wrong for the
             // same reason `wide` was: a stack grows up off its floor and a hand turns
-            // about its centre, so the two want different anchors and always did.
+            // about its center, so the two want different anchors and always did.
             PartKind::Clock(wide) => marks.push(Mark {
                 wide,
                 ..mark(
@@ -201,11 +201,11 @@ pub(crate) fn bake_one_phase(
                 // whole point of mirroring it is lost.
                 cant = -cant;
             }
-            let centre = anchor + turn * at;
+            let center = anchor + turn * at;
             // A piece that leans or cants carries its own angles into the
             // turn the game will draw it with.
             let turn = turn * Quat::from_rotation_z(cant) * Quat::from_rotation_x(lean);
-            let colour = palette.shade(&ramp, shade).to_srgba();
+            let color = palette.shade(&ramp, shade).to_srgba();
             // A hip's two fractions ride in its form, since the game has to
             // build the same frustum and a name alone cannot say how far in the
             // deck stands. See FORMATS.md.
@@ -215,8 +215,8 @@ pub(crate) fn bake_one_phase(
             };
             // A cut rides in the form the same way, and for the same reason: the
             // game builds the mesh itself and a name alone cannot say how far
-            // the saw travelled. As FRACTIONS of the piece's own length, because
-            // the game scales a unit box and never sees the metres.
+            // the saw traveled. As FRACTIONS of the piece's own length, because
+            // the game scales a unit box and never sees the meters.
             //
             // This is what "mitre" and "mitre-back" used to be, and they could
             // only ever say ALL of one end. See FORMATS.md.
@@ -259,15 +259,15 @@ pub(crate) fn bake_one_phase(
                 "    {{\"at\": {}, \"size\": {}, \"turn\": [{:.5}, {:.5}, {:.5}, {:.5}], \
                  \"rgb\": [{}, {}, {}], \"alpha\": {:.2}, \"form\": \"{form}\", \
                  \"cloth\": \"{ramp}:{shade}\", \"stage\": \"{}\"{material}}}",
-                say(centre),
+                say(center),
                 say(size),
                 turn.x,
                 turn.y,
                 turn.z,
                 turn.w,
-                (colour.red * 255.0).round() as u8,
-                (colour.green * 255.0).round() as u8,
-                (colour.blue * 255.0).round() as u8,
+                (color.red * 255.0).round() as u8,
+                (color.green * 255.0).round() as u8,
+                (color.blue * 255.0).round() as u8,
                 clarity,
                 stage,
             ));
@@ -342,7 +342,7 @@ pub(crate) fn levels_of(work: &Workbench) -> Vec<Level> {
 /// # Where the origin is
 ///
 /// The BASE level's finished footprint, and every level is measured from it. An
-/// upgrade has to land on the building it replaces, so it cannot be recentred on
+/// upgrade has to land on the building it replaces, so it cannot be recentered on
 /// its own bounds - a forge added to one end would shunt the whole blacksmith
 /// sideways the day it was built.
 ///

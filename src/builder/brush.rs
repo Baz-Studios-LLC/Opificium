@@ -4,10 +4,10 @@ use super::*;
 
 /// Keys that steer what the hand holds. Esc empties it.
 #[allow(clippy::too_many_arguments)]
-/// The colour the paint tool lays down.
+/// The color the paint tool lays down.
 ///
-/// `None` is not a colour but the absence of one: painting with an empty brush
-/// strips a part back to the colours its own body was drawn with, which is the
+/// `None` is not a color but the absence of one: painting with an empty brush
+/// strips a part back to the colors its own body was drawn with, which is the
 /// only way back once a part has been painted.
 #[derive(Resource)]
 pub struct Brush {
@@ -26,7 +26,7 @@ impl Default for Brush {
 
 /// The swatch a picked step belongs to.
 ///
-/// `Palette::shade` reads the nearest of five steps, so this changes no colour -
+/// `Palette::shade` reads the nearest of five steps, so this changes no color -
 /// it only moves the brush onto a value the palette has a square for.
 pub(super) fn nearest_swatch(shade: f32) -> f32 {
     crate::builder::SWATCHES
@@ -37,9 +37,9 @@ pub(super) fn nearest_swatch(shade: f32) -> f32 {
 
 /// Paints what is already standing.
 ///
-/// The colour keys only ever spoke to the HAND: a part took its ramp and shade
+/// The color keys only ever spoke to the HAND: a part took its ramp and shade
 /// from whatever was held when it went down, and after that the only way to
-/// change a wall's colour was to delete the wall. Brett asked whether a building
+/// change a wall's color was to delete the wall. Brett asked whether a building
 /// could be painted, and it could not.
 ///
 /// A mode rather than a modifier, on Brett's suggestion — PAINT sits with MOVE
@@ -51,11 +51,11 @@ pub(super) fn nearest_swatch(shade: f32) -> f32 {
 ///
 /// The brush takes the same four keys the hand uses for the same job — `[` and
 /// `]` through the ramps, `-` and `=` darker and brighter — because a maker
-/// should not have to learn the colour keys twice. `\` empties the brush, and
-/// painting with an empty brush gives a part its own colours back.
+/// should not have to learn the color keys twice. `\` empties the brush, and
+/// painting with an empty brush gives a part its own colors back.
 ///
 /// Shift paints the whole building instead of the one part: a shade at a time is
-/// how a colour gets found, all at once is what happens when it has been.
+/// how a color gets found, all at once is what happens when it has been.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn paint_the_work(
     mut commands: Commands,
@@ -75,7 +75,7 @@ pub(crate) fn paint_the_work(
         return;
     }
 
-    // The brush first, so a key and a click on the same frame paint the colour
+    // The brush first, so a key and a click on the same frame paint the color
     // the maker just chose rather than the one before it.
     let ramps: Vec<&str> = palette.names().collect();
     if !ramps.is_empty() {
@@ -103,18 +103,18 @@ pub(crate) fn paint_the_work(
         brush.ramp = None;
     }
 
-    // THE DROPPER. Alt-click takes the colour of whatever is under the cursor
+    // THE DROPPER. Alt-click takes the color of whatever is under the cursor
     // instead of putting one there.
     //
     // It reads the PIECE, not the part: most of what a maker wants to copy has
     // never been repainted - the timbers of a framed wall are wood and its panels
     // are bone, and the wall's own `ramp` is None - so a dropper that read the
-    // record would come up empty on exactly the colours worth having. See
+    // record would come up empty on exactly the colors worth having. See
     // `Hit::wearing`.
     //
     // The step is snapped to a swatch, which costs nothing and buys the gold ring:
     // `Palette::shade` reads the nearest of five steps, so an authored 0.65 and the
-    // swatch's 0.75 are the same colour on screen - but only the swatch's value
+    // swatch's 0.75 are the same color on screen - but only the swatch's value
     // lands on a square the palette can mark as armed.
     if keys.any_pressed([KeyCode::AltLeft, KeyCode::AltRight])
         && buttons.just_pressed(MouseButton::Left)
@@ -132,8 +132,8 @@ pub(crate) fn paint_the_work(
 
     // A stroke is a CLICK ON A PART, and nothing else. Changing the brush used
     // to repaint whatever was standing selected - meant as a way to hold a wall
-    // and walk the ramps watching it change, and wrong: arming a colour is
-    // choosing, not doing, and a maker choosing a colour has not said where they
+    // and walk the ramps watching it change, and wrong: arming a color is
+    // choosing, not doing, and a maker choosing a color has not said where they
     // want it yet. Brett: "Arming a color shouldnt paint."
     if !selected.is_changed() {
         return;

@@ -40,7 +40,7 @@ pub(crate) fn raise_naming_card(
             NamingFor::Carrying => "CARRY IT INTO THE GAME",
             NamingFor::AsAPiece => "KEEP IT AS A PIECE",
             NamingFor::Keeping => "NAME THE WORK",
-            NamingFor::APalette => "NAME THESE COLOURS",
+            NamingFor::APalette => "NAME THESE COLORS",
             NamingFor::AMaterial => "WHAT IS IT MADE OF?",
             NamingFor::AKind => "NAME A KIND OF BUILDING",
         }),
@@ -79,10 +79,10 @@ pub(crate) fn raise_naming_card(
             NamingFor::AsAPiece => "kept for any work, not just this one - esc thinks better of it",
             NamingFor::Keeping => "enter saves - esc thinks better of it",
             // Worth saying that it is the whole building rather than the step in view:
-            // a maker looking at bare footings is about to save the roof's colours too,
+            // a maker looking at bare footings is about to save the roof's colors too,
             // which is the point and would otherwise look like a mistake.
             NamingFor::APalette => {
-                "every colour this building is painted with, all its steps - esc goes back"
+                "every color this building is painted with, all its steps - esc goes back"
             }
             // The same warning a kind carries, and for the same reason: it is the GAME'S
             // word and nothing here can check it.
@@ -403,7 +403,7 @@ pub(crate) fn take_the_name(
         }
         return;
     }
-    // KEEPING THE COLOURS, which ends the card like the others but writes nothing of the
+    // KEEPING THE COLORS, which ends the card like the others but writes nothing of the
     // building itself. `gather_the_work` first, because the step on the bench is standing
     // as entities and every other step is already records - so harvesting the records
     // alone would miss whatever the maker painted in the last few minutes.
@@ -414,19 +414,19 @@ pub(crate) fn take_the_name(
                 &stages,
                 placed.iter(),
             );
-            let colours = colours_in(&work);
+            let colors = colors_in(&work);
             let called = if name.is_empty() {
                 // Named after the building by default, which is what a maker means by "the
-                // longhouse colours" - and the reason the field arrives filled in.
+                // longhouse colors" - and the reason the field arrives filled in.
                 work_name.0.clone().unwrap_or_default()
             } else {
                 name.clone()
             };
-            let said = match keep_a_palette(&called, colours.clone()) {
+            let said = match keep_a_palette(&called, colors.clone()) {
                 Ok(()) => {
-                    info!("kept {} colours as {called}", colours.len());
+                    info!("kept {} colors as {called}", colors.len());
                     palettes_stale.0 = true;
-                    format!("KEPT {} - {} COLOURS", called.to_uppercase(), colours.len())
+                    format!("KEPT {} - {} COLORS", called.to_uppercase(), colors.len())
                 }
                 Err(why) => {
                     warn!("could not keep the palette {called}: {why}");
@@ -460,7 +460,7 @@ pub(crate) fn take_the_name(
             format: 1,
             kind: "piece".to_string(),
             name: called.clone(),
-            // Centred on its own middle, so it is set down where the cursor is
+            // Centered on its own middle, so it is set down where the cursor is
             // rather than wherever it happened to be drawn.
             parts: piece_from(&kept.0),
         };
@@ -715,13 +715,13 @@ pub(crate) fn dims_panel(
                 && let Some(kind) = kind_from_name(&record.part)
             {
                 // "3.5" or "3.5x6", snapped onto the lattice, no smaller
-                // than one coarse cell, resized around the centre.
+                // than one coarse cell, resized around the center.
                 let lattice = |value: f32| ((value * 16.0).round() / 16.0).max(0.25);
                 let (w_in, d_in) = match text.split_once('x') {
                     Some((a, b)) => (a.parse::<f32>().ok(), b.parse::<f32>().ok()),
                     None => (text.parse::<f32>().ok(), None),
                 };
-                // Typed numbers are UNITS - sixteenths of a metre - so a
+                // Typed numbers are UNITS - sixteenths of a meter - so a
                 // wall is 40 tall and a room 48 wide, no decimals needed.
                 let units = |value: f32| lattice(value / 16.0);
                 let _ = &lattice;

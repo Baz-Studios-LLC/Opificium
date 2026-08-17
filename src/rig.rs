@@ -275,7 +275,7 @@ fn stand_the_model(
 
 /// Hangs the line along the top that says what is standing.
 fn hang_the_top_bar(mut commands: Commands, fonts: Res<Fonts>, palette: Res<Palette>) {
-    let centring = commands
+    let centering = commands
         .spawn((
             RigBar,
             Node {
@@ -306,7 +306,7 @@ fn hang_the_top_bar(mut commands: Commands, fonts: Res<Fonts>, palette: Res<Pale
             },
             BackgroundColor(theme::panel_bg()),
             BorderColor::all(theme::panel_border(&palette)),
-            ChildOf(centring),
+            ChildOf(centering),
         ))
         .id();
     commands.spawn((
@@ -376,7 +376,7 @@ fn show_the_furniture(
 /// The eye the bench opens at, and what it turns about.
 ///
 /// Framed by the MODEL rather than set to a fixed distance, because models differ by
-/// more than an order of magnitude - a fly is a fifth of a metre and a barn is ten - and
+/// more than an order of magnitude - a fly is a fifth of a meter and a barn is ten - and
 /// one distance that suits either shows the other as a dot or from inside. The eye backs
 /// off to twice the model's height and looks at its middle.
 ///
@@ -386,7 +386,7 @@ fn stand_the_camera(
     bench: Res<Bench>,
     rig: Res<Rig>,
     mut eye: ResMut<crate::camera::OrbitRig>,
-    mut centre: ResMut<crate::camera::Centre>,
+    mut center: ResMut<crate::camera::Center>,
 ) {
     if *bench != Bench::Rig || !(bench.is_changed() || rig.is_changed()) {
         return;
@@ -398,7 +398,7 @@ fn stand_the_camera(
         .map(|size| size.tall())
         .unwrap_or(2.0);
     let middle = Vec3::new(0.0, tall * 0.5, 0.0);
-    centre.0 = middle;
+    center.0 = middle;
     eye.focus = middle;
     // Off the shoulder line rather than square on: a model seen dead ahead reads as a
     // silhouette, and three quarters shows depth for free.

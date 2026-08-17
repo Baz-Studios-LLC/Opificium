@@ -62,14 +62,14 @@ pub fn name_of(road: &Path) -> String {
 
 /// Stands a model up, with its feet on the floor.
 ///
-/// `tall` is the height in metres to fit it to, or `None` to show it at whatever size
+/// `tall` is the height in meters to fit it to, or `None` to show it at whatever size
 /// the file itself says - which is the right answer for a model the bench already
 /// fitted and kept, since the fit is baked into the file.
 ///
 /// A generated model's origin is wherever the machine left it, usually the middle of
 /// the thing, so standing that origin on the floor buries half of it. The lift is by
 /// the model's own lowest point, AFTER scaling, that being the distance in the stage's
-/// metres rather than the model's own units.
+/// meters rather than the model's own units.
 ///
 /// A file that cannot be measured is stood unscaled rather than not at all: seeing it
 /// wrong beats not seeing it.
@@ -142,7 +142,7 @@ pub fn keep_at_height(from: &Path, to: &Path, tall: f32) -> Result<PathBuf, Stri
             // Everything else this bench makes is authored from the ground up, and a
             // model it keeps should load the same way.
             //
-            // glTF applies scale before translation, so this is in fitted metres.
+            // glTF applies scale before translation, so this is in fitted meters.
             "translation": [0.0, -low * fit, 0.0],
             "scale": [fit, fit, fit],
             "children": roots,
@@ -208,7 +208,7 @@ fn the_binary_of(bytes: &[u8]) -> Option<Vec<u8>> {
 /// Read out of the file rather than guessed. Every `POSITION` accessor carries a `min`
 /// and a `max` - the spec requires it - so both are known without decoding a vertex.
 ///
-/// What comes back is NORMALISED: the provider fits every model into a unit box, so the
+/// What comes back is NORMALIZED: the provider fits every model into a unit box, so the
 /// longest axis is exactly 1.0 whatever the subject. Measured across three real firings, a
 /// housefly and a two-seater sofa both arrived the same size. So a model's own numbers say
 /// what SHAPE it is and nothing whatever about how big the thing is - which is why the
@@ -224,7 +224,7 @@ fn the_binary_of(bytes: &[u8]) -> Option<Vec<u8>> {
 ///
 /// NODE TRANSFORMS ARE APPLIED, which they must be: this bench writes some itself. A model
 /// kept at a stated height carries a wrapper node holding the scale and the lift, so
-/// reading the raw accessors would report a fitted couch as half a metre tall and stand it
+/// reading the raw accessors would report a fitted couch as half a meter tall and stand it
 /// floating, lifted once by its wrapper and again by the bench.
 fn bounds_of_doc(doc: &serde_json::Value) -> Option<Size> {
     let mut low = Vec3::splat(f32::MAX);
@@ -391,8 +391,8 @@ impl Size {
     }
 
     /// The other two, which are worth SHOWING even though nobody sets them: a couch stated
-    /// at a metre tall comes out two and a half metres long, and that is the number a maker
-    /// recognises as right or wrong at a glance. Height alone is easy to get wrong by half.
+    /// at a meter tall comes out two and a half meters long, and that is the number a maker
+    /// recognizes as right or wrong at a glance. Height alone is easy to get wrong by half.
     pub fn wide(&self) -> f32 {
         self.high.x - self.low.x
     }
@@ -401,7 +401,7 @@ impl Size {
         self.high.z - self.low.z
     }
 
-    /// What everything measures once the model is fitted to `tall` metres.
+    /// What everything measures once the model is fitted to `tall` meters.
     pub fn at(&self, tall: f32) -> Vec3 {
         let fit = if self.tall() > 1e-6 {
             tall / self.tall()
@@ -440,7 +440,7 @@ mod fitting {
     /// about the file looks wrong until something tries to open it.
     #[test]
     fn a_model_can_be_written_at_a_height() {
-        // Two metres tall in its own units, so a fit to 0.5 must scale by a quarter.
+        // Two meters tall in its own units, so a fit to 0.5 must scale by a quarter.
         let doc = serde_json::json!({
             "asset": { "version": "2.0" },
             "scenes": [ { "nodes": [0] } ],
@@ -463,7 +463,7 @@ mod fitting {
         let home = std::env::temp_dir().join("opificium-test-kiln");
         let _ = std::fs::remove_dir_all(&home);
         std::fs::create_dir_all(&home).expect("a folder");
-        let from = home.join("two-metres.glb");
+        let from = home.join("two-meters.glb");
         std::fs::write(&from, &glb).expect("write");
 
         // Two units tall, and its lowest point one unit BELOW its own origin - which
@@ -474,7 +474,7 @@ mod fitting {
             "it measured the wrong bounds"
         );
 
-        // Fitted to half a metre: a quarter of what it was.
+        // Fitted to half a meter: a quarter of what it was.
         let out = keep_at_height(&from, &home.join("fitted.glb"), 0.5).expect("kept");
         let kept = std::fs::read(&out).expect("read it back");
         assert_eq!(&kept[..4], b"glTF", "what came out is not a GLB");
@@ -496,7 +496,7 @@ mod fitting {
         );
         // And STANDING on its origin rather than straddling it. Its lowest point was a
         // unit under the origin, so at a quarter scale it has to be lifted a quarter of
-        // a metre - not the whole unit, because glTF scales before it translates.
+        // a meter - not the whole unit, because glTF scales before it translates.
         let up = wrapper["translation"].as_array().expect("a translation");
         assert!(
             (up[1].as_f64().unwrap() - 0.25).abs() < 1e-6,
@@ -508,12 +508,12 @@ mod fitting {
         // AND IT MEASURES AS WHAT IT WAS KEPT AS. The whole point of baking the fit into
         // the file is that the file then says how big the thing is - so reading it back has
         // to give the stated height, not the raw geometry under the wrapper. Measuring
-        // without applying node transforms reported a fitted couch as half a metre tall and
+        // without applying node transforms reported a fitted couch as half a meter tall and
         // stood it floating, lifted once by its own wrapper and once again by the bench.
         let kept = bounds_of(&out).expect("a kept model measures");
         assert!(
             (kept.tall() - 0.5).abs() < 1e-4,
-            "kept at half a metre, measures {:.4}",
+            "kept at half a meter, measures {:.4}",
             kept.tall()
         );
         assert!(

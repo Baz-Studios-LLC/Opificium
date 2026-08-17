@@ -236,7 +236,7 @@ pub(crate) fn copy_and_paste(
             // A CLUSTER GOES INTO THE HAND AS A PIECE, which is the bench's own
             // way of holding several parts at once - a ghost apiece, R to turn the
             // whole of it, escape to drop it, and one click to set it all down. It
-            // is centred on its own middle for the same reason a kept piece is: it
+            // is centered on its own middle for the same reason a kept piece is: it
             // lands where the cursor is rather than where it was drawn.
             *tool = crate::gizmo::ToolMode::Normal;
             *hand = Hand::default();
