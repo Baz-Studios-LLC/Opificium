@@ -3994,3 +3994,118 @@ fn a_wall_holding_a_barn_door_reads_back() {
         }
     }
 }
+
+/// A WALL A MAKER MADE TALLER STAYS TALL through a door going in and coming out.
+///
+/// Brett: "If I place a wall and then make that wall taller and then place a door,
+/// the wall shrinks back down to original height and can't be made to be taller
+/// again."
+///
+/// Four separate places assumed a wall is `WALL_HIGH`, which is only the height
+/// the SHELF hands one out at. Each of them is asked here.
+#[test]
+fn a_taller_wall_keeps_its_height_around_a_door() {
+    for framed in [false, true] {
+        // TOLD ABOUT ITS OPENING, which is what a whole wall gets: the punch adds
+        // the hole to the wall and re-solves rather than cutting it into pieces.
+        let mut openings = [None; MOST_OPENINGS];
+        openings[0] = Some(Hole {
+            what: Opening::Door,
+            at: 0.0,
+            wide: DOOR_WIDE,
+            dark: false,
+            high: DOOR_HIGH,
+            lift: 0,
+        });
+        let wall = PartKind::Wall {
+            long: 6.0,
+            high: 4.0,
+            framed,
+            openings,
+        };
+        let name = part_name(&wall);
+        assert!(
+            kind_from_name(&name) == Some(wall),
+            "{name} does not read back as itself"
+        );
+        // IT REACHES ITS OWN TOP. A wall drawn to the shelf's height while its name
+        // says four meters is the shrink, seen from the inside.
+        let top = body_of(&wall, None)
+            .iter()
+            .map(|piece| piece.at.y + piece.size.y * 0.5)
+            .fold(0.0f32, f32::max);
+        assert!(
+            (top - 4.0).abs() < 1e-3,
+            "a four-meter wall with a door in it stands {top} tall"
+        );
+        // AND IT CAN BE RAISED AGAIN.
+        assert_eq!(crate::gizmo::stands_at(&wall), Some(4.0));
+        assert!(
+            matches!(crate::gizmo::risen(wall, 5.0), Some(PartKind::Wall { high, .. }) if high == 5.0),
+            "a wall with a door in it cannot be raised"
+        );
+    }
+}
+
+/// AND A LEFTOVER OF ONE CAN STILL BE RAISED AND STILL BE PUNCHED.
+///
+/// A wall parted by an older punch is a `Seg`, and a `Seg` wore the length handle
+/// and no height handle at all - so a maker whose wall had been cut could never
+/// make it taller, whatever they did. It was also only punchable at exactly the
+/// shelf's height, so a leftover of a TALL wall would not take a second opening.
+#[test]
+fn a_leftover_of_a_wall_is_still_a_wall() {
+    let tall = PartKind::Seg {
+        long: 3.0,
+        high: 4.0,
+        lift: 0.0,
+    };
+    assert_eq!(
+        crate::gizmo::stands_at(&tall),
+        Some(4.0),
+        "a leftover standing on the floor wears no height handle"
+    );
+    assert!(
+        matches!(crate::gizmo::risen(tall, 5.0), Some(PartKind::Seg { high, lift, .. })
+            if high == 5.0 && lift == 0.0),
+        "pulling a leftover taller does nothing"
+    );
+    // A HEADER is left alone: its height and its lift are one measurement between
+    // them, and pulling on one alone means nothing.
+    let header = PartKind::Seg {
+        long: 1.25,
+        high: 1.5,
+        lift: 2.5,
+    };
+    assert_eq!(
+        crate::gizmo::stands_at(&header),
+        None,
+        "a header over an opening was offered a handle that cannot mean anything"
+    );
+    // AND A TALL LEFTOVER TAKES AN OPENING. Gated on the shelf's own height, only
+    // a two-and-a-half-meter leftover ever could.
+    for high in [2.5, 4.0, 5.5] {
+        let record = Placed {
+            part: part_name(&PartKind::Seg {
+                long: 3.0,
+                high,
+                lift: 0.0,
+            }),
+            at: [0.0, 0.0, 0.0],
+            yaw: 0.0,
+            tilt: 0.0,
+            ramp: None,
+            shade: 0.5,
+            stage: "walls".to_string(),
+            flip: false,
+            group: None,
+            loose: false,
+            material: String::new(),
+        };
+        assert_eq!(
+            punchable_length(&record),
+            Some(3.0),
+            "a {high} m leftover will not take a door"
+        );
+    }
+}

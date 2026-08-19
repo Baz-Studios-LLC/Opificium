@@ -48,10 +48,16 @@ pub(crate) fn heal_wall_at(
     let base = spot;
 
     // Everything standing on this wall's own line, measured along it.
-    let mut doomed: Vec<Entity> = Vec::new();
-    let mut low = -width * 0.5;
-    let mut high = width * 0.5;
-    let mut cloth: Option<Placed> = None;
+    //
+    // GATHERED FIRST, then judged, because what counts as a FULL-height leftover
+    // depends on how tall the wall was - and the only thing that knows that is the
+    // leftovers themselves. It used to be measured against `WALL_HIGH`, so healing
+    // a wall a maker had made taller merged nothing, rebuilt it at two and a half
+    // meters and threw its framing away. Brett: "the wall shrinks back down to
+    // original height and can't be made to be taller again."
+    let mut candidates: Vec<(Entity, f32, f32, f32, f32, Placed)> = Vec::new();
+    // The marks that ride along with the opening rather than being wall at all.
+    let mut riders: Vec<Entity> = Vec::new();
     for (entity, transform, record, showing) in placed {
         // A wall the cutaway has taken away holds nothing up and
         // catches nothing: what you cannot see, you cannot build on.
@@ -73,7 +79,7 @@ pub(crate) fn heal_wall_at(
         if matches!(kind_from_name(&record.part), Some(PartKind::Widget("door")))
             && reach.abs() < 0.2
         {
-            doomed.push(entity);
+            riders.push(entity);
             continue;
         }
         let Some(kind) = kind_from_name(&record.part) else {
@@ -83,13 +89,37 @@ pub(crate) fn heal_wall_at(
         if facing.dot(along).abs() < 0.99 {
             continue;
         }
-        let (long, full) = match kind {
-            PartKind::Wall { long, .. } => (long, true),
-            PartKind::Seg { long, high, lift } => {
-                (long, lift.abs() < 0.01 && (high - WALL_HIGH).abs() < 0.05)
-            }
+        // How long it is, how tall it stands, and how far off the floor it starts.
+        // A whole wall is its own height off the ground; a leftover says both.
+        let (long, tall, lift) = match kind {
+            PartKind::Wall { long, high, .. } => (long, high, 0.0),
+            PartKind::Seg { long, high, lift } => (long, high, lift),
             _ => continue,
         };
+        candidates.push((entity, reach, long, tall, lift, record.clone()));
+    }
+
+    // HOW TALL THE WALL WAS: the highest any leftover reaches. A side piece and a
+    // header both reach the top, so the top is what they agree on.
+    let was_tall = candidates
+        .iter()
+        .map(|(_, _, _, tall, lift, _)| tall + lift)
+        .fold(0.0f32, f32::max)
+        .max(WALL_HIGH);
+
+    let mut doomed: Vec<Entity> = riders;
+    let mut low = -width * 0.5;
+    let mut high = width * 0.5;
+    let mut cloth: Option<Placed> = None;
+    // WAS IT FRAMED? Asked of every piece rather than of whichever happened to be
+    // read last: `cloth` is only about the paint, and a run of leftovers can
+    // disagree. One framed piece means the wall was framed.
+    let mut was_framed = false;
+    for (entity, reach, long, tall, lift, record) in &candidates {
+        // FULL HEIGHT means standing on the floor and reaching the top. A header
+        // reaches the top but starts above the opening; an apron stands on the
+        // floor but stops under a sill. Only a side piece does both.
+        let full = lift.abs() < 0.01 && (tall + lift) >= was_tall - 0.05;
         let (piece_low, piece_high) = (reach - long * 0.5, reach + long * 0.5);
         let fills_opening = reach.abs() < 0.1 && !full;
         let touches_left = (piece_high - low).abs() < 0.1 && full;
@@ -97,16 +127,29 @@ pub(crate) fn heal_wall_at(
         if !(fills_opening || touches_left || touches_right) {
             continue;
         }
-        doomed.push(entity);
+        doomed.push(*entity);
         low = low.min(piece_low);
         high = high.max(piece_high);
+        was_framed |= matches!(
+            kind_from_name(&record.part),
+            Some(PartKind::Wall { framed: true, .. })
+        );
         if full {
             cloth = Some(record.clone());
         }
     }
 
     let dressed = cloth.unwrap_or_else(|| frame_record.clone());
-    let made = PartKind::wall(((high - low) * 16.0).round() / 16.0);
+    // THE WALL IT WAS, closed up: its own height and its own framing, not the
+    // shelf's. A healed wall used to come back two and a half meters tall and
+    // plain however it was drawn, which is a maker's work undone by taking a door
+    // out of it.
+    let made = PartKind::Wall {
+        long: ((high - low) * 16.0).round() / 16.0,
+        high: was_tall,
+        framed: was_framed,
+        openings: [None; MOST_OPENINGS],
+    };
     let center = base + along * ((low + high) * 0.5);
     let whole = Placed {
         part: part_name(&made),
@@ -373,11 +416,10 @@ pub(crate) fn punchable_length(record: &Placed) -> Option<f32> {
         // to take one. Being punchable is what lets a window's ghost seat
         // itself along the wall as you aim, which is the same arithmetic
         // whether the wall is going to be parted or is going to reframe itself.
-        PartKind::Seg { long, high, lift }
-            if lift.abs() < 0.01 && (high - WALL_HIGH).abs() < 0.05 =>
-        {
-            Some(long)
-        }
+        // ANY height, so long as it stands on the floor: a leftover from a wall a
+        // maker made taller is still a wall to punch. Gated on `WALL_HIGH` it was
+        // only ever the shelf's own height that could take a second opening.
+        PartKind::Seg { long, lift, .. } if lift.abs() < 0.01 => Some(long),
         _ => None,
     }
 }
@@ -600,13 +642,22 @@ pub(crate) fn punch_wall(
         base + along * offset
     };
 
+    // HOW TALL THE THING BEING PARTED IS. Only a leftover reaches here - a whole
+    // wall is told about its opening above and keeps everything - and a leftover
+    // from a wall a maker made taller is not two and a half meters. Written as
+    // `WALL_HIGH` it cut every leftover back to the shelf's own height.
+    let stands = match kind_from_name(&record.part) {
+        Some(PartKind::Seg { high, .. }) => high,
+        Some(PartKind::Wall { high, .. }) => high,
+        _ => WALL_HIGH,
+    };
     let mut leavings: Vec<(PartKind, Vec3)> = Vec::new();
     let left = middle - wide * 0.5 + half;
     if left > 0.06 {
         leavings.push((
             PartKind::Seg {
                 long: left,
-                high: WALL_HIGH,
+                high: stands,
                 lift: 0.0,
             },
             center_of(-half + left * 0.5),
@@ -617,17 +668,17 @@ pub(crate) fn punch_wall(
         leavings.push((
             PartKind::Seg {
                 long: right,
-                high: WALL_HIGH,
+                high: stands,
                 lift: 0.0,
             },
             center_of(half - right * 0.5),
         ));
     }
-    if WALL_HIGH - head > 0.06 {
+    if stands - head > 0.06 {
         leavings.push((
             PartKind::Seg {
                 long: wide,
-                high: WALL_HIGH - head,
+                high: stands - head,
                 lift: head,
             },
             center_of(middle),

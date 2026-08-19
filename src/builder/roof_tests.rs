@@ -3138,3 +3138,143 @@ fn a_held_cluster_keeps_r_to_itself() {
         "a hand holding a whole cluster reads as empty, so R turns the work behind it"
     );
 }
+
+/// TAKING A DOOR OUT OF A TALL WALL LEAVES A TALL WALL, and a framed one framed.
+///
+/// The one that actually loses a maker's work. Healing merged the pieces a punch
+/// left and rebuilt them as `PartKind::wall(long)` - the shelf's own height, with
+/// no framing - so a wall a maker had raised to four meters and framed came back
+/// two and a half and plain the moment the door was picked up, moved, or deleted.
+/// Brett: "the wall shrinks back down to original height."
+#[test]
+fn healing_a_tall_wall_leaves_it_tall() {
+    use bevy::asset::AssetPlugin;
+    for framed in [false, true] {
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, AssetPlugin::default()));
+        app.init_asset::<Mesh>().init_asset::<StandardMaterial>();
+        app.insert_resource(crate::look::load_palette_for_bake());
+
+        // The pieces an older punch left in a FOUR-METER wall: a side either
+        // side of the doorway, and a header over it.
+        let stand = |part: String, x: f32| {
+            (
+                Placed {
+                    part,
+                    at: [x, 0.0, 0.0],
+                    yaw: 0.0,
+                    tilt: 0.0,
+                    ramp: None,
+                    shade: 0.5,
+                    stage: "walls".to_string(),
+                    flip: false,
+                    group: None,
+                    loose: false,
+                    material: String::new(),
+                },
+                Transform::from_xyz(x, 0.0, 0.0),
+                // The heal only counts what can be SEEN, so a test bench with no
+                // render plugins has to say so itself.
+                Visibility::Visible,
+            )
+        };
+        let side = |long: f32| {
+            part_name(&PartKind::Seg {
+                long,
+                high: 4.0,
+                lift: 0.0,
+            })
+        };
+        // A framed leftover is spelled as a framed WALL, which is what a framed
+        // wall parted by hand leaves behind.
+        let left = if framed {
+            part_name(&PartKind::Wall {
+                long: 2.375,
+                high: 4.0,
+                framed: true,
+                openings: [None; MOST_OPENINGS],
+            })
+        } else {
+            side(2.375)
+        };
+        for (record, transform, seen) in [
+            stand(left, -1.8125),
+            stand(side(2.375), 1.8125),
+            stand(
+                part_name(&PartKind::Seg {
+                    long: 1.25,
+                    high: 4.0 - 2.125,
+                    lift: 2.125,
+                }),
+                0.0,
+            ),
+        ] {
+            app.world_mut().spawn((record, transform, seen));
+        }
+        let door = app
+            .world_mut()
+            .spawn(stand(
+                part_name(&PartKind::Door {
+                    double: false,
+                    leaf: Leaf::Plain,
+                }),
+                0.0,
+            ))
+            .id();
+
+        // HEAL IT, the way picking the door up does.
+        #[derive(Resource, Default)]
+        struct Closed(bool);
+        app.init_resource::<Closed>();
+        app.add_systems(
+            Update,
+            move |mut commands: Commands,
+                  mut meshes: ResMut<Assets<Mesh>>,
+                  mut materials: ResMut<Assets<StandardMaterial>>,
+                  palette: Res<Palette>,
+                  mut closed: ResMut<Closed>,
+                  placed: Query<(Entity, &Transform, &Placed, &Visibility), Without<Ghost>>| {
+                if closed.0 {
+                    return;
+                }
+                closed.0 = heal_wall(
+                    &mut commands,
+                    &mut meshes,
+                    &mut materials,
+                    &palette,
+                    &placed,
+                    door,
+                );
+            },
+        );
+        app.update();
+        assert!(
+            app.world().resource::<Closed>().0,
+            "the wall did not close up at all"
+        );
+
+        // WHAT IS LEFT STANDING: one wall, its own height, its own framing.
+        let mut walls: Vec<PartKind> = app
+            .world_mut()
+            .query::<&Placed>()
+            .iter(app.world())
+            .filter_map(|record| kind_from_name(&record.part))
+            .filter(|kind| matches!(kind, PartKind::Wall { .. }))
+            .collect();
+        walls.retain(|kind| !matches!(kind, PartKind::Wall { long, .. } if *long < 0.1));
+        assert_eq!(walls.len(), 1, "the wall did not close into one piece");
+        let PartKind::Wall {
+            high,
+            framed: wears,
+            ..
+        } = walls[0]
+        else {
+            panic!("what closed up is not a wall")
+        };
+        assert!(
+            (high - 4.0).abs() < 1e-3,
+            "a four-meter wall healed to {high} m"
+        );
+        assert_eq!(wears, framed, "the wall lost its framing when it healed");
+    }
+}

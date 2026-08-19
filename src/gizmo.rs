@@ -357,6 +357,9 @@ pub(crate) fn risen(kind: PartKind, high: f32) -> Option<PartKind> {
             deep,
             high,
         }),
+        PartKind::Seg { long, lift, .. } if lift.abs() < 0.01 => {
+            Some(PartKind::Seg { long, high, lift })
+        }
         PartKind::Foundation(w, d, _) => Some(PartKind::Foundation(w, d, high)),
         // ANY wall, framed or not: every wall has a height.
         PartKind::Wall {
@@ -390,6 +393,13 @@ pub(crate) fn stands_at(kind: &PartKind) -> Option<f32> {
         // HOW HIGH A STACK MAY GROW, on the same gold handle a pad rises by -
         // which is what it is: a volume standing on its own foot.
         PartKind::Area { high, .. } => Some(*high),
+        // A LEFTOVER OF A WALL wears it too, so long as it stands on the floor. A
+        // wall parted by a punch becomes these, and they had no height handle at
+        // all - so a maker whose wall had been cut could never raise it again.
+        // Brett: "can't be made to be taller again." A header hanging over an
+        // opening is left alone: its height and its lift are one measurement
+        // between them, and pulling on one of them alone means nothing.
+        PartKind::Seg { high, lift, .. } if lift.abs() < 0.01 => Some(*high),
         _ => None,
     }
 }
